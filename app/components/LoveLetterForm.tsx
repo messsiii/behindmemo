@@ -279,8 +279,8 @@ export default function LoveLetterForm() {
             quality: 0.9,
           })
           
-          // 修复类型错误
-          const convertedBlob = blob instanceof Blob ? blob : new Blob([blob], { type: 'image/jpeg' })
+          // 修复类型错误：处理 blob 可能是数组的情况
+          const convertedBlob = Array.isArray(blob) ? blob[0] : blob
           processedFile = new File([convertedBlob], file.name.replace(/\.heic$/i, ".jpg"), {
             type: "image/jpeg",
           })
