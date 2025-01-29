@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         url: blob.url,
         metadata: {
           size: optimizedBuffer.length,
-          type: "image/jpeg",  // 统一转换为 JPEG
+          type: "image/jpeg",
           name: file.name,
           width: imageInfo.width,
           height: imageInfo.height,
@@ -63,17 +63,23 @@ export async function POST(request: Request): Promise<NextResponse> {
           compressionRatio: (file.size / optimizedBuffer.length).toFixed(2)
         }
       })
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error uploading to Vercel Blob:", error)
       return NextResponse.json(
-        { error: "Failed to upload image to storage", details: error.message }, 
+        { 
+          error: "Failed to upload image to storage", 
+          details: error instanceof Error ? error.message : String(error)
+        },
         { status: 500 }
       )
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Detailed error in upload API:", error)
     return NextResponse.json(
-      { error: "An unexpected error occurred", details: error.message },
+      { 
+        error: "An unexpected error occurred", 
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     )
   }
