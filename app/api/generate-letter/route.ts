@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const runtime = "nodejs"
-export const maxDuration = 300 // 设置最大执行时间为 300 秒
-export const dynamic = 'force-dynamic'
+export const runtime = "edge"
 
 export async function POST(request: Request) {
   try {
