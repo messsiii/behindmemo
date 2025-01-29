@@ -278,7 +278,10 @@ export default function LoveLetterForm() {
             toType: "image/jpeg",
             quality: 0.9,
           })
-          processedFile = new File([blob], file.name.replace(/\.heic$/i, ".jpg"), {
+          
+          // 修复类型错误
+          const convertedBlob = blob instanceof Blob ? blob : new Blob([blob], { type: 'image/jpeg' })
+          processedFile = new File([convertedBlob], file.name.replace(/\.heic$/i, ".jpg"), {
             type: "image/jpeg",
           })
         } catch (error: unknown) {
