@@ -179,16 +179,16 @@ export default function LoveLetterForm() {
                   error_message: data.error_message
                 })
               }
-            } catch (error) {
+            } catch (error: unknown) {
               console.error('Geocoding error:', {
-                message: error.message,
-                stack: error.stack
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : 'No stack trace'
               })
             }
           }
         }
-      } catch (error) {
-        console.warn('EXIF/GPS data extraction error:', error)
+      } catch (error: unknown) {
+        console.warn('EXIF/GPS data extraction error:', error instanceof Error ? error.message : String(error))
       }
 
       img.onload = () => {
@@ -264,8 +264,8 @@ export default function LoveLetterForm() {
             // })
           }
         }
-      } catch (error) {
-        console.warn('Failed to process GPS data:', error) // 保留错误日志
+      } catch (error: unknown) {
+        console.warn('Failed to process GPS data:', error instanceof Error ? error.message : String(error)) // 保留错误日志
       }
 
       // 处理 HEIC 转换
@@ -281,8 +281,8 @@ export default function LoveLetterForm() {
           processedFile = new File([blob], file.name.replace(/\.heic$/i, ".jpg"), {
             type: "image/jpeg",
           })
-        } catch (error) {
-          console.error("Error converting HEIC:", error)
+        } catch (error: unknown) {
+          console.error("Error converting HEIC:", error instanceof Error ? error.message : String(error))
           throw new Error("Failed to convert HEIC image")
         }
       }
@@ -326,8 +326,8 @@ export default function LoveLetterForm() {
             }
           }
         }
-      } catch (error) {
-        console.error('Upload error:', error)
+      } catch (error: unknown) {
+        console.error('Upload error:', error instanceof Error ? error.message : String(error))
         throw error
       }
     },
@@ -402,8 +402,8 @@ export default function LoveLetterForm() {
         )
 
         router.push("/result")
-      } catch (error) {
-        console.error("Error in form submission:", error) // 保留错误日志
+      } catch (error: unknown) {
+        console.error("Error in form submission:", error instanceof Error ? error.message : String(error)) // 保留错误日志
         triggerShake()
       } finally {
         setIsSubmitting(false)
