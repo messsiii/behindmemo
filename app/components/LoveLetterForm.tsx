@@ -375,40 +375,64 @@ export default function LoveLetterForm() {
         //   }
         // })
 
-        const response = await fetch("/api/generate-letter", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            loverName,
-            story,
-            blobUrl,
-            metadata: metadataForPrompt,
-          }),
-        })
+        let retryCount = 0
+        const maxRetries = 3
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error("Server response:", errorText)
-          throw new Error(`Server error: ${response.status} ${response.statusText}\n${errorText}`)
+        while (retryCount < maxRetries) {
+          try {
+            const response = await fetch("/api/generate-letter", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name,
+                loverName,
+                story,
+                blobUrl,
+                metadata: metadataForPrompt,
+              }),
+            })
+
+            if (response.status === 504) {
+              retryCount++
+              if (retryCount < maxRetries) {
+                console.log(`Attempt ${retryCount + 1} of ${maxRetries}...`)
+                continue
+              }
+              throw new Error("Generation timed out after multiple attempts")
+            }
+
+            if (!response.ok) {
+              const errorText = await response.text()
+              console.error("Server response:", errorText)
+              throw new Error(`Server error: ${response.status} ${response.statusText}\n${errorText}`)
+            }
+
+            const result = await response.json()
+
+            if (!result.success) {
+              throw new Error(result.error || "Failed to generate love letter")
+            }
+
+            localStorage.setItem(
+              "loveLetterData",
+              JSON.stringify({
+                ...result,
+                blobUrl,
+                timestamp: Date.now(),
+              }),
+            )
+
+            router.push("/result")
+            break
+          } catch (error: unknown) {
+            if (retryCount < maxRetries - 1) {
+              retryCount++
+              console.log(`Retrying... Attempt ${retryCount + 1} of ${maxRetries}`)
+              continue
+            }
+            throw error
+          }
         }
-
-        const result = await response.json()
-
-        if (!result.success) {
-          throw new Error(result.error || "Failed to generate love letter")
-        }
-
-        localStorage.setItem(
-          "loveLetterData",
-          JSON.stringify({
-            ...result,
-            blobUrl,
-            timestamp: Date.now(),
-          }),
-        )
-
-        router.push("/result")
       } catch (error: unknown) {
         console.error("Error in form submission:", error instanceof Error ? error.message : String(error)) // 保留错误日志
         triggerShake()

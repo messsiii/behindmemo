@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
+export const maxDuration = 300 // 设置最大执行时间为 300 秒
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
@@ -20,9 +22,8 @@ export async function POST(request: Request) {
       "Authorization": `Bearer ${process.env.MINIMAX_API_KEY}`,
     }
 
-    // 添加超时控制
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 280000) // 280 秒后中止，留出一些缓冲时间
 
     const metadataObj = typeof metadata === 'string' ? JSON.parse(metadata) : metadata
 
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
     } catch (error: unknown) {
       if (error instanceof Error && error.name === "AbortError") {
         return NextResponse.json(
-          { success: false, error: "Request timed out after 25 seconds" }, 
+          { success: false, error: "Generation process timed out. Please try again." },
           { status: 504 }
         )
       }
