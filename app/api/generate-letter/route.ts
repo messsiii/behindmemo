@@ -117,9 +117,12 @@ export async function POST(request: Request) {
         metadata: metadataObj
       })
 
-    } catch (error) {
-      if (error.name === "AbortError") {
-        return NextResponse.json({ success: false, error: "Request timed out after 25 seconds" }, { status: 504 })
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return NextResponse.json(
+          { success: false, error: "Request timed out after 25 seconds" }, 
+          { status: 504 }
+        )
       }
       throw error
     }
