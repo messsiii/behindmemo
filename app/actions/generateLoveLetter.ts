@@ -6,19 +6,23 @@ interface FormData {
   name: string
   loverName: string
   story: string
-  photo: string
+  photo: File | string
 }
 
-export async function generateLoveLetter(formData: FormData) {
+export async function generateLoveLetter(data: FormData): Promise<{
+  success: boolean;
+  id?: string;
+  error?: string;
+}> {
   console.log("generateLoveLetter action started")
   console.log("generateLoveLetter called with formData:", {
-    name: formData.name,
-    loverName: formData.loverName,
-    story: formData.story.substring(0, 50) + "...",
-    photoUrl: formData.photo,
+    name: data.name,
+    loverName: data.loverName,
+    story: data.story.substring(0, 50) + "...",
+    photoUrl: data.photo,
   })
   try {
-    const { name, loverName, story, photo } = formData
+    const { name, loverName, story, photo } = data
 
     if (!name || !loverName || !story || !photo) {
       console.error("缺少必填字段:", { name, loverName, story, hasPhoto: !!photo })

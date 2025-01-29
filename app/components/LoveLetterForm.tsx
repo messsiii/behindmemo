@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import exifr from 'exifr'
 
+// 定义表单字段类型
+type FormField = 'name' | 'loverName' | 'story' | 'photo'
+
 interface FormData {
   name: string;
   loverName: string;
@@ -20,27 +23,27 @@ const questions = [
   { 
     id: 1, 
     question: "What's your name?", 
-    field: "name", 
+    field: 'name' as FormField,  // 添加类型断言
     type: "text",
     placeholder: "Enter your name..."
   },
   { 
     id: 2, 
     question: "Share a photo of your special moment", 
-    field: "photo", 
+    field: 'photo' as FormField, 
     type: "file" 
   },
   { 
     id: 3, 
     question: "What's your lover's name?", 
-    field: "loverName", 
+    field: 'loverName' as FormField,
     type: "text",
     placeholder: "Enter your lover's name..."
   },
   { 
     id: 4, 
     question: "Tell us your love story", 
-    field: "story", 
+    field: 'story' as FormField,
     type: "textarea",
     placeholder: "Share your beautiful moments together, how you met, or what makes your love special..."
   },
@@ -86,7 +89,7 @@ export default function LoveLetterForm() {
     if (debounceRef.current) return
     if (currentStep < questions.length - 1) {
       const currentField = questions[currentStep].field
-      if (formData[currentField]) {
+      if (formData[currentField]) {  // 现在 TypeScript 知道这是一个有效的键
         debounceRef.current = true
         setTimeout(() => {
           debounceRef.current = false
@@ -108,12 +111,6 @@ export default function LoveLetterForm() {
       setCurrentStep((prev) => prev - 1)
     }
   }, [currentStep])
-
-  const convertDMSToDD = (degrees: number, minutes: number, seconds: number, direction: string) => {
-    let dd = degrees + minutes/60 + seconds/3600
-    if (direction === 'S' || direction === 'W') dd = -dd
-    return dd
-  }
 
   const getImageMetadata = async (file: File): Promise<any> => {
     return new Promise(async (resolve) => {
@@ -476,7 +473,11 @@ export default function LoveLetterForm() {
                 {currentQuestion.type === "textarea" ? (
                   <Textarea
                     name={currentQuestion.field}
-                    value={formData[currentQuestion.field] || ""}
+                    value={
+                      typeof formData[currentQuestion.field] === 'string' 
+                        ? formData[currentQuestion.field] as string 
+                        : ''
+                    }
                     onChange={handleInputChange}
                     className="text-lg border-0 border-b-2 rounded-none bg-transparent focus:ring-0 resize-none min-h-[100px] [&:not(:focus)]:hover:border-b-2"
                     placeholder={currentQuestion.placeholder}
@@ -501,14 +502,20 @@ export default function LoveLetterForm() {
                       Choose File
                     </label>
                     <span className="ml-3 text-sm text-gray-500">
-                      {formData[currentQuestion.field]?.name || "No file chosen"}
+                      {formData[currentQuestion.field] instanceof File 
+                        ? (formData[currentQuestion.field] as File).name 
+                        : "No file chosen"}
                     </span>
                   </div>
                 ) : (
                   <Input
                     type={currentQuestion.type}
                     name={currentQuestion.field}
-                    value={formData[currentQuestion.field] || ""}
+                    value={
+                      typeof formData[currentQuestion.field] === 'string'
+                        ? formData[currentQuestion.field] as string
+                        : ''
+                    }
                     onChange={handleInputChange}
                     className="text-lg border-0 border-b-2 rounded-none bg-transparent focus:ring-0 focus:border-primary [&:not(:focus)]:hover:border-b-2"
                     placeholder={currentQuestion.placeholder}

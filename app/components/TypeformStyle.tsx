@@ -15,7 +15,8 @@ const questions = [
   { id: 4, question: "Tell us your love story", field: "story", type: "textarea" },
 ] as const
 
-interface FormData {
+// 重命名我们的接口以避免冲突
+interface LoveLetterFormData {
   name: string;
   loverName: string;
   story: string;
@@ -48,7 +49,8 @@ const ProgressIndicator = memo(function ProgressIndicator({
 
 export default function TypeformStyle() {
   const [currentStep, setCurrentStep] = useState(0)
-  const [formData, setFormData] = useState<Partial<FormData>>({})
+  // 更新状态类型
+  const [formData, setFormData] = useState<Partial<LoveLetterFormData>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
@@ -57,9 +59,12 @@ export default function TypeformStyle() {
     const newValue = files ? files[0] : value
 
     setFormData((prev) => {
-      // Only update if the value has changed
-      if (prev[name] === newValue) return prev
-      return { ...prev, [name]: newValue }
+      // 使用类型断言确保 name 是 FormData 的键
+      const key = name as keyof LoveLetterFormData
+      // 检查值是否改变
+      if (prev[key] === newValue) return prev
+      // 返回更新后的状态
+      return { ...prev, [key]: newValue }
     })
   }, [])
 
@@ -89,19 +94,17 @@ export default function TypeformStyle() {
 
       setIsSubmitting(true)
       try {
-        // 确保所有必需的字段都存在
         if (!formData.name || !formData.loverName || !formData.story || !formData.photo) {
           throw new Error("Please fill in all required fields")
         }
 
-        const data = new FormData()
-        // 显式添加每个字段
-        data.append('name', formData.name)
-        data.append('loverName', formData.loverName)
-        data.append('story', formData.story)
-        data.append('photo', formData.photo)
-
-        const result = await generateLoveLetter(data)
+        // 直接传递我们的表单数据，而不是创建 FormData 实例
+        const result = await generateLoveLetter({
+          name: formData.name,
+          loverName: formData.loverName,
+          story: formData.story,
+          photo: formData.photo
+        })
 
         if (result.success) {
           router.push(`/result/${result.id}`)
