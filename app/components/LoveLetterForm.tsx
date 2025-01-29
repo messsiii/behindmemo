@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import exifr from 'exifr'
 
+interface FormData {
+  name: string;
+  loverName: string;
+  story: string;
+  photo: File;
+}
+
 const questions = [
   { 
     id: 1, 
@@ -41,7 +48,7 @@ const questions = [
 
 export default function LoveLetterForm() {
   const [currentStep, setCurrentStep] = useState(0)
-  const [formData, setFormData] = useState<Record<string, any>>({})
+  const [formData, setFormData] = useState<Partial<FormData>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)

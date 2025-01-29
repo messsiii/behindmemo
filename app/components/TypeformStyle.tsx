@@ -15,6 +15,13 @@ const questions = [
   { id: 4, question: "Tell us your love story", field: "story", type: "textarea" },
 ] as const
 
+interface FormData {
+  name: string;
+  loverName: string;
+  story: string;
+  photo: File;
+}
+
 // Memoize the progress indicator to prevent unnecessary re-renders
 const ProgressIndicator = memo(function ProgressIndicator({
   currentStep,
@@ -41,7 +48,7 @@ const ProgressIndicator = memo(function ProgressIndicator({
 
 export default function TypeformStyle() {
   const [currentStep, setCurrentStep] = useState(0)
-  const [formData, setFormData] = useState<Record<string, any>>({})
+  const [formData, setFormData] = useState<Partial<FormData>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
@@ -82,10 +89,17 @@ export default function TypeformStyle() {
 
       setIsSubmitting(true)
       try {
+        // 确保所有必需的字段都存在
+        if (!formData.name || !formData.loverName || !formData.story || !formData.photo) {
+          throw new Error("Please fill in all required fields")
+        }
+
         const data = new FormData()
-        Object.entries(formData).forEach(([key, value]) => {
-          if (value) data.append(key, value)
-        })
+        // 显式添加每个字段
+        data.append('name', formData.name)
+        data.append('loverName', formData.loverName)
+        data.append('story', formData.story)
+        data.append('photo', formData.photo)
 
         const result = await generateLoveLetter(data)
 
