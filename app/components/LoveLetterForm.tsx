@@ -19,6 +19,27 @@ interface FormData {
   photo: File;
 }
 
+/* 保留以下接口用于未来功能扩展 */
+// @ts-expect-error - 将来会使用
+interface _ExifData {
+  latitude?: number;
+  longitude?: number;
+  GPSLatitude?: number;
+  GPSLongitude?: number;
+  // ... 其他可能的 EXIF 数据字段
+}
+
+// @ts-expect-error - 将来会使用
+interface _LocationInfo {
+  formatted_address: string;
+  components: {
+    country?: string;
+    state?: string;
+    city?: string;
+    district?: string;
+  };
+}
+
 const questions = [
   { 
     id: 1, 
@@ -112,7 +133,7 @@ export default function LoveLetterForm() {
     }
   }, [currentStep])
 
-  const getImageMetadata = async (file: File): Promise<any> => {
+  const handleExifData = async (file: File): Promise<Record<string, unknown>> => {
     return new Promise(async (resolve) => {
       const img = new Image()
       
@@ -159,7 +180,10 @@ export default function LoveLetterForm() {
                 const result = data.results[0]
                 const locationInfo = {
                   formatted_address: result.formatted_address,
-                  components: result.address_components.reduce((acc: any, component: any) => {
+                  components: result.address_components.reduce((acc: Record<string, string>, component: { 
+                    types: string[];
+                    long_name: string;
+                  }) => {
                     if (component.types.includes('country')) acc.country = component.long_name
                     if (component.types.includes('administrative_area_level_1')) acc.state = component.long_name
                     if (component.types.includes('locality')) acc.city = component.long_name
@@ -295,7 +319,7 @@ export default function LoveLetterForm() {
       }
 
       // 获取其他元数据，并合并 GPS 数据
-      const imageMetadata = await getImageMetadata(processedFile)
+      const imageMetadata = await handleExifData(processedFile)
       if (originalGpsData) {
         imageMetadata.gps = {
           ...originalGpsData.coordinates,

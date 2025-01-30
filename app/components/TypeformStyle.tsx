@@ -111,8 +111,9 @@ export default function TypeformStyle() {
         } else {
           throw new Error("Failed to generate love letter")
         }
-      } catch (error) {
-        alert("An error occurred. Please try again.")
+      } catch {
+        // 忽略错误
+      } finally {
         setIsSubmitting(false)
       }
     },

@@ -8,41 +8,115 @@ import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 
+// 定义 metadata 类型
+interface Metadata {
+  location?: string;
+  exif?: Record<string, unknown>;
+  // ... 其他可能的元数据字段
+}
+
 interface LoveLetterData {
-  letter: string
-  blobUrl: string
-  name: string
-  loverName: string
-  timestamp: number
-  metadata: Record<string, unknown>
-  isGenerating: boolean
-  partialLetter?: string
+  letter: string;
+  blobUrl: string;
+  name: string;
+  loverName: string;
+  timestamp: number;
+  metadata: Metadata;  // 使用具体类型替代 any
+  isGenerating: boolean;
+  partialLetter?: string;
 }
 
 export default function ResultContent() {
   const [letterData, setLetterData] = useState<LoveLetterData | null>(null)
+  const [isGenerating, setIsGenerating] = useState(true)
+  const [currentText, setCurrentText] = useState('')
+  const [isTextComplete, setIsTextComplete] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
-  const [currentText, setCurrentText] = useState('')
-  const [isGenerating, setIsGenerating] = useState(true)
+  const [_requestId, _setRequestId] = useState<string>('')  // 用于追踪请求状态
   const abortController = useRef<AbortController>()
+  const lastTextRef = useRef('')
+  const bufferRef = useRef('')
   const router = useRouter()
 
-  // 直接显示文本，同时保存到 localStorage
-  const appendText = useCallback((text: string) => {
-    setCurrentText(prev => {
-      const newText = prev + text
-      // 保存生成过程中的文本
-      const storedData = localStorage.getItem("loveLetterData")
-      if (storedData) {
-        const data = JSON.parse(storedData)
-        localStorage.setItem("loveLetterData", JSON.stringify({
-          ...data,
-          partialLetter: newText // 保存部分生成的内容
-        }))
+  // 先定义 handleError
+  const handleError = useCallback(() => {
+    setIsGenerating(false)
+    localStorage.removeItem("letterRequest")
+  }, [])
+
+  // 然后再定义依赖 handleError 的函数
+  const finishGeneration = useCallback((data: LoveLetterData) => {
+    try {
+      if (bufferRef.current) {
+        setCurrentText(prev => {
+          const newText = prev + (prev ? '\n' : '') + bufferRef.current
+          lastTextRef.current = newText
+          bufferRef.current = ''
+          return newText
+        })
       }
-      return newText
-    })
+
+      setTimeout(() => {
+        setIsGenerating(false)
+        setIsTextComplete(true)
+        
+        try {
+          const updatedData = { 
+            ...data, 
+            letter: lastTextRef.current,
+            isGenerating: false,
+            partialLetter: undefined
+          }
+          localStorage.setItem("loveLetterData", JSON.stringify(updatedData))
+          localStorage.removeItem("letterRequest")
+          setLetterData(updatedData)
+        } catch (e) {
+          console.error('Error updating final data:', e)
+        }
+      }, 500)
+    } catch (e) {
+      console.error('Error in finishGeneration:', e)
+      handleError()
+    }
+  }, [handleError])
+
+  // 修改文本处理逻辑
+  const appendText = useCallback((text: string) => {
+    try {
+      bufferRef.current += text
+      
+      // 检查是否有完整的行
+      if (bufferRef.current.includes('\n')) {
+        const lines = bufferRef.current.split('\n')
+        bufferRef.current = lines.pop() || ''
+        
+        const completeLines = lines.join('\n')
+        if (completeLines) {
+          setCurrentText(prev => {
+            const newText = prev + (prev ? '\n' : '') + completeLines
+            lastTextRef.current = newText
+            
+            // 保存到 localStorage
+            const storedData = localStorage.getItem("loveLetterData")
+            if (storedData) {
+              try {
+                const data = JSON.parse(storedData)
+                localStorage.setItem("loveLetterData", JSON.stringify({
+                  ...data,
+                  partialLetter: newText
+                }))
+              } catch (e) {
+                console.error('Error updating localStorage:', e)
+              }
+            }
+            return newText
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Error in appendText:', e)
+    }
   }, [])
 
   useEffect(() => {
@@ -54,15 +128,18 @@ export default function ResultContent() {
 
     const data = JSON.parse(storedData)
     setLetterData(data)
+    setIsGenerating(true)
+    setIsTextComplete(false)
 
-    // 检查是否已经有完整的生成内容
     if (data.letter) {
       setCurrentText(data.letter)
-      setIsGenerating(false)
+      setTimeout(() => {
+        setIsGenerating(false)
+        setIsTextComplete(true)
+      }, 1000)
       return
     }
 
-    // 检查是否有部分生成的内容
     if (data.partialLetter) {
       setCurrentText(data.partialLetter)
     }
@@ -70,9 +147,10 @@ export default function ResultContent() {
     // 检查是否有正在进行的请求
     const storedRequest = localStorage.getItem("letterRequest")
     if (storedRequest) {
-      const { timestamp } = JSON.parse(storedRequest)
+      const { id, timestamp } = JSON.parse(storedRequest)
       // 如果请求时间超过5分钟，认为是失效的请求
       if (Date.now() - timestamp < 5 * 60 * 1000) {
+        _setRequestId(id)
         return // 已有正在进行的请求，不再发起新请求
       } else {
         // 清除过期的请求记录
@@ -82,6 +160,14 @@ export default function ResultContent() {
 
     // 只有在需要生成且没有正在进行的请求时才发起新请求
     if (data.isGenerating && !storedRequest) {
+      const newRequestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      _setRequestId(newRequestId)
+
+      localStorage.setItem("letterRequest", JSON.stringify({
+        id: newRequestId,
+        timestamp: Date.now()
+      }))
+
       const generateLetter = async () => {
         try {
           abortController.current = new AbortController()
@@ -89,7 +175,8 @@ export default function ResultContent() {
           const response = await fetch('/api/generate-letter', {
             method: 'POST',
             headers: { 
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'X-Request-Id': newRequestId
             },
             body: JSON.stringify({
               name: data.name,
@@ -108,22 +195,14 @@ export default function ResultContent() {
 
           while (reader) {
             const { done, value } = await reader.read()
-            if (done) break
+            if (done) {
+              finishGeneration(data)  // 使用新的完成函数
+              break
+            }
             
             const text = decoder.decode(value, { stream: true })
             appendText(text)
           }
-
-          // 完成后更新状态
-          setIsGenerating(false)
-          const updatedData = { 
-            ...data, 
-            letter: currentText, // 保存完整的信件
-            isGenerating: false,
-            partialLetter: undefined // 清除部分生成的内容
-          }
-          localStorage.setItem("loveLetterData", JSON.stringify(updatedData))
-          setLetterData(updatedData)
         } catch (error: unknown) {
           if (error instanceof Error && error.name === 'AbortError') {
             console.log('Request was aborted')
@@ -131,6 +210,7 @@ export default function ResultContent() {
             console.error('Error generating letter:', error)
           }
           setIsGenerating(false)
+          localStorage.removeItem("letterRequest")
         }
       }
 
@@ -140,9 +220,10 @@ export default function ResultContent() {
     return () => {
       if (abortController.current) {
         abortController.current.abort()
+        localStorage.removeItem("letterRequest")
       }
     }
-  }, [router, appendText, currentText])
+  }, [router, appendText, finishGeneration])
 
   // 图片容器使用 memo 来防止不必要的重渲染
   const ImageContainer = useMemo(() => {
@@ -257,21 +338,69 @@ export default function ResultContent() {
                     </div>
                   </motion.div>
 
-                  {/* 按钮 */}
+                  {/* 底部状态和按钮 */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.8, duration: 0.8 }}
-                    className="text-center sticky bottom-8"
+                    className="text-center space-y-6"
                   >
-                    <Link href="/">
-                      <Button
-                        variant="outline"
-                        className="rounded-full px-10 py-6 bg-black/60 text-white border-white/30 hover:bg-white/10 hover:border-white/50 backdrop-blur-sm text-lg transition-all duration-300"
+                    {/* 状态指示器 */}
+                    <motion.div 
+                      className="flex items-center justify-center"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      {isGenerating ? (
+                        <motion.div
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 border border-white/10"
+                          initial={{ scale: 0.9 }}
+                          animate={{ scale: 1 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                          <span className="text-primary text-sm">
+                            Crafting your love letter...
+                          </span>
+                        </motion.div>
+                      ) : isTextComplete && (
+                        <motion.div
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 border border-white/10"
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.3, type: "spring" }}
+                        >
+                          <div className="w-2 h-2 bg-[#00FF66] rounded-full" />
+                          <span className="text-[#00FF66] text-sm">
+                            Love letter completed
+                          </span>
+                        </motion.div>
+                      )}
+                    </motion.div>
+
+                    {/* 按钮 - 只在文本完全渲染后显示 */}
+                    {isTextComplete && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ 
+                          duration: 0.5,
+                          delay: 0.2,
+                          type: "spring",
+                          bounce: 0.3
+                        }}
                       >
-                        Create Another Letter
-                      </Button>
-                    </Link>
+                        <Link href="/">
+                          <Button
+                            variant="outline"
+                            className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/10 hover:border-white/20 backdrop-blur-sm text-sm transition-all duration-300"
+                          >
+                            Write Another Letter
+                          </Button>
+                        </Link>
+                      </motion.div>
+                    )}
                   </motion.div>
                 </motion.div>
               </AnimatePresence>

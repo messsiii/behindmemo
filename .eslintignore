@@ -1,4 +1,5 @@
-components/ui/*
 node_modules
 .next
-out 
+build
+dist
+public 

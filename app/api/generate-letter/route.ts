@@ -57,10 +57,11 @@ export async function POST(request: Request) {
         relevantMetadata.camera.make || relevantMetadata.camera.model ? 
           `Camera: ${[relevantMetadata.camera.make, relevantMetadata.camera.model].filter(Boolean).join(' ')}` : null,
         relevantMetadata.camera.lens ? `Lens: ${relevantMetadata.camera.lens}` : null,
-        Object.entries(relevantMetadata.camera.settings)
-          .filter(([_, value]) => value)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join(', ')
+        Object.values(relevantMetadata.camera.settings).some(Boolean) ? 
+          `Settings: ${Object.entries(relevantMetadata.camera.settings)
+            .filter(([_key, value]) => value)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ')}` : null
       ].filter(Boolean).join(', ')
     }`
 
