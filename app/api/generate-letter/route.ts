@@ -112,46 +112,54 @@ export async function POST(request: Request) {
     const encoder = new TextEncoder()
     const decoder = new TextDecoder()
     
+    // 在 TransformStream 外部定义缓冲区
+    let buffer = '';
+
     const stream = new TransformStream({
       async transform(chunk, controller) {
-        const text = decoder.decode(chunk)
-        // 按行分割输出
-        const lines = text.split('\n')
+        const text = decoder.decode(chunk);
+        buffer += text; // 将新数据追加到缓冲区
+        
+        // 按行分割缓冲区内容
+        const lines = buffer.split('\n');
+        
+        // 保留最后不完整的行
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
-          // 移除空格
-          const trimmedLine = line.trim()
-          if (!trimmedLine) {
-            // 空行就跳过
-            continue
-          }
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
 
-          // 如果行不是以 "data: " 开头，说明这一行可能不是 SSE 或者不是要解析的 JSON 数据
-          if (!trimmedLine.startsWith('data: ')) {
-            // 可以按需选择是否打印日志
-            console.warn('跳过非 data 行：', trimmedLine)
-            continue
-          }
-
-          // 移除 "data: " 前缀
-          const jsonStr = trimmedLine.slice(6) // 6 是 "data: " 的长度
-
-          // 如果碰到 [DONE]，就结束
-          if (jsonStr === '[DONE]') {
-            return
-          }
-
-          // 剩下的才尝试解析为 JSON
-          try {
-            const json = JSON.parse(jsonStr)
-            // 判断生成内容，如果存在就将其写入 SSE
-            if (json?.choices?.[0]?.delta?.content) {
-              const content = json.choices[0].delta.content
-              controller.enqueue(encoder.encode(content))
+          // 处理完整的数据块
+          if (trimmedLine.startsWith('data: ')) {
+            const jsonStr = trimmedLine.slice(6);
+            
+            // 检查是否为结束标记
+            if (jsonStr === '[DONE]') {
+              controller.terminate();
+              return;
             }
-          } catch (e) {
-            console.error('Error parsing chunk:', e)
+
+            // 尝试解析 JSON
+            try {
+              const json = JSON.parse(jsonStr);
+              if (json?.choices?.[0]?.delta?.content) {
+                controller.enqueue(encoder.encode(json.choices[0].delta.content));
+              }
+            } catch (e) {
+              console.error('JSON 解析错误:', e);
+              console.log('原始数据:', jsonStr);
+            }
+          } else {
+            console.log('非数据行:', trimmedLine);
           }
+        }
+      },
+      
+      // 处理剩余数据
+      flush(_controller) {
+        if (buffer.trim()) {
+          console.warn('未处理的数据:', buffer);
         }
       }
     })
