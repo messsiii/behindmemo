@@ -1,10 +1,6 @@
-import type { Metadata } from "next"
-import ResultContent from "../components/ResultContent"
+'use client'
 
-export const metadata: Metadata = {
-  title: "Your Love Letter",
-  description: "View your personalized love letter",
-}
+import ResultContent from "../components/ResultContent"
 
 export default function ResultPage() {
   return <ResultContent />

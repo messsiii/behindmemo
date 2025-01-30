@@ -4,6 +4,11 @@ export const runtime = "edge"
 
 export async function POST(request: Request) {
   try {
+    const requestId = request.headers.get('X-Request-Id')
+    if (!requestId) {
+      return NextResponse.json({ success: false, error: "Missing request ID" }, { status: 400 })
+    }
+
     const { name, loverName, story, blobUrl, metadata } = await request.json()
 
     if (!name || !loverName || !story || !blobUrl || !metadata) {
@@ -57,74 +62,84 @@ export async function POST(request: Request) {
       ].filter(Boolean).join(', ')
     }`
 
-    try {
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: apiHeaders,
-        body: JSON.stringify({
-          model: "abab5.5-chat",
-          max_tokens: 1024,
-          messages: [
-            {
-              role: "system",
-              name: "English love letter master",
-              content: "Write a love letter in the style of Wang Xiaobo (without mentioning Wang Xiaobo) in English",
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `**output in english**Write a love letter from ${name} to ${loverName}. Their story: ${story}. ${metadataPrompt}`,
-                },
-                {
-                  type: "image",
-                  image_url: {
-                    url: blobUrl
-                  }
-                }
-              ]
-            }
-          ],
-        }),
-        signal: controller.signal,
-      })
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        ...apiHeaders,
+        'X-Request-Id': requestId // 传递请求 ID
+      },
+      body: JSON.stringify({
+        model: "abab5.5-chat",
+        max_tokens: 1024,
+        stream: true, // 启用流式输出
+        messages: [
+          {
+            role: "system",
+            name: "English love letter master",
+            content: "Write a love letter in the style of Wang Xiaobo (without mentioning Wang Xiaobo) in English",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `**output in english**Write a love letter from ${name} to ${loverName}. Their story: ${story}. ${metadataPrompt}`,
+              },
+              {
+                type: "image",
+                image_url: { url: blobUrl }
+              }
+            ]
+          }
+        ],
+      }),
+      signal: controller.signal,
+    })
 
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        return NextResponse.json(
-          { success: false, error: `MiniMax API error: ${response.status} ${response.statusText} - ${errorText}` },
-          { status: response.status }
-        )
-      }
-
-      const result = await response.json()
-
-      if (!result.choices?.[0]?.message?.content) {
-        return NextResponse.json(
-          { success: false, error: "Unexpected response format from MiniMax API" },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json({
-        success: true,
-        letter: result.choices[0].message.content,
-        blobUrl,
-        metadata: metadataObj
-      })
-
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return NextResponse.json(
-          { success: false, error: "Generation process timed out. Please try again." },
-          { status: 504 }
-        )
-      }
-      throw error
+    if (!response.ok) {
+      const errorText = await response.text()
+      return NextResponse.json(
+        { success: false, error: `MiniMax API error: ${response.status} ${response.statusText} - ${errorText}` },
+        { status: response.status }
+      )
     }
+
+    // 创建一个 TransformStream 来处理流式响应
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+    
+    const stream = new TransformStream({
+      async transform(chunk, controller) {
+        const text = decoder.decode(chunk)
+        const lines = text.split('\n').filter(line => line.trim())
+        
+        for (const line of lines) {
+          if (line.trim() === '') continue
+          
+          try {
+            // 移除 "data: " 前缀
+            const jsonStr = line.replace(/^data: /, '')
+            if (jsonStr === '[DONE]') return
+
+            const json = JSON.parse(jsonStr)
+            if (json.choices?.[0]?.delta?.content) {
+              const content = json.choices[0].delta.content
+              controller.enqueue(encoder.encode(content))
+            }
+          } catch (e) {
+            console.error('Error parsing chunk:', e)
+          }
+        }
+      }
+    })
+
+    return new Response(response.body?.pipeThrough(stream), {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
 
   } catch (error) {
     console.error("Error in generate-letter API:", error)

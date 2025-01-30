@@ -347,100 +347,44 @@ export default function LoveLetterForm() {
       if (isSubmitting || debounceRef.current) return
 
       const { name, loverName, story, photo } = formData
-      if (!story || !name || !loverName || !photo) {
+      if (!name || !loverName || !story || !photo) {
         triggerShake()
         return
       }
 
       try {
         setIsSubmitting(true)
-
         const { blobUrl, metadata } = await uploadPhotoAndPrepareData(photo)
-        // console.log("Uploaded photo metadata:", metadata)
 
-        const metadataForPrompt = JSON.stringify(metadata)
-
-        // console.log('AI Request Payload:', {
-        //   name,
-        //   loverName,
-        //   story,
-        //   blobUrl,
-        //   metadata: JSON.parse(metadataForPrompt),
-        //   locationInfo: metadata.gps?.address,
-        //   imageContext: {
-        //     orientation: metadata.orientation,
-        //     takenAt: metadata.exif?.DateTimeOriginal,
-        //     location: metadata.gps?.address,
-        //     device: metadata.exif?.Model || metadata.context?.uploadDevice,
-        //   }
-        // })
-
-        let retryCount = 0
-        const maxRetries = 3
-
-        while (retryCount < maxRetries) {
-          try {
-            const response = await fetch("/api/generate-letter", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name,
-                loverName,
-                story,
-                blobUrl,
-                metadata: metadataForPrompt,
-              }),
-            })
-
-            if (response.status === 504) {
-              retryCount++
-              if (retryCount < maxRetries) {
-                console.log(`Attempt ${retryCount + 1} of ${maxRetries}...`)
-                continue
-              }
-              throw new Error("Generation timed out after multiple attempts")
-            }
-
-            if (!response.ok) {
-              const errorText = await response.text()
-              console.error("Server response:", errorText)
-              throw new Error(`Server error: ${response.status} ${response.statusText}\n${errorText}`)
-            }
-
-            const result = await response.json()
-
-            if (!result.success) {
-              throw new Error(result.error || "Failed to generate love letter")
-            }
-
-            localStorage.setItem(
-              "loveLetterData",
-              JSON.stringify({
-                ...result,
-                blobUrl,
-                timestamp: Date.now(),
-              }),
-            )
-
-            router.push("/result")
-            break
-          } catch (error: unknown) {
-            if (retryCount < maxRetries - 1) {
-              retryCount++
-              console.log(`Retrying... Attempt ${retryCount + 1} of ${maxRetries}`)
-              continue
-            }
-            throw error
-          }
+        // 停止音频播放
+        if (audioRef.current) {
+          audioRef.current.pause()
+          audioRef.current.currentTime = 0
         }
-      } catch (error: unknown) {
-        console.error("Error in form submission:", error instanceof Error ? error.message : String(error)) // 保留错误日志
+
+        // 只保存基本信息到 localStorage
+        localStorage.setItem(
+          "loveLetterData",
+          JSON.stringify({
+            name,
+            loverName,
+            story,
+            blobUrl,
+            metadata,
+            timestamp: Date.now(),
+            isGenerating: true  // 添加标记表示正在生成
+          })
+        )
+
+        // 立即跳转到结果页
+        router.push("/result")
+      } catch (error) {
+        console.error("Error in form submission:", error)
         triggerShake()
-      } finally {
         setIsSubmitting(false)
       }
     },
-    [formData, isSubmitting, router, uploadPhotoAndPrepareData, triggerShake],
+    [formData, isSubmitting, router, uploadPhotoAndPrepareData, triggerShake]
   )
 
   useEffect(() => {
