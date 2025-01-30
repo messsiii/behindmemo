@@ -14,14 +14,9 @@ interface LoveLetterData {
   name: string
   loverName: string
   timestamp: number
-  metadata: any
+  metadata: Record<string, unknown>
   isGenerating: boolean
   partialLetter?: string
-}
-
-interface ResultContentProps {
-  letter: string
-  isLoading: boolean
 }
 
 export default function ResultContent() {
@@ -30,7 +25,6 @@ export default function ResultContent() {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [currentText, setCurrentText] = useState('')
   const [isGenerating, setIsGenerating] = useState(true)
-  const [requestId, setRequestId] = useState<string>('')
   const abortController = useRef<AbortController>()
   const router = useRouter()
 
@@ -76,10 +70,9 @@ export default function ResultContent() {
     // 检查是否有正在进行的请求
     const storedRequest = localStorage.getItem("letterRequest")
     if (storedRequest) {
-      const { id, timestamp } = JSON.parse(storedRequest)
+      const { timestamp } = JSON.parse(storedRequest)
       // 如果请求时间超过5分钟，认为是失效的请求
       if (Date.now() - timestamp < 5 * 60 * 1000) {
-        setRequestId(id)
         return // 已有正在进行的请求，不再发起新请求
       } else {
         // 清除过期的请求记录
@@ -89,14 +82,6 @@ export default function ResultContent() {
 
     // 只有在需要生成且没有正在进行的请求时才发起新请求
     if (data.isGenerating && !storedRequest) {
-      const newRequestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      setRequestId(newRequestId)
-
-      localStorage.setItem("letterRequest", JSON.stringify({
-        id: newRequestId,
-        timestamp: Date.now()
-      }))
-
       const generateLetter = async () => {
         try {
           abortController.current = new AbortController()
@@ -104,8 +89,7 @@ export default function ResultContent() {
           const response = await fetch('/api/generate-letter', {
             method: 'POST',
             headers: { 
-              'Content-Type': 'application/json',
-              'X-Request-Id': newRequestId
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
               name: data.name,
@@ -139,16 +123,14 @@ export default function ResultContent() {
             partialLetter: undefined // 清除部分生成的内容
           }
           localStorage.setItem("loveLetterData", JSON.stringify(updatedData))
-          localStorage.removeItem("letterRequest")
           setLetterData(updatedData)
-        } catch (error) {
-          if (error.name === 'AbortError') {
+        } catch (error: unknown) {
+          if (error instanceof Error && error.name === 'AbortError') {
             console.log('Request was aborted')
           } else {
             console.error('Error generating letter:', error)
           }
           setIsGenerating(false)
-          localStorage.removeItem("letterRequest")
         }
       }
 
@@ -158,10 +140,9 @@ export default function ResultContent() {
     return () => {
       if (abortController.current) {
         abortController.current.abort()
-        localStorage.removeItem("letterRequest")
       }
     }
-  }, [router, appendText])
+  }, [router, appendText, currentText])
 
   // 图片容器使用 memo 来防止不必要的重渲染
   const ImageContainer = useMemo(() => {
