@@ -108,63 +108,37 @@ export async function POST(request: Request) {
       )
     }
 
-    // 检查流式响应的格式
+    // 创建一个 TransformStream 来处理流式响应
     const encoder = new TextEncoder()
-    const stream = new TransformStream()
-    const writer = stream.writable.getWriter()
-
-    try {
-      // 确保每个 JSON 块都是完整且格式正确的
-      const writeChunk = async (chunk: string) => {
-        try {
-          const jsonString = JSON.stringify({ content: chunk }) + '\n'
-          await writer.write(encoder.encode(jsonString))
-        } catch (error) {
-          console.error('Error writing chunk:', error)
-        }
-      }
-
-      // 处理 AI 响应
-      if (!response.body) {
-        throw new Error('Response body is null')
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        // 解码二进制数据
-        const text = decoder.decode(value)
+    const decoder = new TextDecoder()
+    
+    const stream = new TransformStream({
+      async transform(chunk, controller) {
+        const text = decoder.decode(chunk)
         const lines = text.split('\n').filter(line => line.trim())
-
+        
         for (const line of lines) {
+          if (line.trim() === '') continue
+          
           try {
             // 移除 "data: " 前缀
             const jsonStr = line.replace(/^data: /, '')
-            if (jsonStr === '[DONE]') continue
+            if (jsonStr === '[DONE]') return
 
             const json = JSON.parse(jsonStr)
-            const content = json.choices?.[0]?.delta?.content
-            if (content) {
-              await writeChunk(content)
+            if (json.choices?.[0]?.delta?.content) {
+              const content = json.choices[0].delta.content
+              controller.enqueue(encoder.encode(content))
             }
-          } catch (error) {
-            console.error('Error parsing line:', error)
+          } catch (e) {
+            console.error('Error parsing chunk:', e)
           }
         }
       }
-
-      await writer.close()
-    } catch (error) {
-      console.error('Stream error:', error)
-      await writer.abort(error)
-    }
+    })
 
     clearTimeout(timeoutId)
-    return new Response(stream.readable, {
+    return new Response(response.body?.pipeThrough(stream), {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
