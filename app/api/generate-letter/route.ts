@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   const controller = new AbortController()
@@ -175,9 +176,9 @@ export async function POST(request: Request) {
 
   } catch (error) {
     clearTimeout(timeoutId)
-    console.error("Error in generate-letter API:", error)
+    console.error("Error generating letter:", error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Failed to generate letter" },
       { status: 500 }
     )
   }
