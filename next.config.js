@@ -1,16 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: [
-      't4mdjhb22te74ulq.public.blob.vercel-storage.com', // 替换为你的 Vercel Blob 域名
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 't4mdjhb22te74ulq.public.blob.vercel-storage.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   webpack: (config, { isServer }) => {
     // 自定义 webpack 配置
     return config
-  },
-  experimental: {
-    appDir: true,
   }
 }
 
