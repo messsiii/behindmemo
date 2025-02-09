@@ -1,88 +1,117 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import FeatureSection from "@/components/FeatureSection"
-import { useLanguage } from "@/contexts/LanguageContext"
-import { Nav } from "@/components/nav"
-import { Footer } from "@/components/footer"
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import FeatureSection from '@/components/FeatureSection'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { Nav } from '@/components/nav'
+import { Footer } from '@/components/footer'
 
 export default function Home() {
   const { language } = useLanguage()
+  const [mounted, setMounted] = useState(false)
   const [_scrollY, setScrollY] = useState(0)
 
   useEffect(() => {
+    setMounted(true)
     const handleScroll = () => {
       setScrollY(window.scrollY)
     }
 
-    window.addEventListener("scroll", handleScroll)
-
+    window.addEventListener('scroll', handleScroll)
     return () => {
-      window.removeEventListener("scroll", handleScroll)
+      window.removeEventListener('scroll', handleScroll)
     }
   }, [])
+
+  // 在客户端渲染前返回一个占位内容
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <div className="fixed inset-0 z-0 opacity-30 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
+        <Nav />
+        <div className="relative z-10 flex-1">
+          <section className="relative h-screen flex items-center justify-center">
+            <div className="container mx-auto px-4">
+              <div className="max-w-4xl mx-auto text-center space-y-8">
+                <div className="h-12 w-3/4 mx-auto bg-gray-200 animate-pulse rounded" />
+                <div className="h-8 w-1/2 mx-auto bg-gray-200 animate-pulse rounded" />
+                <div className="h-24 w-2/3 mx-auto bg-gray-200 animate-pulse rounded" />
+                <div className="h-12 w-48 mx-auto bg-gray-200 animate-pulse rounded-full" />
+              </div>
+            </div>
+          </section>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
 
   const content = {
     en: {
       hero: {
-        title: "Express Your Heart",
-        subtitle: "Words that connect souls.",
+        title: 'Turn Photos into Letters, Memories into Words',
+        subtitle:
+          'Not just another AI writer - we help you express your true feelings to the ones you love',
         description:
-          "In this digital age, let AI help you express your deepest emotions. Whether it's to family, friends, or someone special - make every word meaningful.",
-        cta: "Start Writing",
+          "Unlike traditional AI writers, we don't generate generic letters. We help you find your own words, turn your photos into inspiration, and guide you through emotional expression.",
+        cta: 'Start Writing',
       },
       features: [
         {
-          title: "Cherished Memories",
+          title: 'Photo-Triggered Authenticity',
           description:
-            '"Remember the little moments that matter?" AI helps you capture the essence of your precious memories.',
+            "From Memory to Message: Upload a photo of you and your loved ones, and let the memories guide your words. Every photo tells a story - let's tell yours.",
         },
         {
-          title: "Emotional Resonance",
+          title: 'Guided Expression',
           description:
-            "Our unique emotional tone technology helps you find the perfect words to express your feelings.",
+            "We Don't Write For You - We Write With You. Through personal writing guidance and thoughtful prompts based on your photos, we help you tell your story in your own voice.",
         },
         {
-          title: "Genuine Connection",
+          title: 'Emotional Connection',
           description:
-            "Maintaining the authenticity of your voice while helping you articulate your thoughts more clearly.",
+            'Beyond Words: Create lasting emotional connections through beautiful photo-letter designs. Perfect for parents, partners, and friends - turn your feelings into lasting memories.',
         },
       ],
       cta: {
-        title: "Ready to strengthen your connections?",
+        title: 'Ready to express your true feelings?',
         description:
-          "Whether it's gratitude, appreciation, or deep emotional bonds, let AI help you express what's in your heart.",
-        button: "Begin Your Journey",
+          '✓ No generic letters\n✓ Your own words, your story\n✓ Photos as inspiration\n✓ Guided emotional expression',
+        button: 'Begin Your Journey',
       },
     },
     zh: {
       hero: {
-        title: "传递心意",
-        subtitle: "连接心灵的桥梁。",
-        description: "在这个数字化时代，让AI助你表达内心情感。无论是对家人、朋友还是特别的人，让每一字都充满意义。",
-        cta: "开始写作",
+        title: '照片化为文字，回忆成就情书',
+        subtitle: '不只是AI写作 - 我们帮你向爱的人表达真挚情感',
+        description:
+          '不同于传统AI写作，我们不生成模板化的内容。我们帮你找到自己的语言，将照片转化为灵感，引导你表达真实情感。',
+        cta: '开始写作',
       },
       features: [
         {
-          title: "珍贵回忆",
-          description: "「还记得那些重要的小时刻吗？」AI帮你捕捉记忆中最珍贵的瞬间",
+          title: '照片激发真实情感',
+          description:
+            '从回忆到文字：上传你和挚爱的照片，让回忆指引文字。每张照片都是一个故事 - 让我们讲述你的故事。',
         },
         {
-          title: "情感共鸣",
-          description: "独特的情感语调技术，帮你找到表达心意的最佳方式",
+          title: '引导式写作体验',
+          description:
+            '我们不替你写 - 我们与你同写。通过个性化写作指导和基于照片的智能提示，帮助你用自己的声音讲述故事。',
         },
         {
-          title: "真诚连接",
-          description: "保持你的真实声音，同时帮助你更清晰地表达想法",
+          title: '情感连接',
+          description:
+            '超越文字：通过精美的照片信件设计创造持久的情感连接。适合父母、伴侣和朋友 - 将感情化作永恒回忆。',
         },
       ],
       cta: {
-        title: "准备好加深情感连接了吗？",
-        description: "无论是感恩、欣赏还是深厚的情感羁绊，让AI助你表达内心所想",
-        button: "开启旅程",
+        title: '准备好表达真挚情感了吗？',
+        description: '✓ 告别模板化内容\n✓ 你的文字，你的故事\n✓ 照片化作灵感\n✓ 情感表达引导',
+        button: '开启心动之旅',
       },
     },
   }
@@ -112,10 +141,10 @@ export default function Home() {
         {/* Hero Section */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto text-center">
+            <div className="max-w-6xl mx-auto text-center">
               <motion.h1
                 className={`text-5xl sm:text-7xl font-bold mb-6 text-gray-900 ${
-                  language === "en" ? "font-serif" : "font-serif-zh"
+                  language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -125,7 +154,7 @@ export default function Home() {
               </motion.h1>
               <motion.p
                 className={`text-3xl sm:text-4xl mb-8 bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent ${
-                  language === "en" ? "font-serif" : "font-serif-zh"
+                  language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -134,7 +163,7 @@ export default function Home() {
                 {content[language].hero.subtitle}
               </motion.p>
               <motion.p
-                className={`text-xl text-gray-600 mb-12 max-w-2xl mx-auto ${language === "en" ? "font-literary" : ""}`}
+                className={`text-xl text-gray-600 mb-12 max-w-2xl mx-auto ${language === 'en' ? 'font-literary' : ''}`}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.6 }}
@@ -148,7 +177,7 @@ export default function Home() {
               >
                 <Button
                   className={`rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg ${
-                    language === "en" ? "font-serif" : "font-serif-zh"
+                    language === 'en' ? 'font-serif' : 'font-serif-zh'
                   }`}
                   asChild
                 >
@@ -165,7 +194,7 @@ export default function Home() {
               transition={{
                 duration: 1.5,
                 repeat: Number.POSITIVE_INFINITY,
-                repeatType: "reverse",
+                repeatType: 'reverse',
               }}
             >
               <svg
@@ -175,7 +204,12 @@ export default function Home() {
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                />
               </svg>
             </motion.div>
           </div>
@@ -201,18 +235,26 @@ export default function Home() {
             <div className="text-center space-y-8 max-w-3xl mx-auto">
               <h2
                 className={`text-4xl font-bold leading-tight text-gray-900 ${
-                  language === "en" ? "font-serif" : "font-serif-zh"
+                  language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
               >
                 {content[language].cta.title}
               </h2>
-              <p className={`text-xl text-gray-600 ${language === "en" ? "font-literary" : ""}`}>
-                {content[language].cta.description}
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left max-w-2xl mx-auto">
+                {content[language].cta.description.split('\n').map((point, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start space-x-3 bg-white/50 backdrop-blur-sm p-4 rounded-lg"
+                  >
+                    <span className="text-primary font-bold">{point.split(' ')[0]}</span>
+                    <span className="text-gray-700">{point.split(' ').slice(1).join(' ')}</span>
+                  </div>
+                ))}
+              </div>
               <Button
                 size="lg"
-                className={`rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg ${
-                  language === "en" ? "font-serif" : "font-serif-zh"
+                className={`rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg mt-8 ${
+                  language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
                 asChild
               >
@@ -227,4 +269,3 @@ export default function Home() {
     </div>
   )
 }
-

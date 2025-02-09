@@ -4,9 +4,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 't4mdjhb22te74ulq.public.blob.vercel-storage.com',
-        port: '',
-        pathname: '/**',
+        hostname: '**.public.blob.vercel-storage.com',
       },
     ],
     dangerouslyAllowSVG: true,
@@ -17,11 +15,16 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    turbo: {
+      rules: {
+        '*.mdx': ['mdx-loader'],
+      },
+    },
   },
   webpack: (config, { isServer }) => {
     // 自定义 webpack 配置
     return config
-  }
+  },
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig

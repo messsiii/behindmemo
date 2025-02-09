@@ -10,13 +10,25 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",
     "dev:check": "npm run check && npm run dev",
-    "precommit": "npm run check"
+    "precommit": "npm run fix:all",
+    "prepare": "husky install",
+    "fix:all": "npm run lint:fix && npm run format && npm run typecheck",
+    "fix:imports": "eslint --fix --rule 'unused-imports/no-unused-imports: error' .",
+    "fix:style": "prettier --write . && eslint --fix .",
+    "fix:types": "tsc --noEmit"
   },
   "dependencies": {
+    "@auth/core": "^0.37.4",
+    "@auth/prisma-adapter": "^2.7.4",
+    "@emotion/is-prop-valid": "latest",
     "@hookform/resolvers": "^3.9.1",
+    "@prisma/client": "^6.3.1",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",
     "@radix-ui/react-aspect-ratio": "^1.1.1",
@@ -44,33 +56,36 @@
     "@radix-ui/react-toggle-group": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.6",
     "@tailwindcss/aspect-ratio": "latest",
+    "@upstash/redis": "^1.34.4",
     "@vercel/blob": "latest",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
+    "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
     "exifr": "^7.1.3",
     "framer-motion": "latest",
     "heic2any": "latest",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
-    "next": "14.2.16",
+    "next": "^15.1.6",
+    "next-auth": "^4.24.11",
     "next-themes": "^0.4.4",
-    "react": "^18",
-    "react-dom": "^18",
+    "openai": "^4.83.0",
+    "react": "^19.0.0",
+    "react-day-picker": "8.10.1",
+    "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
     "sharp": "^0.33.5",
     "sonner": "^1.7.1",
+    "swr": "^2.3.2",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.6",
-    "zod": "^3.24.1",
-    "@emotion/is-prop-valid": "latest",
-    "date-fns": "4.1.0",
-    "react-day-picker": "8.10.1"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22",
@@ -78,9 +93,15 @@
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.22.0",
     "@typescript-eslint/parser": "^8.22.0",
-    "eslint": "8.57.1",
-    "eslint-config-next": "15.1.6",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.1.6",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
     "postcss": "^8",
+    "prettier": "^3.5.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
   },
@@ -88,6 +109,12 @@
     "extends": [
       "next/core-web-vitals",
       "plugin:@typescript-eslint/recommended"
+    ]
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
     ]
   }
 }

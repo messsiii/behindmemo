@@ -1,26 +1,26 @@
-"use client"
+'use client'
 
-import { useState, useCallback, memo } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
-import { generateLoveLetter } from "../actions/generateLoveLetter"
+import { useState, useCallback, memo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/navigation'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { generateLoveLetter } from '../actions/generateLoveLetter'
 
 const questions = [
-  { id: 1, question: "What's your name?", field: "name", type: "text" },
-  { id: 2, question: "Share a photo of your special moment", field: "photo", type: "file" },
-  { id: 3, question: "What's your lover's name?", field: "loverName", type: "text" },
-  { id: 4, question: "Tell us your love story", field: "story", type: "textarea" },
+  { id: 1, question: "What's your name?", field: 'name', type: 'text' },
+  { id: 2, question: 'Share a photo of your special moment', field: 'photo', type: 'file' },
+  { id: 3, question: "What's your lover's name?", field: 'loverName', type: 'text' },
+  { id: 4, question: 'Tell us your love story', field: 'story', type: 'textarea' },
 ] as const
 
 // 重命名我们的接口以避免冲突
 interface LoveLetterFormData {
-  name: string;
-  loverName: string;
-  story: string;
-  photo: File;
+  name: string
+  loverName: string
+  story: string
+  photo: File
 }
 
 // Memoize the progress indicator to prevent unnecessary re-renders
@@ -38,7 +38,7 @@ const ProgressIndicator = memo(function ProgressIndicator({
           <div
             key={index}
             className={`h-1 w-12 rounded-full transition-colors duration-300 ${
-              index === currentStep ? "bg-primary" : "bg-primary/20"
+              index === currentStep ? 'bg-primary' : 'bg-primary/20'
             }`}
           />
         ))}
@@ -54,37 +54,40 @@ export default function TypeformStyle() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, files } = e.target as HTMLInputElement
-    const newValue = files ? files[0] : value
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const { name, value, files } = e.target as HTMLInputElement
+      const newValue = files ? files[0] : value
 
-    setFormData((prev) => {
-      // 使用类型断言确保 name 是 FormData 的键
-      const key = name as keyof LoveLetterFormData
-      // 检查值是否改变
-      if (prev[key] === newValue) return prev
-      // 返回更新后的状态
-      return { ...prev, [key]: newValue }
-    })
-  }, [])
+      setFormData(prev => {
+        // 使用类型断言确保 name 是 FormData 的键
+        const key = name as keyof LoveLetterFormData
+        // 检查值是否改变
+        if (prev[key] === newValue) return prev
+        // 返回更新后的状态
+        return { ...prev, [key]: newValue }
+      })
+    },
+    []
+  )
 
   const handleNext = useCallback(() => {
-    setCurrentStep((prev) => Math.min(prev + 1, questions.length - 1))
+    setCurrentStep(prev => Math.min(prev + 1, questions.length - 1))
   }, [])
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey && !isSubmitting) {
+      if (e.key === 'Enter' && !e.shiftKey && !isSubmitting) {
         e.preventDefault()
         if (currentStep === questions.length - 1) {
-          const form = e.currentTarget.closest("form")
+          const form = e.currentTarget.closest('form')
           if (form) form.requestSubmit()
         } else {
           handleNext()
         }
       }
     },
-    [currentStep, handleNext, isSubmitting],
+    [currentStep, handleNext, isSubmitting]
   )
 
   const handleSubmit = useCallback(
@@ -95,7 +98,7 @@ export default function TypeformStyle() {
       setIsSubmitting(true)
       try {
         if (!formData.name || !formData.loverName || !formData.story || !formData.photo) {
-          throw new Error("Please fill in all required fields")
+          throw new Error('Please fill in all required fields')
         }
 
         // 直接传递我们的表单数据，而不是创建 FormData 实例
@@ -103,13 +106,13 @@ export default function TypeformStyle() {
           name: formData.name,
           loverName: formData.loverName,
           story: formData.story,
-          photo: formData.photo
+          photo: formData.photo,
         })
 
         if (result.success) {
           router.push(`/result/${result.id}`)
         } else {
-          throw new Error("Failed to generate love letter")
+          throw new Error('Failed to generate love letter')
         }
       } catch {
         // 忽略错误
@@ -117,7 +120,7 @@ export default function TypeformStyle() {
         setIsSubmitting(false)
       }
     },
-    [formData, isSubmitting, router],
+    [formData, isSubmitting, router]
   )
 
   const currentQuestion = questions[currentStep]
@@ -148,18 +151,18 @@ export default function TypeformStyle() {
                   </motion.h2>
                 </div>
 
-                {currentQuestion.type === "textarea" ? (
+                {currentQuestion.type === 'textarea' ? (
                   <Textarea
                     key={`textarea-${currentQuestion.field}`}
                     name={currentQuestion.field}
-                    defaultValue={formData[currentQuestion.field] || ""}
+                    defaultValue={formData[currentQuestion.field] || ''}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyPress}
                     placeholder="Type your answer here..."
                     className="text-lg border-0 border-b-2 rounded-none bg-transparent focus:ring-0 resize-none min-h-[100px]"
                     required
                   />
-                ) : currentQuestion.type === "file" ? (
+                ) : currentQuestion.type === 'file' ? (
                   <div className="space-y-4">
                     <Input
                       key={`file-${currentQuestion.field}`}
@@ -176,7 +179,7 @@ export default function TypeformStyle() {
                     key={`input-${currentQuestion.field}`}
                     type={currentQuestion.type}
                     name={currentQuestion.field}
-                    defaultValue={formData[currentQuestion.field] || ""}
+                    defaultValue={formData[currentQuestion.field] || ''}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyPress}
                     placeholder="Type your answer here..."
@@ -188,16 +191,16 @@ export default function TypeformStyle() {
 
               <div className="flex items-center gap-4">
                 <Button
-                  type={currentStep === questions.length - 1 ? "submit" : "button"}
+                  type={currentStep === questions.length - 1 ? 'submit' : 'button'}
                   onClick={currentStep === questions.length - 1 ? undefined : handleNext}
                   disabled={isSubmitting}
                   className="rounded-full px-8"
                 >
                   {currentStep === questions.length - 1
                     ? isSubmitting
-                      ? "Generating..."
-                      : "Create Love Letter"
-                    : "OK"}
+                      ? 'Generating...'
+                      : 'Create Love Letter'
+                    : 'OK'}
                 </Button>
                 <span className="text-sm text-muted-foreground">press Enter ↵</span>
               </div>
@@ -210,4 +213,3 @@ export default function TypeformStyle() {
     </div>
   )
 }
-

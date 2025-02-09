@@ -1,8 +1,7 @@
 'use client'
 
-import ResultContent from "../components/ResultContent"
+import { redirect } from 'next/navigation'
 
 export default function ResultPage() {
-  return <ResultContent />
+  redirect('/write')
 }
-
