@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { authConfig } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300 // 设置为5分钟
+export const maxDuration = 60 // 设置为60秒以符合 hobby 计划限制
 
 export async function GET(req: Request) {
   try {
