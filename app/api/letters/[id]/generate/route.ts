@@ -2,13 +2,21 @@ import { authConfig } from '@/auth'
 import { generateLetter } from '@/lib/minimax'
 import { prisma } from '@/lib/prisma'
 import { setGenerationStatus } from '@/lib/redis'
-import { Letter, Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 
-interface LetterWithStatus extends Letter {
+interface LetterWithStatus {
+  id: string
+  content: string
+  imageUrl: string | null
+  userId: string
+  prompt: string
   status: 'pending' | 'generating' | 'completed' | 'failed'
   metadata: Prisma.JsonValue | null
+  language: string
+  createdAt: Date
+  updatedAt: Date
 }
 
 export const runtime = 'nodejs'
