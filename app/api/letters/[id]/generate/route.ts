@@ -38,7 +38,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     // 获取用户信息
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true, quota: true, isVIP: true },
+      select: { id: true },
     })
 
     if (!user) {
@@ -82,6 +82,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     try {
       // 生成信件内容
+      console.log('Letter metadata before generation:', letter.metadata)
       const content = await generateLetter({
         prompt: letter.prompt,
         language: letter.language,

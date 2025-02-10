@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { name, loverName, story, blobUrl } = body
+    const { name, loverName, story, blobUrl, metadata } = body
 
     // 验证所有必填字段
     const requiredFields = {
@@ -59,22 +59,8 @@ export async function POST(req: Request) {
       )
     }
 
-    // 创建信件记录
-    const letter = await prisma.letter.create({
-      data: {
-        userId: session.user.id,
-        content: '',
-        imageUrl: blobUrl,
-        prompt: `From ${name} to ${loverName}: ${story}`,
-        language: 'en',
-      },
-    })
-
-    // 设置初始状态
-    await setGenerationStatus(letter.id, 'pending')
-
     // 消耗配额
-    const consumeResponse = await fetch(new URL('/api/user/consume-quota', req.url).toString(), {
+    const consumeResponse = await fetch(new URL('/api/user/consume-credits', req.url).toString(), {
       method: 'POST',
       headers: {
         'X-Request-Id': requestId,
@@ -83,8 +69,23 @@ export async function POST(req: Request) {
     })
 
     if (!consumeResponse.ok) {
-      throw new Error('Failed to consume quota')
+      throw new Error('Failed to consume credits')
     }
+
+    // 创建信件记录
+    const letter = await prisma.letter.create({
+      data: {
+        userId: session.user.id,
+        content: '',
+        imageUrl: blobUrl,
+        prompt: `From ${name} to ${loverName}: ${story}`,
+        language: 'en',
+        metadata: metadata || {},
+      },
+    })
+
+    // 设置初始状态
+    await setGenerationStatus(letter.id, 'pending')
 
     // 返回信件 ID
     return NextResponse.json(

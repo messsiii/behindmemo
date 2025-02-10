@@ -1,17 +1,17 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useRouter } from 'next/navigation'
+import { CreditsAlert } from '@/components/CreditsAlert'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/use-toast'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
-import { useToast } from '@/components/ui/use-toast'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
-import { useLanguage } from '@/contexts/LanguageContext'
-import { QuotaAlert } from '@/components/QuotaAlert'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const content = {
   en: {
@@ -23,8 +23,8 @@ const content = {
     placeholder: 'Share your story here...',
     unauthorized: 'Please login to generate letters',
     error: 'Failed to generate letter',
-    quotaError: 'Insufficient quota',
-    quotaCheck: 'Checking quota...',
+    creditsError: 'Insufficient credits',
+    creditsCheck: 'Checking credits...',
   },
   zh: {
     title: '写一封情书',
@@ -35,8 +35,8 @@ const content = {
     placeholder: '在这里分享你们的故事...',
     unauthorized: '请登录后生成',
     error: '生成失败',
-    quotaError: '配额不足',
-    quotaCheck: '正在检查配额...',
+    creditsError: '创作配额不足',
+    creditsCheck: '正在检查配额...',
   },
 } as const
 
@@ -108,7 +108,7 @@ export default function LoveLetterForm() {
   const { toast } = useToast()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [showQuotaAlert, setShowQuotaAlert] = useState(false)
+  const [showCreditsAlert, setShowCreditsAlert] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<Partial<FormData>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -456,21 +456,21 @@ export default function LoveLetterForm() {
 
       try {
         // 1. 检查配额
-        const quotaResponse = await fetch('/api/user/quota')
-        console.log('Quota response:', quotaResponse.status)
+        const creditsResponse = await fetch('/api/user/credits')
+        console.log('Credits response:', creditsResponse.status)
 
-        if (!quotaResponse.ok) {
-          console.error('Failed to check quota:', quotaResponse.statusText)
-          throw new Error('Failed to check quota')
+        if (!creditsResponse.ok) {
+          console.error('Failed to check credits:', creditsResponse.statusText)
+          throw new Error('Failed to check credits')
         }
 
-        const quotaData = await quotaResponse.json()
-        console.log('Quota data:', quotaData)
+        const creditsData = await creditsResponse.json()
+        console.log('Credits data:', creditsData)
 
         // 如果配额不足，显示提示并终止
-        if (!quotaData.isVIP && quotaData.quota <= 0) {
-          console.log('Insufficient quota, showing alert')
-          setShowQuotaAlert(true)
+        if (!creditsData.isVIP && creditsData.credits <= 0) {
+          console.log('Insufficient credits, showing alert')
+          setShowCreditsAlert(true)
           setIsLoading(false)
           setIsSubmitting(false)
           return
@@ -500,7 +500,11 @@ export default function LoveLetterForm() {
             loverName: formData.loverName || '',
             story: formData.story || '',
             blobUrl: uploadResult.blobUrl,
-            metadata: uploadResult.metadata || {},
+            metadata: {
+              ...uploadResult.metadata,
+              name: formData.name || '',  // 添加用户名字
+              loverName: formData.loverName || '',  // 添加收信人名字
+            },
           }),
           credentials: 'include',
         })
@@ -583,8 +587,8 @@ export default function LoveLetterForm() {
   }, [isLoading])
 
   useEffect(() => {
-    console.log('showQuotaAlert state changed:', showQuotaAlert)
-  }, [showQuotaAlert])
+    console.log('showCreditsAlert state changed:', showCreditsAlert)
+  }, [showCreditsAlert])
 
   return (
     <div className="w-full max-w-2xl">
@@ -719,11 +723,11 @@ export default function LoveLetterForm() {
         </div>
       </form>
 
-      <QuotaAlert
-        open={showQuotaAlert}
+      <CreditsAlert
+        open={showCreditsAlert}
         onOpenChange={(open: boolean) => {
-          console.log('QuotaAlert onOpenChange:', open)
-          setShowQuotaAlert(open)
+          console.log('CreditsAlert onOpenChange:', open)
+          setShowCreditsAlert(open)
         }}
       />
     </div>

@@ -1,9 +1,9 @@
-import LoveLetterForm from '../components/LoveLetterForm'
 import { QuotaDisplay } from '@/components/QuotaDisplay'
-import type { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
 import { Home } from 'lucide-react'
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import LoveLetterForm from '../components/LoveLetterForm'
 
 export const metadata: Metadata = {
   title: '写一封情书',

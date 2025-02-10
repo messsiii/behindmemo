@@ -10,7 +10,7 @@ declare module 'next-auth' {
   interface Session {
     user: {
       id: string
-      quota: number
+      credits: number
     } & DefaultSession['user']
   }
 }
@@ -18,7 +18,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id?: string
-    quota?: number
+    credits?: number
   }
 }
 
@@ -31,7 +31,7 @@ const prisma = globalForPrisma.prisma ?? new PrismaClient()
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 // 扩展 Prisma 适配器以支持初始配额
-const PrismaAdapterWithQuota = (p: PrismaClient): Adapter => {
+const PrismaAdapterWithCredits = (p: PrismaClient): Adapter => {
   const adapter = PrismaAdapter(p)
   return {
     ...adapter,
@@ -39,7 +39,7 @@ const PrismaAdapterWithQuota = (p: PrismaClient): Adapter => {
       const user = await p.user.create({
         data: {
           ...data,
-          quota: 2, // 设置初始配额
+          credits: 2, // 设置初始配额
           totalUsage: 0,
           lastLoginAt: new Date(),
           createdAt: new Date(),
@@ -53,8 +53,19 @@ const PrismaAdapterWithQuota = (p: PrismaClient): Adapter => {
 }
 
 export const authConfig = {
-  secret: process.env.AUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development' ? false : false,
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: true, // 开启调试模式
+  logger: {
+    error: (code: string, ...message: unknown[]) => {
+      console.error(code, ...message)
+    },
+    warn: (code: string, ...message: unknown[]) => {
+      console.warn(code, ...message)
+    },
+    debug: (code: string, ...message: unknown[]) => {
+      console.debug(code, ...message)
+    },
+  },
   pages: {
     signIn: '/auth/signin',
   },
@@ -62,14 +73,14 @@ export const authConfig = {
     async jwt({ token, user }: { token: JWT; user: User | undefined }) {
       if (user) {
         token.id = user.id
-        token.quota = (user as any).quota || 2
+        token.credits = (user as any).credits || 2
       }
       return token
     },
     async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user && token.id) {
         session.user.id = token.id
-        session.user.quota = token.quota || 2
+        session.user.credits = token.credits || 2
       }
       return session
     },
@@ -101,7 +112,7 @@ export const authConfig = {
       return `${baseUrl}/write`
     },
   },
-  adapter: PrismaAdapterWithQuota(prisma),
+  adapter: PrismaAdapterWithCredits(prisma),
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID || '',

@@ -12,8 +12,6 @@ interface GpsData {
 interface ImageMetadata {
   location?: string
   uploadTime?: string
-  width?: number
-  height?: number
   orientation?: string
   gps?: GpsData
   context?: {
@@ -22,6 +20,8 @@ interface ImageMetadata {
     colorDepth?: number
     location?: string
   }
+  name?: string
+  loverName?: string
 }
 
 interface GenerateLetterParams {
@@ -36,13 +36,28 @@ export async function generateLetter({
   metadata,
 }: GenerateLetterParams): Promise<string> {
   try {
-    // 构建系统提示词,包含图片元数据
-    let systemPrompt =
+    // 构建系统提示词
+    const systemPrompt =
       language === 'zh'
-        ? '你是一个浪漫的情书写手,擅长写感人的情书。请根据用户的描述和照片信息,写一封情真意切的情书。'
-        : "You are a romantic letter writer, skilled at writing touching love letters. Please write a heartfelt love letter based on the user's description and photo information."
+        ? '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书，用英文输出。请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。'
+        : 'You are a love letter writer. Based on the user\'s photo and information, write a love letter in Wang Xiaobo\'s style (without mentioning Wang Xiaobo) in English. Please use the actual names provided by the user, do not use placeholders like [Name] or [Your Name].'
 
-    // 如果有图片元数据,添加到系统提示词中
+    // 准备用户提示词
+    let userPrompt = `我的名字是"${metadata?.name || 'Anonymous'}"，我想写一封情书给"${metadata?.loverName || 'My Love'}"，这是我们的故事：
+
+${prompt}
+
+照片元数据信息：${
+  metadata
+    ? JSON.stringify({
+        location: metadata.location,
+        uploadTime: metadata.uploadTime,
+        context: metadata.context,
+      }, null, 2)
+    : '无元数据信息'
+}`
+
+    // 如果有图片元数据,添加到用户提示词中
     if (metadata) {
       // 地理位置信息
       const locationInfo = metadata.location
@@ -58,9 +73,6 @@ export async function generateLetter({
 
       // 图片属性信息
       const imageProps = []
-      if (metadata.width && metadata.height) {
-        imageProps.push(`The image is ${metadata.width}x${metadata.height} pixels`)
-      }
       if (metadata.orientation) {
         imageProps.push(`in ${metadata.orientation} orientation`)
       }
@@ -80,10 +92,15 @@ export async function generateLetter({
         .join(' ')
 
       if (metadataInfo) {
-        systemPrompt +=
-          language === 'zh' ? `\n照片信息: ${metadataInfo}` : `\nPhoto information: ${metadataInfo}`
+        userPrompt += language === 'zh' 
+          ? `\n\n照片信息: ${metadataInfo}` 
+          : `\n\nPhoto information: ${metadataInfo}`
       }
     }
+
+    console.log('Sending request to MiniMax API')
+    console.log('System Prompt:', systemPrompt)
+    console.log('User Prompt:', userPrompt)
 
     const response = await fetch('https://api.minimax.chat/v1/text/chatcompletion_v2', {
       method: 'POST',
@@ -100,7 +117,7 @@ export async function generateLetter({
           },
           {
             role: 'user',
-            content: prompt,
+            content: userPrompt,
           },
         ],
         stream: false,

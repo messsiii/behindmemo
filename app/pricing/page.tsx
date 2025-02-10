@@ -1,11 +1,13 @@
 'use client'
 
-import { useLanguage } from '@/contexts/LanguageContext'
-import { Nav } from '@/components/nav'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Check } from 'lucide-react'
+import { BetaAlert } from '@/components/BetaAlert'
 import { Footer } from '@/components/footer'
+import { Nav } from '@/components/nav'
+import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { Check } from 'lucide-react'
+import Link from 'next/link'
+import { useState } from 'react'
 
 const content = {
   en: {
@@ -36,10 +38,10 @@ const plans = {
   en: [
     {
       name: 'Basic',
-      price: '29',
+      price: '4.99',
       description: 'Perfect for individuals starting their AI love letter journey',
       features: [
-        '10 AI love letters per month',
+        '20 letter credits included',
         'Basic emotion analysis',
         '3 writing styles',
         'Digital letter collection',
@@ -49,10 +51,10 @@ const plans = {
     },
     {
       name: 'Creator',
-      price: '79',
+      price: '9.99',
       description: 'Unleash your creativity, make every letter unique',
       features: [
-        'Unlimited AI love letters',
+        '50 letter credits included',
         'Advanced emotion analysis',
         '10 writing styles',
         'Digital letter collection',
@@ -64,10 +66,10 @@ const plans = {
     },
     {
       name: 'Lifetime',
-      price: '599',
+      price: '99',
       description: 'One-time payment, lifetime usage',
       features: [
-        'Lifetime unlimited AI love letters',
+        '50 letter credits per month',
         'Advanced emotion analysis',
         'All writing styles',
         'Digital letter collection',
@@ -84,7 +86,12 @@ const plans = {
       name: '基础版',
       price: '29',
       description: '适合个人使用，开启AI情书创作之旅',
-      features: ['每月10封AI情书', '基础情感分析', '3种写作风格', '数字信件收藏'],
+      features: [
+        '赠送20次创作配额',
+        '基础情感分析',
+        '3种写作风格',
+        '数字信件收藏'
+      ],
       cta: '开始体验',
       popular: false,
     },
@@ -93,7 +100,7 @@ const plans = {
       price: '79',
       description: '释放创意，让每一封信都独一无二',
       features: [
-        '每月不限量AI情书',
+        '赠送50次创作配额',
         '高级情感分析',
         '10种写作风格',
         '数字信件收藏',
@@ -108,7 +115,7 @@ const plans = {
       price: '599',
       description: '一次付费，终身使用',
       features: [
-        '终身不限量AI情书',
+        '每月赠送50次创作配额',
         '高级情感分析',
         '全部写作风格',
         '数字信件收藏',
@@ -124,6 +131,12 @@ const plans = {
 
 export default function Pricing() {
   const { language } = useLanguage()
+  const [showBetaAlert, setShowBetaAlert] = useState(false)
+
+  const handleSubscribe = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setShowBetaAlert(true)
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -197,7 +210,7 @@ export default function Pricing() {
                     <span
                       className={`text-3xl text-gray-900 ${language === 'en' ? 'font-serif' : 'font-serif-zh'}`}
                     >
-                      ¥
+                      {language === 'en' ? '$' : '¥'}
                     </span>
                     <span
                       className={`text-4xl text-gray-900 ${language === 'en' ? 'font-serif' : 'font-serif-zh'}`}
@@ -228,9 +241,9 @@ export default function Pricing() {
                         ? 'bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white'
                         : 'bg-gray-50 hover:bg-gray-100 text-gray-900'
                     } ${language === 'en' ? 'font-serif' : 'font-serif-zh'}`}
-                    asChild
+                    onClick={handleSubscribe}
                   >
-                    <Link href="/register">{plan.cta}</Link>
+                    {plan.cta}
                   </Button>
                 </div>
               </div>
@@ -272,6 +285,8 @@ export default function Pricing() {
       </div>
 
       <Footer />
+      
+      <BetaAlert open={showBetaAlert} onOpenChange={setShowBetaAlert} />
     </div>
   )
 }

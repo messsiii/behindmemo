@@ -1,24 +1,26 @@
-import { Card, CardContent } from '@/components/ui/card'
 
 export default function Loading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-slate-50 p-4">
-      <div className="w-full max-w-4xl">
-        <Card className="overflow-hidden">
-          <div className="flex flex-col md:flex-row">
-            <div className="relative h-[300px] md:h-[600px] md:w-1/2 bg-gray-200 animate-pulse" />
-            <CardContent className="p-8 md:w-1/2">
-              <div className="space-y-6">
-                <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
-                <div className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black overflow-x-hidden">
+      <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
+        <div className="relative min-h-screen flex flex-col items-center justify-center py-10">
+          <div className="w-full max-w-4xl space-y-12">
+            {/* 标题占位 */}
+            <div className="h-16 w-96 mx-auto bg-white/5 rounded-lg animate-pulse" />
+            
+            {/* 图片占位 */}
+            <div className="relative h-[50vh] md:h-[60vh] overflow-hidden rounded-xl bg-white/5 animate-pulse" />
+            
+            {/* 内容占位 */}
+            <div className="bg-black/40 backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border border-white/10 space-y-4">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="h-4 bg-gray-200 rounded animate-pulse" />
+                <div key={i} className="h-6 bg-white/5 rounded animate-pulse" style={{
+                  width: `${Math.random() * 30 + 70}%`
+                }} />
                   ))}
                 </div>
               </div>
-            </CardContent>
           </div>
-        </Card>
       </div>
     </div>
   )

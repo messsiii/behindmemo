@@ -1,9 +1,9 @@
-import './globals.css'
-import { Inter } from 'next/font/google'
-import type { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import { authConfig } from '@/auth'
 import { Providers } from '@/components/Providers'
+import type { Metadata } from 'next'
+import { getServerSession } from 'next-auth'
+import { Inter } from 'next/font/google'
+import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 

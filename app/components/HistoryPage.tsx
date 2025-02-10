@@ -1,17 +1,18 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useSession } from 'next-auth/react'
+import { Footer } from '@/components/footer'
+import { Nav } from '@/components/nav'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useLanguage } from '@/contexts/LanguageContext'
-import useSWR from 'swr'
-import { motion, AnimatePresence } from 'framer-motion'
+import { format } from 'date-fns'
+import { enUS, zhCN } from 'date-fns/locale'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { zhCN, enUS } from 'date-fns/locale'
-import { Nav } from '@/components/nav'
-import { Footer } from '@/components/footer'
-import { Skeleton } from '@/components/ui/skeleton'
+import { usePathname } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import useSWR from 'swr'
 
 interface Letter {
   id: string
@@ -90,6 +91,7 @@ function LoadingIndicator() {
 export default function HistoryPage() {
   const { data: session } = useSession()
   const { language } = useLanguage()
+  const pathname = usePathname()
   const [currentPage, setCurrentPage] = useState(1)
   const [allLetters, setAllLetters] = useState<Letter[]>([])
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -122,7 +124,7 @@ export default function HistoryPage() {
     },
   }
 
-  const { error, isLoading } = useSWR<LettersResponse>(
+  const { error, isLoading, mutate } = useSWR<LettersResponse>(
     mounted && session?.user?.id
       ? `/api/letters?page=${currentPage}&limit=${ITEMS_PER_PAGE}`
       : null,
@@ -134,6 +136,7 @@ export default function HistoryPage() {
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
+      revalidateOnMount: true,
       onSuccess: data => {
         if (data?.letters) {
           if (currentPage === 1) {
@@ -154,6 +157,12 @@ export default function HistoryPage() {
       },
     }
   )
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setAllLetters([])
+    mutate()
+  }, [pathname, mutate])
 
   // 处理滚动加载
   const handleObserver = useCallback(
