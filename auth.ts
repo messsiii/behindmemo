@@ -85,53 +85,61 @@ export const authConfig = {
       return session
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      // 如果是 OAuth 回调 URL，直接使用它
-      if (url.startsWith('/api/auth') || url.includes('/api/auth/callback/')) {
-        return url
-      }
+      console.log('Redirect called with:', { url, baseUrl })
 
       try {
         const urlObj = new URL(url, baseUrl)
-        
-        // 处理 OAuth 提供商回调后的重定向
-        if (urlObj.pathname.startsWith('/api/auth/callback')) {
+        console.log('URL object:', urlObj.toString())
+
+        // 处理 OAuth 回调
+        if (urlObj.pathname.includes('/api/auth/callback')) {
           // 从 state 参数中获取原始的 callbackUrl
           const state = urlObj.searchParams.get('state')
+          console.log('State from callback:', state)
           if (state) {
             try {
               const decodedState = JSON.parse(decodeURIComponent(state))
+              console.log('Decoded state:', decodedState)
               if (decodedState.callbackUrl) {
-                const returnTo = new URL(decodedState.callbackUrl, baseUrl)
-                if (returnTo.origin === baseUrl) {
-                  return returnTo.toString()
-                }
+                return decodedState.callbackUrl.startsWith('/') 
+                  ? `${baseUrl}${decodedState.callbackUrl}`
+                  : decodedState.callbackUrl
               }
             } catch (e) {
               console.error('Failed to parse state:', e)
             }
           }
+          return baseUrl
         }
 
         // 处理登录页面的 callbackUrl
-        const callbackUrl = urlObj.searchParams.get('callbackUrl')
-        if (callbackUrl) {
-          const returnTo = new URL(callbackUrl, baseUrl)
-          if (returnTo.origin === baseUrl) {
+        if (urlObj.pathname === '/auth/signin') {
+          const callbackUrl = urlObj.searchParams.get('callbackUrl')
+          console.log('Callback URL from params:', callbackUrl)
+          if (callbackUrl) {
             // 将 callbackUrl 添加到 state 参数中
             const state = encodeURIComponent(JSON.stringify({ callbackUrl }))
-            if (urlObj.pathname === '/auth/signin') {
-              urlObj.searchParams.set('state', state)
-              return urlObj.toString()
-            }
-            return returnTo.toString()
+            urlObj.searchParams.set('state', state)
+            console.log('Setting state and redirecting to:', urlObj.toString())
+            return urlObj.toString()
           }
         }
+
+        // 如果 URL 包含 callbackUrl 参数
+        const callbackUrl = urlObj.searchParams.get('callbackUrl')
+        if (callbackUrl) {
+          return callbackUrl.startsWith('/') 
+            ? `${baseUrl}${callbackUrl}`
+            : callbackUrl
+        }
+
+        // 默认重定向到首页
+        console.log('Falling back to base URL:', baseUrl)
+        return baseUrl
       } catch (e) {
         console.error('URL parsing error:', e)
+        return baseUrl
       }
-
-      // 默认重定向到首页
-      return baseUrl
     },
   },
   adapter: PrismaAdapterWithCredits(prisma),

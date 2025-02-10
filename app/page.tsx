@@ -14,7 +14,7 @@ export default function Home() {
   const { language } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [_scrollY, setScrollY] = useState(0)
-  const { status, data: session } = useSession()
+  const { status } = useSession()
 
   useEffect(() => {
     setMounted(true)
