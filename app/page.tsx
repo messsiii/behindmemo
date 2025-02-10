@@ -14,7 +14,7 @@ export default function Home() {
   const { language } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [_scrollY, setScrollY] = useState(0)
-  const { data: session } = useSession()
+  const { status, data: session } = useSession()
 
   useEffect(() => {
     setMounted(true)
@@ -181,7 +181,7 @@ export default function Home() {
                   className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg"
                   asChild
                 >
-                  <Link href={session?.user ? '/write' : '/auth/signin?callbackUrl=/write&source=hero'}>
+                  <Link href={status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=hero'}>
                     {content[language].hero.cta}
                   </Link>
                 </Button>
@@ -260,7 +260,7 @@ export default function Home() {
                 }`}
                 asChild
               >
-                <Link href={session?.user ? '/write' : '/auth/signin?callbackUrl=/write&source=cta'}>
+                <Link href={status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=cta'}>
                   {content[language].cta.button}
                 </Link>
               </Button>

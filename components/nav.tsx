@@ -21,7 +21,7 @@ export function Nav() {
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
-  const session = useSession()
+  const { status } = useSession()
 
   // 使用 useEffect 确保组件只在客户端渲染后显示
   useEffect(() => {
@@ -29,7 +29,7 @@ export function Nav() {
   }, [])
 
   const links = [
-    { href: session?.data?.user ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
+    { href: status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
     { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
     { href: '/about', label: language === 'en' ? 'About' : '关于' },
   ]
@@ -133,9 +133,9 @@ export function Nav() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <UserAvatar />
-          {/* 如果未登录，显示登录按钮 */}
-          {!session.data?.user && (
+          {status === 'authenticated' ? (
+            <UserAvatar />
+          ) : (
             <Button variant="ghost" className="relative h-8 w-8 rounded-full" asChild>
               <Link href="/auth/signin?source=login">{language === 'en' ? 'Login' : '登录'}</Link>
             </Button>
