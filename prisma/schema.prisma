@@ -9,9 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Account {
@@ -50,7 +49,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  quota         Int       @default(2)  // 默认2次生成配额
+  credits       Int       @default(2)  // 默认2次生成配额
   totalUsage    Int       @default(0)   // 总使用次数
   lastLoginAt   DateTime  @default(now()) // 最后登录时间
   createdAt     DateTime  @default(now()) // 创建时间
