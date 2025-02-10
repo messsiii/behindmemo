@@ -92,7 +92,8 @@ export const authConfig = {
 
       // 如果URL包含callbackUrl参数，提取并使用它
       try {
-        const callbackUrl = new URL(url, baseUrl).searchParams.get('callbackUrl')
+        const urlObj = new URL(url, baseUrl)
+        const callbackUrl = urlObj.searchParams.get('callbackUrl')
         if (callbackUrl) {
           // 确保回调URL是安全的
           const returnTo = new URL(callbackUrl, baseUrl)
@@ -100,16 +101,17 @@ export const authConfig = {
             return returnTo.toString()
           }
         }
+
+        // 如果是从写作页面来的登录请求，登录后返回写作页面
+        if (urlObj.pathname === '/auth/signin' && !callbackUrl) {
+          return `${baseUrl}/write`
+        }
       } catch (e) {
         console.error('URL parsing error:', e)
       }
 
-      // 允许内部URL重定向
-      if (url.startsWith(baseUrl)) return url
-      // 允许相对URL重定向
-      if (url.startsWith('/')) return `${baseUrl}${url}`
-      // 默认重定向到写作页面
-      return `${baseUrl}/write`
+      // 默认重定向到首页
+      return baseUrl
     },
   },
   adapter: PrismaAdapterWithCredits(prisma),

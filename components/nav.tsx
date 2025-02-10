@@ -10,6 +10,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Globe, Menu } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -20,6 +21,7 @@ export function Nav() {
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  const session = useSession()
 
   // 使用 useEffect 确保组件只在客户端渲染后显示
   useEffect(() => {
@@ -132,6 +134,12 @@ export function Nav() {
             </DropdownMenuContent>
           </DropdownMenu>
           <UserAvatar />
+          {/* 如果未登录，显示登录按钮 */}
+          {!session && (
+            <Button variant="ghost" className="relative h-8 w-8 rounded-full" asChild>
+              <Link href="/auth/signin?callbackUrl=/">{language === 'en' ? 'Login' : '登录'}</Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>

@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import FeatureSection from '@/components/FeatureSection'
-import { useLanguage } from '@/contexts/LanguageContext'
-import { Nav } from '@/components/nav'
 import { Footer } from '@/components/footer'
+import { Nav } from '@/components/nav'
+import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { motion } from 'framer-motion'
+import { useSession } from 'next-auth/react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 export default function Home() {
   const { language } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [_scrollY, setScrollY] = useState(0)
+  const { data: session } = useSession()
 
   useEffect(() => {
     setMounted(true)
@@ -175,14 +177,12 @@ export default function Home() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.8 }}
               >
-                <Button
-                  className={`rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg ${
-                    language === 'en' ? 'font-serif' : 'font-serif-zh'
-                  }`}
-                  asChild
+                <Link
+                  href={session?.user ? '/write' : '/auth/signin?callbackUrl=/write'}
+                  className="inline-flex items-center justify-center h-11 px-8 py-2 bg-primary text-white rounded-full hover:opacity-90 transition-opacity"
                 >
-                  <Link href="/write">{content[language].hero.cta}</Link>
-                </Button>
+                  {language === 'en' ? 'Start Writing' : '开始写作'}
+                </Link>
               </motion.div>
             </div>
           </div>
