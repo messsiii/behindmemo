@@ -85,26 +85,46 @@ export const authConfig = {
       return session
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      // 如果是回调URL，直接使用它
+      // 如果是 OAuth 回调 URL，直接使用它
       if (url.startsWith('/api/auth') || url.includes('/api/auth/callback/')) {
         return url
       }
 
-      // 如果URL包含callbackUrl参数，提取并使用它
       try {
         const urlObj = new URL(url, baseUrl)
-        const callbackUrl = urlObj.searchParams.get('callbackUrl')
-        if (callbackUrl) {
-          // 确保回调URL是安全的
-          const returnTo = new URL(callbackUrl, baseUrl)
-          if (returnTo.origin === baseUrl) {
-            return returnTo.toString()
+        
+        // 处理 OAuth 提供商回调后的重定向
+        if (urlObj.pathname.startsWith('/api/auth/callback')) {
+          // 从 state 参数中获取原始的 callbackUrl
+          const state = urlObj.searchParams.get('state')
+          if (state) {
+            try {
+              const decodedState = JSON.parse(decodeURIComponent(state))
+              if (decodedState.callbackUrl) {
+                const returnTo = new URL(decodedState.callbackUrl, baseUrl)
+                if (returnTo.origin === baseUrl) {
+                  return returnTo.toString()
+                }
+              }
+            } catch (e) {
+              console.error('Failed to parse state:', e)
+            }
           }
         }
 
-        // 如果是从写作页面来的登录请求，登录后返回写作页面
-        if (urlObj.pathname === '/auth/signin' && !callbackUrl) {
-          return `${baseUrl}/write`
+        // 处理登录页面的 callbackUrl
+        const callbackUrl = urlObj.searchParams.get('callbackUrl')
+        if (callbackUrl) {
+          const returnTo = new URL(callbackUrl, baseUrl)
+          if (returnTo.origin === baseUrl) {
+            // 将 callbackUrl 添加到 state 参数中
+            const state = encodeURIComponent(JSON.stringify({ callbackUrl }))
+            if (urlObj.pathname === '/auth/signin') {
+              urlObj.searchParams.set('state', state)
+              return urlObj.toString()
+            }
+            return returnTo.toString()
+          }
         }
       } catch (e) {
         console.error('URL parsing error:', e)

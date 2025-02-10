@@ -177,12 +177,14 @@ export default function Home() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.8 }}
               >
-                <Link
-                  href={session?.user ? '/write' : '/auth/signin?callbackUrl=/write'}
-                  className="inline-flex items-center justify-center h-11 px-8 py-2 bg-primary text-white rounded-full hover:opacity-90 transition-opacity"
+                <Button
+                  className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg"
+                  asChild
                 >
-                  {language === 'en' ? 'Start Writing' : '开始写作'}
-                </Link>
+                  <Link href={session?.user ? '/write' : '/auth/signin?callbackUrl=/write&source=hero'}>
+                    {content[language].hero.cta}
+                  </Link>
+                </Button>
               </motion.div>
             </div>
           </div>
@@ -258,7 +260,9 @@ export default function Home() {
                 }`}
                 asChild
               >
-                <Link href="/write">{content[language].cta.button}</Link>
+                <Link href={session?.user ? '/write' : '/auth/signin?callbackUrl=/write&source=cta'}>
+                  {content[language].cta.button}
+                </Link>
               </Button>
             </div>
           </div>

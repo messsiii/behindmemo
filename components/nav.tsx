@@ -29,7 +29,7 @@ export function Nav() {
   }, [])
 
   const links = [
-    { href: '/write', label: language === 'en' ? 'Write' : '写信' },
+    { href: session?.data?.user ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
     { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
     { href: '/about', label: language === 'en' ? 'About' : '关于' },
   ]
@@ -135,9 +135,9 @@ export function Nav() {
           </DropdownMenu>
           <UserAvatar />
           {/* 如果未登录，显示登录按钮 */}
-          {!session && (
+          {!session.data?.user && (
             <Button variant="ghost" className="relative h-8 w-8 rounded-full" asChild>
-              <Link href="/auth/signin?callbackUrl=/">{language === 'en' ? 'Login' : '登录'}</Link>
+              <Link href="/auth/signin?source=login">{language === 'en' ? 'Login' : '登录'}</Link>
             </Button>
           )}
         </div>
