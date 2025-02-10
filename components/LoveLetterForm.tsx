@@ -1,6 +1,6 @@
 'use client'
 
-import { QuotaAlert } from '@/components/QuotaAlert'
+import { CreditsAlert } from '@/components/CreditsAlert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -213,7 +213,7 @@ export default function LoveLetterForm() {
         </Button>
       </form>
 
-      <QuotaAlert open={showQuotaAlert} onOpenChange={setShowQuotaAlert} />
+      <CreditsAlert open={showQuotaAlert} onOpenChange={setShowQuotaAlert} />
     </div>
   )
 }
