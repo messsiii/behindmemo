@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { authConfig } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { redis } from '@/lib/redis'
+import { getServerSession } from 'next-auth'
+import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   try {
@@ -17,44 +18,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing request ID' }, { status: 400 })
     }
 
-    // 检查用户状态
+    // 检查用户配额
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { quota: true, isVIP: true, vipExpiresAt: true },
+      select: { credits: true, isVIP: true, vipExpiresAt: true },
     })
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // VIP 用户不消耗配额，只增加使用次数
-    if (user.isVIP && user.vipExpiresAt && user.vipExpiresAt > new Date()) {
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: {
-          totalUsage: { increment: 1 },
-        },
-      })
-      return NextResponse.json({ success: true })
+    // VIP 用户不消耗配额
+    if (user.isVIP) {
+      if (!user.vipExpiresAt || user.vipExpiresAt > new Date()) {
+        return NextResponse.json({ success: true })
+      }
     }
 
-    // 检查普通用户配额
-    if (user.quota <= 0) {
-      return NextResponse.json({ error: 'Insufficient quota' }, { status: 400 })
+    // 检查配额是否足够
+    if (user.credits <= 0) {
+      return NextResponse.json({ error: 'Insufficient credits' }, { status: 400 })
     }
 
-    // 消耗配额并增加使用次数
+    // 扣除配额
     await prisma.user.update({
       where: { id: session.user.id },
       data: {
-        quota: { decrement: 1 },
+        credits: { decrement: 1 },
         totalUsage: { increment: 1 },
       },
     })
 
+    // 清除用户配额缓存
+    await redis.del(`user:credits:${session.user.id}`)
+
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error in consume-quota:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in consume-credits:', error)
+    return NextResponse.json(
+      { error: 'Failed to consume credits' },
+      { status: 500 }
+    )
   }
 }

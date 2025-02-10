@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { authConfig } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { cache } from '@/lib/redis'
+import { getServerSession } from 'next-auth'
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
@@ -12,17 +12,17 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 使用缓存获取用户配额
-    const quotaInfo = await cache(
-      `user:quota:${session.user.id}`,
+    // 使用缓存获取用户配额，缓存时间缩短到10秒
+    const creditsInfo = await cache(
+      `user:credits:${session.user.id}`,
       async () => {
         const user = await prisma.user.findUnique({
           where: { id: session.user.id },
           select: {
-            quota: true,
-            totalUsage: true,
+            credits: true,
             isVIP: true,
             vipExpiresAt: true,
+            totalUsage: true,
           },
         })
 
@@ -30,33 +30,28 @@ export async function GET() {
         if (!user) {
           console.warn(`User not found: ${session.user.id}`)
           return {
-            quota: 0,
-            totalUsage: 0,
+            credits: 0,
             isVIP: false,
             vipExpiresAt: null,
-            unlimited: false,
+            totalUsage: 0,
           }
         }
 
         return {
-          quota: user.quota,
-          totalUsage: user.totalUsage,
+          credits: user.credits,
           isVIP: user.isVIP,
           vipExpiresAt: user.vipExpiresAt,
-          unlimited: user.isVIP && user.vipExpiresAt && user.vipExpiresAt > new Date(),
+          totalUsage: user.totalUsage,
         }
       },
-      30 // 缓存30秒
+      10 // 缓存10秒
     )
 
-    return NextResponse.json(quotaInfo)
+    return NextResponse.json(creditsInfo)
   } catch (error) {
-    console.error('[QUOTA_API_ERROR]', error)
+    console.error('[CREDITS_API_ERROR]', error)
     return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : String(error),
-      },
+      { error: 'Failed to fetch credits info' },
       { status: 500 }
     )
   }

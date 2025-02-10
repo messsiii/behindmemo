@@ -1,23 +1,23 @@
 'use client'
 
-import { useSession, signOut } from 'next-auth/react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { signOut, useSession } from 'next-auth/react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 
-interface QuotaInfo {
-  quota: number
+interface CreditsInfo {
+  credits: number
   isVIP: boolean
   vipExpiresAt: string | null
   totalUsage: number
@@ -30,7 +30,7 @@ interface FetchError extends Error {
 const fetcher = async (url: string) => {
   const res = await fetch(url)
   if (!res.ok) {
-    const error = new Error('Failed to fetch quota') as FetchError
+    const error = new Error('Failed to fetch credits') as FetchError
     error.info = await res.json()
     throw error
   }
@@ -41,19 +41,17 @@ export function UserAvatar() {
   const { data: session } = useSession()
   const { language } = useLanguage()
   const [mounted, setMounted] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
 
   // 使用 SWR 进行数据获取和缓存
-  const { data: quotaInfo, error } = useSWR<QuotaInfo>(
-    session?.user?.id ? '/api/user/quota' : null,
+  const { data: creditsInfo, error } = useSWR<CreditsInfo>(
+    session?.user?.id ? '/api/user/credits' : null,
     fetcher,
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      refreshInterval: 5 * 60 * 1000, // 5分钟刷新一次
-      dedupingInterval: 30 * 1000, // 30秒内不重复请求
-      onError: err => {
-        console.error('Error fetching quota:', err)
-      },
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      refreshInterval: 30000, // 每30秒自动刷新一次
+      dedupingInterval: 5000, // 5秒内不重复请求
     }
   )
 
@@ -80,7 +78,7 @@ export function UserAvatar() {
   }
 
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
@@ -98,35 +96,45 @@ export function UserAvatar() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
-          {language === 'en' ? 'Quota' : '配额'}:{' '}
+          {language === 'en' ? 'Credits' : '创作配额'}:{' '}
           {error ? (
             <span className="text-red-500">!</span>
-          ) : !quotaInfo ? (
+          ) : !creditsInfo ? (
             <span className="animate-pulse">...</span>
-          ) : quotaInfo.isVIP ? (
+          ) : creditsInfo.isVIP ? (
             'VIP'
           ) : language === 'en' ? (
-            `${quotaInfo.quota} times`
+            `${creditsInfo.credits} times`
           ) : (
-            `${quotaInfo.quota} 次`
+            `${creditsInfo.credits} 次`
           )}
         </DropdownMenuItem>
         <DropdownMenuItem>
           {language === 'en' ? 'Total Usage' : '总使用'}:{' '}
           {error ? (
             <span className="text-red-500">!</span>
-          ) : !quotaInfo ? (
+          ) : !creditsInfo ? (
             <span className="animate-pulse">...</span>
           ) : (
-            (quotaInfo.totalUsage ?? '-')
+            (creditsInfo.totalUsage ?? '-')
           )}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/history">{language === 'en' ? 'History' : '历史记录'}</Link>
+          <Link href="/write">{language === 'en' ? 'Write Letter' : '写信'}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/history">{language === 'en' ? 'History' : '历史'}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/pricing">{language === 'en' ? 'Upgrade' : '升级'}</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-red-600" onClick={() => signOut()}>
-          {language === 'en' ? 'Sign Out' : '退出登录'}
+        <DropdownMenuItem
+          className="text-red-500 focus:text-red-500"
+          onSelect={() => signOut({ callbackUrl: '/' })}
+        >
+          {language === 'en' ? 'Sign out' : '退出登录'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

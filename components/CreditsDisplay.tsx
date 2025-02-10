@@ -20,7 +20,7 @@ const fetcher = (url: string) =>
     return res.json()
   })
 
-export function QuotaDisplay() {
+export function CreditsDisplay() {
   const { data: session } = useSession()
   const { language } = useLanguage()
 
@@ -67,15 +67,12 @@ export function QuotaDisplay() {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-1 text-primary hover:text-primary/80 transition-colors">
+          <div className="flex items-center gap-1 text-muted-foreground">
             {creditsInfo?.isVIP ? (
-              <>
-                <Infinity className="h-4 w-4" />
-                <span className="text-sm font-medium">VIP</span>
-              </>
+              <Infinity className="h-4 w-4" />
             ) : (
               <>
-                <span className="text-sm font-medium">{creditsInfo?.credits}</span>
+                <span className="text-sm font-medium">{creditsInfo?.credits ?? 0}</span>
                 <Sparkles className="h-4 w-4" />
               </>
             )}
