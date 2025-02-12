@@ -22,6 +22,7 @@ interface Letter {
     name: string
     loverName: string
     story: string
+    orientation: number
   }
 }
 
@@ -369,7 +370,12 @@ export default function ResultsPage({ id }: { id: string }) {
                               src={imageError ? '/placeholder.svg' : letter.imageUrl}
                               alt="Your special moment"
                               fill
-                              className="object-contain"
+                              className={cn(
+                                'object-contain',
+                                letter.metadata?.orientation === 6 && 'rotate-90',
+                                letter.metadata?.orientation === 3 && 'rotate-180',
+                                letter.metadata?.orientation === 8 && '-rotate-90'
+                              )}
                               onError={() => setImageError(true)}
                               onLoad={() => setImageLoaded(true)}
                               priority

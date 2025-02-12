@@ -306,127 +306,128 @@ export default function LoveLetterForm() {
   }
 
   const uploadPhotoAndPrepareData = useCallback(async (file: File) => {
-    // console.log('Starting to process file:', {
-    //   name: file.name,
-    //   type: file.type,
-    //   size: file.size
-    // })
-
     let originalGpsData = null
     try {
-      // console.log('Trying to read GPS from original file:', file.name)
-      const gpsData = await exifr.gps(file)
-      // console.log('GPS Data from exifr:', gpsData)
+      // 1. 首先读取原始 EXIF 数据
+      const exifData = await exifr.parse(file, {
+        tiff: true,
+        xmp: true,
+        gps: true,
+        // 使用 exifr 的特定选项
+        translateValues: true,
+        translateKeys: true,
+        reviveValues: true,
+        mergeOutput: false,
+      })
 
-      if (gpsData) {
-        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${gpsData.latitude},${gpsData.longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&language=en`
+      // 2. 处理 HEIC 转换
+      let processedFile = file
+      if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+        try {
+          const heic2any = (await import('heic2any')).default
+          const blob = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.9,
+          })
 
-        // console.log('Calling Google Maps API...', {
-        //   latitude: gpsData.latitude,
-        //   longitude: gpsData.longitude
-        // })
-
-        const response = await fetch(geocodeUrl)
-        // console.log('Google Maps API Response:', {
-        //   status: response.status,
-        //   ok: response.ok
-        // })
-
-        const locationData = await response.json()
-        // console.log('Location Data:', locationData)
-
-        if (locationData.status === 'OK') {
-          const locationDescription = locationData.plus_code?.compound_code
-            ? locationData.plus_code.compound_code.replace(/^[^ ]+ /, '')
-            : locationData.results[0].formatted_address
-
-          originalGpsData = {
-            coordinates: {
-              latitude: gpsData.latitude,
-              longitude: gpsData.longitude,
-            },
-            address: locationDescription,
-            raw_address: locationData.results[0].formatted_address,
-          }
-          // console.log('Successfully got location:', {
-          //   ...originalGpsData,
-          //   compound_code: locationData.plus_code?.compound_code
-          // })
+          // 修复类型错误：处理 blob 可能是数组的情况
+          const convertedBlob = Array.isArray(blob) ? blob[0] : blob
+          processedFile = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
+            type: 'image/jpeg',
+          })
+        } catch (error) {
+          console.error('Error converting HEIC:', error)
+          throw new Error('Failed to convert HEIC image')
         }
       }
-    } catch (error: unknown) {
-      console.warn(
-        'Failed to process GPS data:',
-        error instanceof Error ? error.message : String(error)
-      ) // 保留错误日志
-    }
 
-    // 处理 HEIC 转换
-    let processedFile = file
-    if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
-      try {
-        const heic2any = (await import('heic2any')).default
-        const blob = await heic2any({
-          blob: file,
-          toType: 'image/jpeg',
-          quality: 0.9,
-        })
+      // 3. 创建图片预览并应用正确的方向
+      const imageUrl = URL.createObjectURL(processedFile)
+      const img = new Image()
+      img.src = imageUrl
 
-        // 修复类型错误：处理 blob 可能是数组的情况
-        const convertedBlob = Array.isArray(blob) ? blob[0] : blob
-        processedFile = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
-          type: 'image/jpeg',
-        })
-      } catch (error: unknown) {
-        console.error(
-          'Error converting HEIC:',
-          error instanceof Error ? error.message : String(error)
-        )
-        throw new Error('Failed to convert HEIC image')
-      }
-    }
+      await new Promise((resolve) => {
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            URL.revokeObjectURL(imageUrl)
+            throw new Error('Failed to get canvas context')
+          }
 
-    // 获取其他元数据，并合并 GPS 数据
-    const imageMetadata = await handleExifData(processedFile)
-    if (originalGpsData) {
-      imageMetadata.gps = {
-        ...originalGpsData.coordinates,
-        address: originalGpsData.address, // 添加地址信息
-        raw_address: originalGpsData.raw_address,
-      }
-    }
+          // 根据 EXIF 方向调整画布尺寸和变换
+          let width = img.width
+          let height = img.height
+          const orientation = exifData?.Orientation || 1
 
-    const formData = new FormData()
-    formData.append('file', processedFile)
+          // 如果方向是 5-8，交换宽高
+          if (orientation > 4) {
+            [width, height] = [height, width]
+          }
 
-    try {
-      const blobResponse = await fetch('/api/upload', {
+          canvas.width = width
+          canvas.height = height
+
+          // 根据方向应用适当的变换
+          ctx.save()
+          switch (orientation) {
+            case 2: ctx.transform(-1, 0, 0, 1, width, 0); break
+            case 3: ctx.transform(-1, 0, 0, -1, width, height); break
+            case 4: ctx.transform(1, 0, 0, -1, 0, height); break
+            case 5: ctx.transform(0, 1, 1, 0, 0, 0); break
+            case 6: ctx.transform(0, 1, -1, 0, height, 0); break
+            case 7: ctx.transform(0, -1, -1, 0, height, width); break
+            case 8: ctx.transform(0, -1, 1, 0, 0, width); break
+          }
+
+          ctx.drawImage(img, 0, 0)
+          ctx.restore()
+
+          // 将画布转换为 Blob
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              URL.revokeObjectURL(imageUrl)
+              throw new Error('Failed to convert canvas to blob')
+            }
+
+            // 创建新的处理后的文件
+            processedFile = new File([blob], processedFile.name, {
+              type: 'image/jpeg',
+            })
+
+            URL.revokeObjectURL(imageUrl)
+            resolve(true)
+          }, 'image/jpeg', 0.9)
+        }
+      })
+
+      // 4. 上传处理后的文件
+      const formData = new FormData()
+      formData.append('file', processedFile)
+
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       })
 
-      if (!blobResponse.ok) {
-        throw new Error(`Upload failed: ${blobResponse.statusText}`)
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`)
       }
 
-      const data = await blobResponse.json()
+      const data = await response.json()
       return {
         blobUrl: data.url,
         metadata: {
           ...data.metadata,
-          ...imageMetadata,
-          // 确保地理位置信息被包含
-          location: originalGpsData?.address, // 直接添加地理位置描述
-          context: {
-            uploadDevice: navigator.userAgent,
-            screenSize: `${window.innerWidth}x${window.innerHeight}`,
-            colorDepth: window.screen.colorDepth,
-            location: originalGpsData?.address, // 在上下文中也包含位置信息
-          },
+          orientation: exifData?.Orientation,
+          gps: exifData?.gps,
+          name: formData.get('name') as string || '',
+          loverName: formData.get('loverName') as string || '',
         },
       }
-    } catch (error: unknown) {
-      console.error('Upload error:', error instanceof Error ? error.message : String(error))
+    } catch (error) {
+      console.error('Upload error:', error)
       throw error
     }
   }, [])
