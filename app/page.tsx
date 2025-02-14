@@ -223,7 +223,7 @@ export default function Home() {
             <FeatureSection
               title={feature.title}
               description={feature.description}
-              imageSrc="/placeholder.svg?height=800&width=1200"
+              imageSrc={`/images/features/feature-${index + 1}.webp`}
               imageAlt={`${feature.title} feature showcase`}
               reverse={index % 2 !== 0}
               language={language}
