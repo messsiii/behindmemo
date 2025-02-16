@@ -8,6 +8,13 @@
 
 # testing
 /coverage
+/tests
+jest.config.ts
+*.test.ts
+*.spec.ts
+*stress*.ts
+*stress*.json
+stress-results/
 
 # next.js
 /.next/
@@ -47,11 +54,3 @@ next-env.d.ts
 # Cursor IDE files
 .cursor/
 .cursor/**/*
-
-# Stress Tests
-/tests/stress/
-stress.config.ts
-stress.test.ts
-*stress*.ts
-*stress*.json
-stress-results/
