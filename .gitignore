@@ -47,3 +47,11 @@ next-env.d.ts
 # Cursor IDE files
 .cursor/
 .cursor/**/*
+
+# Stress Tests
+/tests/stress/
+stress.config.ts
+stress.test.ts
+*stress*.ts
+*stress*.json
+stress-results/
