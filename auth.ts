@@ -85,56 +85,41 @@ export const authConfig = {
       return session
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      console.log('Redirect called with:', { url, baseUrl })
-
       try {
         // 1. 规范化 URL
         const urlObj = new URL(url, baseUrl)
-        console.log('Processing URL:', urlObj.toString())
+        const pathname = urlObj.pathname
+        
+        // 只记录路径名，不记录完整 URL
+        console.debug('Processing redirect:', pathname)
 
         // 2. 获取并处理 callbackUrl
         let finalCallbackUrl = urlObj.searchParams.get('callbackUrl')
-        console.log('Initial callbackUrl:', finalCallbackUrl)
-
+        
         // 3. 如果是 OAuth 回调
-        if (urlObj.pathname.includes('/api/auth/callback')) {
-          console.log('Handling OAuth callback')
-          
+        if (pathname.includes('/api/auth/callback')) {
           // 尝试从 state 获取 callbackUrl
           const state = urlObj.searchParams.get('state')
-          console.log('OAuth callback state:', state)
           
           if (state) {
             try {
               const decodedState = JSON.parse(decodeURIComponent(state))
-              console.log('Decoded state:', decodedState)
               if (decodedState.callbackUrl) {
                 finalCallbackUrl = decodedState.callbackUrl
-                console.log('Found callbackUrl in state:', finalCallbackUrl)
               }
             } catch (e) {
-              console.error('Failed to parse state:', e)
+              console.error('Failed to parse state')
             }
-          }
-
-          // 如果在 state 中没找到，尝试从 URL 参数获取
-          if (!finalCallbackUrl) {
-            finalCallbackUrl = urlObj.searchParams.get('callbackUrl')
-            console.log('Fallback to URL callbackUrl:', finalCallbackUrl)
           }
         }
 
         // 4. 如果是登录页面
-        if (urlObj.pathname === '/auth/signin') {
-          console.log('Handling signin page')
+        if (pathname === '/auth/signin') {
           const callbackUrl = urlObj.searchParams.get('callbackUrl')
-          console.log('Signin page callbackUrl:', callbackUrl)
-          
           if (callbackUrl) {
             // 确保 state 包含 callbackUrl
             const state = encodeURIComponent(JSON.stringify({ callbackUrl }))
             urlObj.searchParams.set('state', state)
-            console.log('Added callbackUrl to state:', urlObj.toString())
             return urlObj.toString()
           }
         }
@@ -148,21 +133,18 @@ export const authConfig = {
               ? `${baseUrl}${finalCallbackUrl}`
               : `${baseUrl}/${finalCallbackUrl}`
           
-          console.log('Final redirect URL:', redirectUrl)
           return redirectUrl
         }
 
         // 6. 如果 URL 本身包含路径，使用该路径
-        if (urlObj.pathname !== '/' && urlObj.pathname !== '/auth/signin') {
-          console.log('Using URL pathname as redirect:', urlObj.pathname)
-          return `${baseUrl}${urlObj.pathname}`
+        if (pathname !== '/' && pathname !== '/auth/signin') {
+          return `${baseUrl}${pathname}`
         }
 
         // 7. 默认返回首页
-        console.log('No redirect target found, returning to base URL:', baseUrl)
         return baseUrl
-      } catch (e) {
-        console.error('Error in redirect callback:', e)
+      } catch (error) {
+        console.error('Redirect error')
         return baseUrl
       }
     },

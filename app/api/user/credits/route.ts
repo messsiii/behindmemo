@@ -26,7 +26,7 @@ export async function GET() {
           },
         })
 
-        // 如果找不到用户，返回默认值而不是抛出错误
+        // 如果找不到用户，返回默认值
         if (!user) {
           console.warn(`User not found: ${session.user.id}`)
           return {

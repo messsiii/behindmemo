@@ -2,37 +2,57 @@ import { Redis } from '@upstash/redis'
 
 // 创建 Redis 客户端实例
 export const redis = new Redis({
-  url: process.env.KV_REST_API_URL || '',
-  token: process.env.KV_REST_API_TOKEN || '',
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
 })
 
-// 通用缓存函数
+// 缓存函数的类型定义
+type CacheFunction<T> = () => Promise<T>
+
+// 缓存包装器
 export async function cache<T>(
   key: string,
-  fn: () => Promise<T>,
-  ttl: number = 60 // 默认缓存60秒
+  fn: CacheFunction<T>,
+  ttl: number = 60 // 默认缓存 60 秒
 ): Promise<T> {
+  // 跳过不需要缓存的路径
+  if (key.includes('auth:session') || key.includes('redirect')) {
+    return fn()
+  }
+
   try {
-    // 尝试从缓存获取
+    // 尝试从缓存获取数据
     const cached = await redis.get<T>(key)
-    if (cached) {
-      console.log(`Cache hit for key: ${key}`)
+    if (cached !== null) {
+      console.debug(`Cache hit: ${key}`)
       return cached
     }
 
-    console.log(`Cache miss for key: ${key}`)
-    // 如果缓存不存在，执行函数
+    // 如果缓存未命中，执行函数获取数据
     const data = await fn()
-
-    // 存入缓存
-    await redis.set(key, data, { ex: ttl })
-    console.log(`Cached data for key: ${key} with TTL: ${ttl}s`)
-
+    
+    // 确保数据不为 null，如果是 null 则存储空对象
+    const payload = data === null ? {} : data
+    
+    // 将数据存入缓存
+    await redis.setex(key, ttl, payload)
+    console.debug(`Cache stored: ${key}`)
+    
     return data
   } catch (error) {
-    console.error('Redis cache error:', error)
+    console.error('Cache error:', error)
     // 如果缓存出错，直接执行函数并返回结果
     return fn()
+  }
+}
+
+// 清除缓存
+export async function clearCache(key: string): Promise<void> {
+  try {
+    await redis.del(key)
+    console.debug(`Cache cleared: ${key}`)
+  } catch (error) {
+    console.error('Cache clear failed:', error)
   }
 }
 
@@ -56,7 +76,7 @@ export async function setGenerationStatus(
     { status, progress, error },
     { ex: 3600 } // 1小时过期
   )
-  console.log(`Set generation status for letter ${letterId}:`, { status, progress, error })
+  console.debug(`Letter ${letterId}: ${status}`)
 }
 
 // 获取生成状态
@@ -69,5 +89,5 @@ export async function getGenerationStatus(letterId: string): Promise<GenerationS
 export async function deleteGenerationStatus(letterId: string) {
   const key = `letter:status:${letterId}`
   await redis.del(key)
-  console.log(`Deleted generation status for letter ${letterId}`)
+  console.debug(`Letter ${letterId}: status cleared`)
 }
