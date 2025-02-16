@@ -1,6 +1,6 @@
 import { authConfig } from '@/auth'
 import { prisma } from '@/lib/prisma'
-import { setGenerationStatus } from '@/lib/redis'
+import { letterQueue } from '@/lib/queue'
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 
@@ -8,20 +8,15 @@ export const runtime = 'nodejs'
 export const maxDuration = 60 // 设置为60秒以符合 hobby 计划限制
 
 export async function POST(req: Request) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 55000) // 55秒超时，留5秒缓冲
-
   try {
     const session = await getServerSession(authConfig)
     if (!session?.user?.id) {
-      clearTimeout(timeoutId)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // 获取请求ID
     const requestId = req.headers.get('X-Request-Id')
     if (!requestId) {
-      clearTimeout(timeoutId)
       return NextResponse.json({ error: 'Missing request ID' }, { status: 400 })
     }
 
@@ -29,7 +24,6 @@ export async function POST(req: Request) {
     try {
       body = await req.json()
     } catch (error) {
-      clearTimeout(timeoutId)
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
@@ -48,7 +42,6 @@ export async function POST(req: Request) {
       .map(([key]) => key)
 
     if (missingFields.length > 0) {
-      clearTimeout(timeoutId)
       console.warn('Missing fields:', missingFields)
       return NextResponse.json(
         {
@@ -81,17 +74,22 @@ export async function POST(req: Request) {
         prompt: `From ${name} to ${loverName}: ${story}`,
         language: 'en',
         metadata: metadata || {},
+        status: 'pending',
       },
     })
 
-    // 设置初始状态
-    await setGenerationStatus(letter.id, 'pending')
+    // 将任务添加到队列
+    await letterQueue.enqueue(letter.id)
 
-    // 返回信件 ID
+    // 获取队列状态
+    const queueStatus = await letterQueue.getStatus()
+
+    // 返回信件 ID 和预估等待时间
     return NextResponse.json(
       {
         success: true,
         letterId: letter.id,
+        estimatedWaitMinutes: queueStatus.estimatedWaitMinutes,
       },
       {
         headers: {
@@ -100,7 +98,6 @@ export async function POST(req: Request) {
       }
     )
   } catch (error) {
-    clearTimeout(timeoutId)
     console.error('[GENERATE_LETTER_ERROR]', error instanceof Error ? error.message : String(error))
     return NextResponse.json(
       {
