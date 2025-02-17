@@ -54,3 +54,8 @@ next-env.d.ts
 # Cursor IDE files
 .cursor/
 .cursor/**/*
+
+# References and docs
+/references
+*.md
+!README.md
