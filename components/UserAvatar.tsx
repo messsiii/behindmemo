@@ -101,12 +101,8 @@ export function UserAvatar() {
             <span className="text-red-500">!</span>
           ) : !creditsInfo ? (
             <span className="animate-pulse">...</span>
-          ) : creditsInfo.isVIP ? (
-            'VIP'
-          ) : language === 'en' ? (
-            `${creditsInfo.credits} times`
           ) : (
-            `${creditsInfo.credits} 次`
+            creditsInfo.credits
           )}
         </DropdownMenuItem>
         <DropdownMenuItem>

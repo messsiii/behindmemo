@@ -13,19 +13,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// OAuth 账户信息表
+// 存储用户的第三方登录信息（如 Google 登录）
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
+  id                String  @id @default(cuid())    // 账户唯一标识
+  userId            String                          // 关联的用户ID
+  type              String                          // 账户类型（如 oauth）
+  provider          String                          // 提供商（如 google）
+  providerAccountId String                          // 提供商处的账户ID
+  refresh_token     String? @db.Text               // OAuth 刷新令牌
+  access_token      String? @db.Text               // OAuth 访问令牌
+  expires_at        Int?                           // 令牌过期时间
+  token_type        String?                        // 令牌类型
+  scope             String?                        // OAuth 权限范围
+  id_token          String? @db.Text              // OAuth ID令牌
+  session_state     String?                       // 会话状态
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -33,61 +35,77 @@ model Account {
   @@map("accounts")
 }
 
+// 用户会话表
+// 存储用户的登录会话信息
 model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
+  id           String   @id @default(cuid())    // 会话唯一标识
+  sessionToken String   @unique                 // 会话令牌
+  userId       String                          // 关联的用户ID
+  expires      DateTime                        // 会话过期时间
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
 
+// 用户表
+// 存储用户的核心信息和状态
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  credits       Int       @default(2)  // 默认2次生成配额
-  totalUsage    Int       @default(0)   // 总使用次数
-  lastLoginAt   DateTime  @default(now()) // 最后登录时间
-  createdAt     DateTime  @default(now()) // 创建时间
-  updatedAt     DateTime  @updatedAt     // 更新时间
-  isVIP         Boolean   @default(false) // VIP状态
-  vipExpiresAt  DateTime? // VIP过期时间
-  accounts      Account[]
-  sessions      Session[]
-  letters       Letter[]
+  id            String    @id @default(cuid())    // 用户唯一标识
+  name          String?                           // 用户名称
+  email         String?   @unique                 // 用户邮箱（唯一）
+  emailVerified DateTime?                         // 邮箱验证时间
+  image         String?                           // 用户头像URL
+  
+  // 点数相关
+  credits       Int       @default(30)            // 剩余点数，每次生成消耗10点，新用户默认30点
+  totalUsage    Int       @default(0)             // 总使用次数，记录用户总共生成了多少次
+  
+  // 时间相关
+  lastLoginAt   DateTime  @default(now())         // 最后登录时间
+  createdAt     DateTime  @default(now())         // 账户创建时间
+  updatedAt     DateTime  @updatedAt              // 账户信息更新时间
+  
+  // VIP相关
+  isVIP         Boolean   @default(false)         // 是否是VIP用户
+  vipExpiresAt  DateTime?                         // VIP过期时间，null表示永久VIP
+  
+  // 关联
+  accounts      Account[]                         // 关联的第三方账户
+  sessions      Session[]                         // 用户会话
+  letters       Letter[]                          // 用户生成的信件
 
   @@map("users")
 }
 
+// 验证令牌表
+// 用于邮箱验证等功能
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+  identifier String                               // 标识符（通常是邮箱）
+  token      String   @unique                     // 验证令牌
+  expires    DateTime                             // 过期时间
 
   @@unique([identifier, token])
   @@map("verification_tokens")
 }
 
+// 信件表
+// 存储用户生成的信件内容和元数据
 model Letter {
-  id          String      @id @default(cuid())
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  content     String      @db.Text
-  imageUrl    String?
-  userId      String
+  id          String      @id @default(cuid())    // 信件唯一标识
+  createdAt   DateTime    @default(now())         // 创建时间
+  updatedAt   DateTime    @updatedAt              // 更新时间
+  content     String      @db.Text                // 信件内容
+  imageUrl    String?                             // 关联图片URL
+  userId      String                              // 创建用户ID
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prompt      String      @db.Text
-  isPublic    Boolean     @default(false)
-  likeCount   Int         @default(0)
-  shareCount  Int         @default(0)
-  language    String      @default("zh")
-  status      String      @default("pending")
-  error       String?     @db.Text
-  metadata    Json?
+  prompt      String      @db.Text                // 用户输入的提示词
+  isPublic    Boolean     @default(false)         // 是否公开，用于后续社区功能
+  likeCount   Int         @default(0)             // 点赞数，用于后续社区功能
+  shareCount  Int         @default(0)             // 分享数，用于后续社区功能
+  language    String      @default("zh")          // 生成的语言，支持 zh/en
+  status      String      @default("pending")     // 生成状态：pending/generating/completed/failed
+  error       String?     @db.Text                // 如果生成失败，存储错误信息
+  metadata    Json?                               // 存储额外元数据，如图片EXIF信息等
 
   @@index([userId])
   @@map("letters")

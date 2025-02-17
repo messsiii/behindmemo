@@ -1,6 +1,126 @@
-# Behind Memo - AI 情书生成器
+# Behind Memory - AI Love Letter Generator
 
-一个基于 AI 的应用，帮助你表达内心情感，生成个性化的情书。支持中英双语，让每一字都充满意义。
+Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片和故事创作个性化的情书。
+
+## 技术栈
+
+- **前端框架**: Next.js 14 (App Router)
+- **样式**: Tailwind CSS + Shadcn/ui
+- **数据库**: PostgreSQL (Neon)
+- **缓存**: Upstash Redis
+- **认证**: NextAuth.js
+- **AI**: MiniMax
+- **存储**: Vercel Blob
+- **部署**: Vercel
+
+## 核心功能
+
+- 📸 照片上传与分析
+- ✍️ AI 辅助情书生成
+- 🎨 精美的信件展示
+- 🔄 多语言支持 (中/英)
+- 👤 用户认证与授权
+- 💫 积分系统
+
+## 积分系统
+
+- 新用户注册获得 30 点初始点数
+- 每次生成消耗 10 点
+- VIP 用户同样需要消耗点数
+- 可通过订阅或购买点数包获取更多点数
+
+## 数据库结构
+
+### 用户 (User)
+- 基本信息：ID、名称、邮箱、头像
+- 点数系统：剩余点数、使用次数
+- VIP 状态：是否是 VIP、过期时间
+- 时间记录：创建时间、最后登录时间
+
+### 信件 (Letter)
+- 基本信息：ID、内容、关联图片
+- 生成状态：pending/generating/completed/failed
+- 元数据：提示词、语言、错误信息
+- 社交属性：是否公开、点赞数、分享数
+
+### 认证相关
+- Account: OAuth 账户信息
+- Session: 用户会话
+- VerificationToken: 邮箱验证
+
+## 环境变量
+
+```env
+# 数据库
+DATABASE_URL=
+POSTGRES_URL=
+POSTGRES_PRISMA_URL=
+POSTGRES_URL_NON_POOLING=
+POSTGRES_URL_NO_SSL=
+
+# 认证
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# 存储
+BLOB_READ_WRITE_TOKEN=
+
+# 缓存
+KV_URL=
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+KV_REST_API_READ_ONLY_TOKEN=
+
+# AI
+MINIMAX_API_KEY=
+```
+
+## 开发指南
+
+1. 克隆项目
+```bash
+git clone https://github.com/messsiii/behindmemo.git
+cd behindmemo
+```
+
+2. 安装依赖
+```bash
+npm install
+```
+
+3. 配置环境变量
+```bash
+cp .env.example .env.local
+# 编辑 .env.local 填入必要的环境变量
+```
+
+4. 运行开发服务器
+```bash
+npm run dev
+```
+
+## 部署
+
+项目配置为使用 Vercel 进行部署：
+
+1. Fork 本仓库
+2. 在 Vercel 中导入项目
+3. 配置环境变量
+4. 部署
+
+## 贡献指南
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交改动 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 许可证
+
+[MIT License](LICENSE)
 
 ## 功能特点
 

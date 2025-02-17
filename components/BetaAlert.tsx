@@ -1,6 +1,7 @@
 import {
     AlertDialog,
-    AlertDialogAction, AlertDialogContent,
+    AlertDialogAction,
+    AlertDialogContent,
     AlertDialogDescription,
     AlertDialogFooter,
     AlertDialogHeader,
@@ -31,13 +32,23 @@ export function BetaAlert({ open, onOpenChange }: BetaAlertProps) {
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="bg-white/90 backdrop-blur-sm">
         <AlertDialogHeader>
-          <AlertDialogTitle>{content[language].title}</AlertDialogTitle>
-          <AlertDialogDescription>{content[language].description}</AlertDialogDescription>
+          <AlertDialogTitle className={`${language === "en" ? "font-serif" : "font-serif-zh"}`}>
+            {content[language].title}
+          </AlertDialogTitle>
+          <AlertDialogDescription className={`${language === "en" ? "font-serif" : "font-serif-zh"}`}>
+            {content[language].description}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogAction>{content[language].ok}</AlertDialogAction>
+          <AlertDialogAction 
+            className={`bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] text-white hover:opacity-90 transition-opacity ${
+              language === "en" ? "font-serif" : "font-serif-zh"
+            }`}
+          >
+            {content[language].ok}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

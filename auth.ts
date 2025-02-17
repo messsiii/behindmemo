@@ -39,7 +39,7 @@ const PrismaAdapterWithCredits = (p: PrismaClient): Adapter => {
       const user = await p.user.create({
         data: {
           ...data,
-          credits: 2, // 设置初始配额
+          credits: 30, // 修改初始点数为 30
           totalUsage: 0,
           lastLoginAt: new Date(),
           createdAt: new Date(),
