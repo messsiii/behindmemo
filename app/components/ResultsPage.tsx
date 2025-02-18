@@ -196,7 +196,21 @@ export default function ResultsPage({ id }: { id: string }) {
             font-size: 24px;
             font-style: italic;
             color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 40px;
           ">With love ❤️</div>
+
+          <div style="
+            position: absolute;
+            bottom: ${CARD_STYLES.padding}px;
+            right: ${CARD_STYLES.padding}px;
+            font-family: ${CARD_STYLES.contentFont};
+            font-size: 16px;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: lowercase;
+          ">
+            behindmemory.com
+          </div>
         </div>
       `
 
