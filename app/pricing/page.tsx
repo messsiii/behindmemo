@@ -5,14 +5,66 @@ import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-const content = {
+interface Question {
+  q: string
+  a: string
+}
+
+interface FAQSection {
+  title: string
+  questions: Question[]
+}
+
+interface ContentType {
+  en: {
+    title: string
+    subtitle: string
+    cta: string
+    contact: string
+    includedFeatures: string
+    features: string[]
+    currentDiscount: string
+    off: string
+    creditsDiscount: string
+    mostPopular: string
+    bestValue: string
+    termsAndPrivacy: string
+    terms: string
+    and: string
+    privacyPolicy: string
+    faqTitle: string
+    faqSections: FAQSection[]
+  }
+  zh: {
+    title: string
+    subtitle: string
+    cta: string
+    contact: string
+    includedFeatures: string
+    features: string[]
+    currentDiscount: string
+    off: string
+    creditsDiscount: string
+    mostPopular: string
+    bestValue: string
+    termsAndPrivacy: string
+    terms: string
+    and: string
+    privacyPolicy: string
+    faqTitle: string
+    faqSections: FAQSection[]
+  }
+}
+
+const content: ContentType = {
   en: {
     title: "Choose Your Plan",
-    subtitle: "Find the perfect plan to create your heartfelt letters",
+    subtitle: "Find the perfect plan to create your heartfelt Love Letters",
     cta: "Need more information?",
     contact: "Contact us",
     includedFeatures: "All plans include",
@@ -27,10 +79,98 @@ const content = {
     creditsDiscount: "Credits Discount",
     mostPopular: "Most Popular",
     bestValue: "Best Value",
+    termsAndPrivacy: "By using our service, you agree to our ",
+    terms: "Terms of Service",
+    and: " and ",
+    privacyPolicy: "Privacy Policy",
+    faqTitle: "Frequently Asked Questions",
+    faqSections: [
+      {
+        title: "About Credits & Pricing",
+        questions: [
+          {
+            q: "What are Credits?",
+            a: "Credits are our in-app currency that you can use to unlock premium features like watermark removal, premium templates, and high-quality exports. 10 Credits = 1 premium letter generation.",
+          },
+          {
+            q: "How do Credits work?",
+            a: "When generating a letter, you can use Credits to:\n- Remove watermark\n- Access premium templates\n- Export in high quality\n- Use priority generation\nAll these features together cost 10 Credits per letter.",
+          },
+          {
+            q: "What's included in the free plan?",
+            a: "The free plan includes:\n- Basic letter generation with all core features\n- 30 free Credits monthly\n- Standard templates\n- Standard quality exports\n- Subtle watermark on generated letters\n- Standard generation queue",
+          },
+          {
+            q: "What's the difference between Credits and Subscription?",
+            a: "Credits: Pay-as-you-go option. Perfect if you generate letters occasionally. 10 Credits = 1 premium letter.\nSubscription: $6/month (regular $12), includes 200 Credits monthly plus priority support. Best value if you generate 20+ letters monthly.",
+          },
+          {
+            q: "Do Credits expire?",
+            a: "Credits from purchases never expire. Free monthly Credits expire at the end of each month.",
+          },
+        ],
+      },
+      {
+        title: "Features & Usage",
+        questions: [
+          {
+            q: 'What does "priority generation" mean?',
+            a: "Priority generation puts your request at the front of the queue, ensuring faster delivery during peak times.",
+          },
+          {
+            q: "Can I use Credits for specific features only?",
+            a: "Yes! You can choose which premium features to use. For example, you might use Credits just for watermark removal while keeping the standard template.",
+          },
+          {
+            q: "What happens to my unused subscription Credits?",
+            a: "Monthly subscription Credits reset at the beginning of each billing cycle. We recommend using them before they refresh.",
+          },
+        ],
+      },
+      {
+        title: "Technical & Support",
+        questions: [
+          {
+            q: "How do I know how many Credits I have left?",
+            a: "Your Credit balance is always visible in your account dashboard and before each generation.",
+          },
+          {
+            q: "What payment methods do you accept?",
+            a: "We accept all major credit cards and PayPal through our secure payment processor, Paddle.",
+          },
+        ],
+      },
+      {
+        title: "Value & Savings",
+        questions: [
+          {
+            q: "What's the best value option?",
+            a: "For regular users (20+ letters/month): Monthly subscription at $6\nFor occasional users: Credit packages, with larger packages offering better value\nFor first-time users: Start with the free plan to test our service",
+          },
+          {
+            q: "Why choose the subscription over Credit packages?",
+            a: "Subscription offers:\n- Better value ($6 for 200 Credits = 20 premium letters)\n- Priority support\n- Guaranteed monthly Credits\n- 50% launch discount",
+          },
+        ],
+      },
+      {
+        title: "Subscription & Refunds",
+        questions: [
+          {
+            q: "How can I cancel my subscription?",
+            a: "You can cancel your subscription anytime from the billing page. After cancellation, you'll retain access to your plan until the end of the current subscription period. Once the period ends, you'll transition to a free plan.",
+          },
+          {
+            q: "What is your refund policy?",
+            a: "We offer a 30-day refund policy for our services. However, please note that Credits that have already been used cannot be refunded. If you wish to request a refund, please contact our customer support within 30 days of your purchase.",
+          },
+        ],
+      },
+    ],
   },
   zh: {
     title: "选择你的计划",
-    subtitle: "找到最适合创作你的真挚信件的方案",
+    subtitle: "找到最适合创作你的真挚Love Letters的方案",
     cta: "需要更多信息？",
     contact: "联系我们",
     includedFeatures: "所有计划都包含",
@@ -40,6 +180,94 @@ const content = {
     creditsDiscount: "点数折扣",
     mostPopular: "最受欢迎",
     bestValue: "最优惠",
+    termsAndPrivacy: "使用我们的服务即表示您同意我们的",
+    terms: "服务条款",
+    and: "和",
+    privacyPolicy: "隐私政策",
+    faqTitle: "常见问题",
+    faqSections: [
+      {
+        title: "关于点数和定价",
+        questions: [
+          {
+            q: "什么是点数？",
+            a: "点数是我们的应用内货币，您可以用它来解锁高级功能，如去除水印、高级模板和高质量导出。10点数 = 1封高级信件生成。",
+          },
+          {
+            q: "点数如何使用？",
+            a: "在生成信件时，您可以使用点数来：\n- 去除水印\n- 访问高级模板\n- 高质量导出\n- 使用优先生成\n所有这些功能一起每封信需要10点数。",
+          },
+          {
+            q: "免费计划包括什么？",
+            a: "免费计划包括：\n- 具有所有核心功能的基本信件生成\n- 每月30个免费点数\n- 标准模板\n- 标准质量导出\n- 生成的信件上有轻微水印\n- 标准生成队列",
+          },
+          {
+            q: "点数和订阅有什么区别？",
+            a: "点数：按需付费选项。适合偶尔生成信件的用户。10点数 = 1封高级信件。\n订阅：每月$6（原价$12），包括每月200点数加优先支持。如果您每月生成20+封信件，这是最佳选择。",
+          },
+          {
+            q: "点数会过期吗？",
+            a: "购买的点数永不过期。免费的每月点数在每月底过期。",
+          },
+        ],
+      },
+      {
+        title: "功能和使用",
+        questions: [
+          {
+            q: '什么是"优先生成"？',
+            a: "优先生成将您的请求放在队列的前面，确保在高峰时段更快地交付。",
+          },
+          {
+            q: "我可以只为特定功能使用点数吗？",
+            a: "是的！您可以选择使用哪些高级功能。例如，您可能只使用点数来去除水印，同时保留标准模板。",
+          },
+          {
+            q: "未使用的订阅点数会怎样？",
+            a: "每月订阅点数在每个计费周期开始时重置。我们建议在它们刷新之前使用它们。",
+          },
+        ],
+      },
+      {
+        title: "技术和支持",
+        questions: [
+          {
+            q: "我如何知道还剩多少点数？",
+            a: "您的点数余额始终在您的账户仪表板和每次生成之前可见。",
+          },
+          {
+            q: "你们接受哪些支付方式？",
+            a: "我们通过安全的支付处理商Paddle接受所有主要信用卡和PayPal。",
+          },
+        ],
+      },
+      {
+        title: "价值和节省",
+        questions: [
+          {
+            q: "哪个选项最划算？",
+            a: "对于常规用户（每月20+封信）：每月$6的订阅\n对于偶尔使用的用户：点数包，更大的包提供更好的价值\n对于首次使用的用户：从免费计划开始测试我们的服务",
+          },
+          {
+            q: "为什么选择订阅而不是点数包？",
+            a: "订阅提供：\n- 更好的价值（$6获得200点数 = 20封高级信件）\n- 优先支持\n- 保证每月点数\n- 50%的启动折扣",
+          },
+        ],
+      },
+      {
+        title: "订阅和退款",
+        questions: [
+          {
+            q: "如何取消订阅？",
+            a: "您可以随时从账单页面取消订阅。取消后，您将保留对您的计划的访问权限，直到当前订阅期结束。订阅期结束后，您将转换为免费计划。",
+          },
+          {
+            q: "你们的退款政策是什么？",
+            a: "我们对我们的服务提供30天退款政策。但是，请注意，已经使用的点数不能退款。如果您希望申请退款，请在购买后30天内联系我们的客户支持。",
+          },
+        ],
+      },
+    ],
   },
 }
 
@@ -127,10 +355,65 @@ const creditPackages = {
   ],
 }
 
+function FAQList({ questions, language }: { questions: Question[]; language: string }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  const toggleQuestion = (index: number) => {
+    setOpenIndex(openIndex === index ? null : index)
+  }
+
+  return (
+    <div className="space-y-4">
+      {questions.map((item, index) => (
+        <div
+          key={index}
+          className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white/60 backdrop-blur-sm"
+        >
+          <button
+            className={`w-full text-left p-4 focus:outline-none transition-colors duration-300 ${
+              language === "en" ? "font-serif" : "font-serif-zh"
+            } ${openIndex === index ? "bg-gradient-to-r from-[#edf3ff]/70 to-[#fff0f7]/70" : "hover:bg-gray-50/50"}`}
+            onClick={() => toggleQuestion(index)}
+          >
+            <div className="flex justify-between items-center">
+              <span className="text-gray-800">{item.q}</span>
+              <span
+                className="text-gray-500 text-sm font-normal transition-transform duration-300"
+                style={{ transform: openIndex === index ? "rotate(45deg)" : "rotate(0deg)" }}
+              >
+                +
+              </span>
+            </div>
+          </button>
+          <AnimatePresence>
+            {openIndex === index && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div
+                  className={`p-4 bg-gradient-to-r from-[#f5f8ff]/50 to-[#fff5fa]/50 ${
+                    language === "en" ? "font-literary" : "font-serif-zh"
+                  }`}
+                >
+                  <div className="text-gray-700 whitespace-pre-line">{item.a}</div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function Pricing() {
   const { language } = useLanguage()
   const [showBetaAlert, setShowBetaAlert] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const allQuestions = content[language].faqSections.reduce<Question[]>((acc, section) => [...acc, ...section.questions], [])
 
   useEffect(() => {
     setMounted(true)
@@ -344,6 +627,32 @@ export default function Pricing() {
             </div>
           </div>
 
+          <div className="text-center mb-16">
+            <p className={`text-sm text-gray-600 ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
+              {content[language].termsAndPrivacy}
+              <Link href="/terms" className="text-[#738fbd] hover:text-[#cc8eb1] transition-colors">
+                {content[language].terms}
+              </Link>
+              {content[language].and}
+              <Link href="/privacy" className="text-[#738fbd] hover:text-[#cc8eb1] transition-colors">
+                {content[language].privacyPolicy}
+              </Link>
+            </p>
+          </div>
+
+          <div className="mb-16">
+            <h2
+              className={`text-3xl font-bold text-gray-900 mb-8 text-center ${
+                language === "en" ? "font-serif" : "font-serif-zh"
+              }`}
+            >
+              {content[language].faqTitle}
+            </h2>
+            <div className="max-w-3xl mx-auto">
+              <FAQList questions={allQuestions} language={language} />
+            </div>
+          </div>
+
           <div className="mt-16 text-center space-y-4">
             <h3 className={`text-xl font-bold text-gray-900 ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
               {content[language].includedFeatures}
@@ -363,7 +672,7 @@ export default function Pricing() {
               {content[language].cta}
               <Link 
                 href="mailto:sean@behindmemory.com" 
-                className="text-[#738fbd] hover:text-[#cc8eb1] transition-colors ml-1 hover:underline"
+                className="text-[#738fbd] hover:text-[#cc8eb1] transition-colors ml-1"
               >
                 {content[language].contact}
               </Link>

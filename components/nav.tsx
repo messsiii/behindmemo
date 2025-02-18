@@ -30,8 +30,6 @@ export function Nav() {
 
   const links = [
     { href: status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
-    { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
-    { href: '/about', label: language === 'en' ? 'About' : '关于' },
   ]
 
   // 在客户端渲染前返回一个占位内容
