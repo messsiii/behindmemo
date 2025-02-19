@@ -14,10 +14,10 @@ export function Footer() {
 
   const content = {
     en: {
-      copyright: '© 2024 AI Love Letter. All rights reserved.',
+      copyright: '© 2025 Behind Memory. All rights reserved.',
     },
     zh: {
-      copyright: '© 2024 AI Love Letter. 保留所有权利。',
+      copyright: '© 2025 Behind Memory. 保留所有权利。',
     },
   }
 
