@@ -137,11 +137,6 @@ export default function ResultsPage({ id }: { id: string }) {
       tempContainer.style.width = `${CARD_STYLES.width}px`
       document.body.appendChild(tempContainer)
       
-      // 准备内容
-      const title = letter?.metadata?.loverName ? 
-        `Dear ${letter.metadata.loverName}` : 
-        'Your Love Letter'
-
       // 创建美化的内容模板
       tempContainer.innerHTML = `
         <div style="
@@ -151,17 +146,6 @@ export default function ResultsPage({ id }: { id: string }) {
           color: white;
           font-family: ${CARD_STYLES.contentFont};
         ">
-          <div style="
-            text-align: center;
-            margin-bottom: 40px;
-            font-family: ${CARD_STYLES.titleFont};
-            font-size: 48px;
-            font-weight: bold;
-            background: linear-gradient(to right, #738fbd, #db88a4, #cc8eb1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-          ">${title}</div>
-
           ${letter?.imageUrl ? `
             <div style="
               margin: 40px 0;
@@ -197,20 +181,7 @@ export default function ResultsPage({ id }: { id: string }) {
             font-style: italic;
             color: rgba(255, 255, 255, 0.7);
             margin-bottom: 40px;
-          ">With love ❤️</div>
-
-          <div style="
-            position: absolute;
-            bottom: ${CARD_STYLES.padding}px;
-            right: ${CARD_STYLES.padding}px;
-            font-family: ${CARD_STYLES.contentFont};
-            font-size: 16px;
-            letter-spacing: 1px;
-            color: rgba(255, 255, 255, 0.3);
-            text-transform: lowercase;
-          ">
-            behindmemory.com
-          </div>
+          ">With behindmemory.com</div>
         </div>
       `
 
