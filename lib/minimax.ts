@@ -39,8 +39,8 @@ export async function generateLetter({
     // 构建系统提示词
     const systemPrompt =
       language === 'zh'
-        ? '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书，用英文输出。请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。'
-        : 'You are a love letter writer. Based on the user\'s photo and information, write a love letter in Wang Xiaobo\'s style (without mentioning Wang Xiaobo) in English. Please use the actual names provided by the user, do not use placeholders like [Name] or [Your Name].'
+        ? '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书，全文必须用中文输出，不要出现任何英文或其他语言。请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。'
+        : 'You are a love letter writer. Based on the user\'s photo and information, write a love letter in Wang Xiaobo\'s style (without mentioning Wang Xiaobo) in English. The entire letter must be in English only, do not mix in any Chinese or other languages. Please use the actual names provided by the user, do not use placeholders like [Name] or [Your Name].'
 
     // 准备用户提示词
     let userPrompt = `我的名字是"${metadata?.name || 'Anonymous'}"，我想写一封情书给"${metadata?.loverName || 'My Love'}"，这是我们的故事：
