@@ -37,7 +37,7 @@ export async function generateLetter({
 }: GenerateLetterParams): Promise<string> {
   try {
     // 系统提示词统一使用中文
-    const systemPrompt = '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书。请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。通篇用同一种语言完成情书，避免出现中英文混杂。'
+    const systemPrompt = '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书。- 请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。- 通篇用同一种语言完成情书，避免出现中英文混杂，比如通篇都是英文，地址就也翻译成英文写作，另外忽略地址前缀的代码信息。'
 
     // 用户提示词统一使用英文格式
     let userPrompt = `I want to write a love letter. Here's our information:
