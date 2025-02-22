@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ImageUploadPreview } from './ImageUploadPreview'
 
 const content = {
   en: {
@@ -509,27 +510,29 @@ export default function LoveLetterForm() {
                     title=""
                   />
                 ) : currentQuestion.type === 'file' ? (
-                  <div className="flex items-center border-b-2 border-input py-2">
-                    <Input
-                      type="file"
-                      name={currentQuestion.field}
-                      onChange={handleInputChange}
-                      accept="image/*,.heic"
-                      className="hidden"
-                      id="file-upload"
-                      required
+                  <div className="space-y-4">
+                    <ImageUploadPreview
+                      onFileSelect={(file) => {
+                        handleInputChange({
+                          target: {
+                            name: currentQuestion.field,
+                            type: 'file',
+                            files: [file],
+                          },
+                        } as any)
+                      }}
+                      onFileRemove={() => {
+                        handleInputChange({
+                          target: {
+                            name: currentQuestion.field,
+                            type: 'file',
+                            files: [],
+                          },
+                        } as any)
+                      }}
+                      selectedFile={formData[currentQuestion.field] instanceof File ? formData[currentQuestion.field] as File : null}
+                      className="w-full max-w-2xl mx-auto"
                     />
-                    <label
-                      htmlFor="file-upload"
-                      className="cursor-pointer bg-primary/10 text-primary hover:bg-primary/20 px-4 py-2 rounded-full text-sm font-medium"
-                    >
-                      Choose File
-                    </label>
-                    <span className="ml-3 text-sm text-gray-500">
-                      {formData[currentQuestion.field] instanceof File
-                        ? (formData[currentQuestion.field] as File).name
-                        : 'No file chosen'}
-                    </span>
                   </div>
                 ) : (
                   <Input
