@@ -49,8 +49,14 @@ export async function reverseGeocode(
       }
     }
 
+    // 移除 Plus Code
+    const cleanAddress = (address: string) => {
+      // 匹配 Plus Code 格式（例如：M9G8+W6、8Q7X+6F 等）
+      return address.replace(/^[A-Z0-9]{4,6}\+[A-Z0-9]{2,3}[,\s]+/, '')
+    }
+
     return {
-      address: result.formatted_address,
+      address: cleanAddress(result.formatted_address),
       components,
     }
   } catch (error) {
