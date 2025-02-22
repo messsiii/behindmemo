@@ -36,67 +36,50 @@ export async function generateLetter({
   metadata,
 }: GenerateLetterParams): Promise<string> {
   try {
-    // 构建系统提示词
-    const systemPrompt =
-      language === 'zh'
-        ? '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书，全文必须用中文输出，不要出现任何英文或其他语言。请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。'
-        : 'You are a love letter writer. Based on the user\'s photo and information, write a love letter in Wang Xiaobo\'s style (without mentioning Wang Xiaobo) in English. The entire letter must be in English only, do not mix in any Chinese or other languages. Please use the actual names provided by the user, do not use placeholders like [Name] or [Your Name].'
+    // 系统提示词统一使用中文
+    const systemPrompt = '你是一个情书写手，根据用户提供的照片和信息，用王小波的文风（不要提到王小波）写一封情书。请使用用户提供的实际名字，不要使用 [Name] 或 [Your Name] 等占位符。通篇用同一种语言完成情书，避免出现中英文混杂。'
 
-    // 准备用户提示词
-    let userPrompt = `我的名字是"${metadata?.name || 'Anonymous'}"，我想写一封情书给"${metadata?.loverName || 'My Love'}"，这是我们的故事：
+    // 用户提示词统一使用英文格式
+    let userPrompt = `I want to write a love letter. Here's our information:
 
-${prompt}
+Name of sender: "${metadata?.name || 'Anonymous'}"
+Name of recipient: "${metadata?.loverName || 'My Love'}"
 
-照片元数据信息：${
-  metadata
-    ? JSON.stringify({
-        location: metadata.location,
-        uploadTime: metadata.uploadTime,
-        context: metadata.context,
-      }, null, 2)
-    : '无元数据信息'
-}`
+Our story:
+${prompt}`
 
-    // 如果有图片元数据,添加到用户提示词中
+    // 添加照片信息，确保原始拍摄时间和地点被包含
     if (metadata) {
-      // 地理位置信息
-      const locationInfo = metadata.location
-        ? `The photo was taken at ${metadata.location}.`
-        : metadata.gps?.address
-          ? `The photo was taken at ${metadata.gps.address}.`
-          : ''
+      const photoInfo = []
 
-      // 时间信息
-      const timeInfo = metadata.uploadTime
-        ? `The photo was taken on ${new Date(metadata.uploadTime).toLocaleDateString()}.`
-        : ''
-
-      // 图片属性信息
-      const imageProps = []
-      if (metadata.orientation) {
-        imageProps.push(`in ${metadata.orientation} orientation`)
+      // 添加拍摄时间（如果有）
+      if (metadata.uploadTime) {
+        const date = new Date(metadata.uploadTime)
+        if (!isNaN(date.getTime())) {
+          photoInfo.push(`Time: ${date.toISOString()}`)
+        }
       }
-      const imageInfo = imageProps.length > 0 ? imageProps.join(' ') + '.' : ''
 
-      // 设备和环境信息
-      const deviceInfo = metadata.context?.uploadDevice
-        ? `The photo was uploaded from ${metadata.context.uploadDevice}.`
-        : ''
-      const screenInfo = metadata.context?.screenSize
-        ? `The user's screen size is ${metadata.context.screenSize}.`
-        : ''
+      // 添加地理位置信息（保留原始地址）
+      if (metadata.location) {
+        photoInfo.push(`Location: ${metadata.location}`)
+      } else if (metadata.gps?.coordinates) {
+        if (metadata.gps.address) {
+          photoInfo.push(`Location: ${metadata.gps.address}`)
+        } else {
+          const { latitude, longitude } = metadata.gps.coordinates
+          photoInfo.push(`Coordinates: ${latitude}, ${longitude}`)
+        }
+      }
 
-      // 组合所有元数据信息
-      const metadataInfo = [locationInfo, timeInfo, imageInfo, deviceInfo, screenInfo]
-        .filter(info => info.trim())
-        .join(' ')
-
-      if (metadataInfo) {
-        userPrompt += language === 'zh' 
-          ? `\n\n照片信息: ${metadataInfo}` 
-          : `\n\nPhoto information: ${metadataInfo}`
+      // 如果有照片信息，添加到提示词中
+      if (photoInfo.length > 0) {
+        userPrompt += '\n\nPhoto Information:\n' + photoInfo.join('\n')
       }
     }
+
+    // 添加输出语言要求
+    userPrompt += `\n\nIf no specific language requirement is mentioned above, please write in ${language === 'zh' ? 'Chinese' : 'English'}.`
 
     console.log('Sending request to MiniMax API')
     console.log('System Prompt:', systemPrompt)

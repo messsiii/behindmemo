@@ -14,8 +14,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
+    const metadataStr = formData.get('metadata') as string
+    const userMetadata = metadataStr ? JSON.parse(metadataStr) : null
+
     if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'No file uploaded' },
+        { status: 400 }
+      )
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -101,6 +107,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           savedSpace: `${savedSpace}KB`,
           compressionRatio,
         },
+        metadata: userMetadata || {},
       })
     } catch (error) {
       console.error('Image processing failed:', error)
