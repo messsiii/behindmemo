@@ -6,9 +6,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { motion } from 'framer-motion'
 import { Download, X } from 'lucide-react'
 import Image from 'next/image'
+import { useEffect, useState } from 'react'
 
 interface ImagePreviewDialogProps {
   isOpen: boolean
@@ -23,6 +25,22 @@ export function ImagePreviewDialog({
   imageUrl,
   onDownload,
 }: ImagePreviewDialogProps) {
+  const { language } = useLanguage()
+  const [isMobile, setIsMobile] = useState(false)
+
+  // 检测移动设备
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase()
+      const isMobileDevice = /iphone|ipad|ipod|android|mobile/.test(userAgent)
+      setIsMobile(isMobileDevice)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden bg-transparent border-0">
@@ -35,10 +53,16 @@ export function ImagePreviewDialog({
         >
           <DialogHeader className="p-6 border-b border-white/10">
             <DialogTitle className="text-xl font-semibold text-center text-white">
-              Your Love Letter Preview
+              {language === 'en' ? 'Your Love Letter Preview' : '你的情书预览'}
             </DialogTitle>
             <DialogDescription className="text-center text-white/60">
-              Preview your love letter before downloading
+              {isMobile 
+                ? (language === 'en' 
+                    ? 'Press and hold the image to save to your photos'
+                    : '长按图片可保存到相册')
+                : (language === 'en'
+                    ? 'Preview your love letter before downloading'
+                    : '预览你的情书并下载')}
             </DialogDescription>
           </DialogHeader>
 
@@ -77,16 +101,18 @@ export function ImagePreviewDialog({
               className="rounded-full px-8 py-2 bg-white/5 text-white border-white/10 hover:bg-white/10 hover:border-white/20 backdrop-blur-sm text-sm transition-all duration-300"
               onClick={onClose}
             >
-              Close
+              {language === 'en' ? 'Close' : '关闭'}
             </Button>
-            <Button
-              variant="outline"
-              className="rounded-full px-8 py-2 bg-white/5 text-white border-white/10 hover:bg-white/10 hover:border-white/20 backdrop-blur-sm text-sm transition-all duration-300 group"
-              onClick={onDownload}
-            >
-              <Download className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-              Download
-            </Button>
+            {!isMobile && (
+              <Button
+                variant="outline"
+                className="rounded-full px-8 py-2 bg-white/5 text-white border-white/10 hover:bg-white/10 hover:border-white/20 backdrop-blur-sm text-sm transition-all duration-300 group"
+                onClick={onDownload}
+              >
+                <Download className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                {language === 'en' ? 'Download' : '下载'}
+              </Button>
+            )}
           </div>
         </motion.div>
       </DialogContent>
