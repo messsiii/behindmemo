@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { reverseGeocode } from '@/lib/geocode'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -191,11 +192,11 @@ export default function LoveLetterForm() {
         tiff: true,
         xmp: true,
         gps: true,
-        // 使用 exifr 的特定选项
         translateValues: true,
         translateKeys: true,
         reviveValues: true,
         mergeOutput: false,
+        exif: true,
       })
 
       // 2. 处理 HEIC 转换
@@ -209,7 +210,6 @@ export default function LoveLetterForm() {
             quality: 0.9,
           })
 
-          // 修复类型错误：处理 blob 可能是数组的情况
           const convertedBlob = Array.isArray(blob) ? blob[0] : blob
           processedFile = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
             type: 'image/jpeg',
@@ -234,12 +234,10 @@ export default function LoveLetterForm() {
             throw new Error('Failed to get canvas context')
           }
 
-          // 根据 EXIF 方向调整画布尺寸和变换
           let width = img.width
           let height = img.height
           const orientation = exifData?.Orientation || 1
 
-          // 如果方向是 5-8，交换宽高
           if (orientation > 4) {
             [width, height] = [height, width]
           }
@@ -247,7 +245,6 @@ export default function LoveLetterForm() {
           canvas.width = width
           canvas.height = height
 
-          // 根据方向应用适当的变换
           ctx.save()
           switch (orientation) {
             case 2: ctx.transform(-1, 0, 0, 1, width, 0); break
@@ -262,14 +259,12 @@ export default function LoveLetterForm() {
           ctx.drawImage(img, 0, 0)
           ctx.restore()
 
-          // 将画布转换为 Blob
           canvas.toBlob(async (blob) => {
             if (!blob) {
               URL.revokeObjectURL(imageUrl)
               throw new Error('Failed to convert canvas to blob')
             }
 
-            // 创建新的处理后的文件
             processedFile = new File([blob], processedFile.name, {
               type: 'image/jpeg',
             })
@@ -280,9 +275,28 @@ export default function LoveLetterForm() {
         }
       })
 
-      // 4. 上传处理后的文件
+      // 4. 准备元数据
+      const metadata = {
+        orientation: exifData?.Orientation,
+        gps: exifData?.gps ? {
+          coordinates: {
+            latitude: exifData.gps.latitude,
+            longitude: exifData.gps.longitude,
+          },
+          raw_address: exifData.gps.GPSAreaInformation || '',
+        } : undefined,
+        uploadTime: exifData?.DateTimeOriginal || undefined,
+        context: {
+          uploadDevice: navigator.userAgent,
+          screenSize: `${window.screen.width}x${window.screen.height}`,
+          colorDepth: window.screen.colorDepth,
+        },
+      }
+
+      // 5. 上传处理后的文件
       const formData = new FormData()
       formData.append('file', processedFile)
+      formData.append('metadata', JSON.stringify(metadata))
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -297,11 +311,8 @@ export default function LoveLetterForm() {
       return {
         blobUrl: data.url,
         metadata: {
+          ...metadata,
           ...data.metadata,
-          orientation: exifData?.Orientation,
-          gps: exifData?.gps,
-          name: formData.get('name') as string || '',
-          loverName: formData.get('loverName') as string || '',
         },
       }
     } catch (error) {
@@ -364,10 +375,28 @@ export default function LoveLetterForm() {
         const uploadResult = await uploadPhotoAndPrepareData(formData.photo)
         console.log('Photo upload result:', uploadResult)
 
-        // 3. 生成请求 ID
+        // 3. 如果有 GPS 坐标，调用地理编码服务
+        let locationInfo = null
+        if (uploadResult.metadata.gps?.coordinates) {
+          const { latitude, longitude } = uploadResult.metadata.gps.coordinates
+          locationInfo = await reverseGeocode(latitude, longitude)
+        }
+
+        // 更新元数据，添加地理位置信息
+        const updatedMetadata = {
+          ...uploadResult.metadata,
+          gps: {
+            ...uploadResult.metadata.gps,
+            address: locationInfo?.address || '',
+            components: locationInfo?.components || {},
+          },
+          location: locationInfo?.address || '',
+        }
+
+        // 4. 生成请求 ID
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-        // 4. 创建信件记录
+        // 5. 创建信件记录
         const response = await fetch('/api/generate-letter', {
           method: 'POST',
           headers: {
@@ -380,9 +409,9 @@ export default function LoveLetterForm() {
             story: formData.story || '',
             blobUrl: uploadResult.blobUrl,
             metadata: {
-              ...uploadResult.metadata,
-              name: formData.name || '',  // 添加用户名字
-              loverName: formData.loverName || '',  // 添加收信人名字
+              ...updatedMetadata,
+              name: formData.name || '',
+              loverName: formData.loverName || '',
             },
           }),
           credentials: 'include',
@@ -404,11 +433,11 @@ export default function LoveLetterForm() {
           throw new Error('No letter ID returned')
         }
 
-        // 5. 跳转到结果页
+        // 6. 跳转到结果页
         const letterData = {
           ...formData,
           blobUrl: uploadResult.blobUrl,
-          metadata: uploadResult.metadata,
+          metadata: updatedMetadata,
           timestamp: Date.now(),
           isGenerating: true,
           isComplete: false,
