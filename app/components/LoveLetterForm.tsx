@@ -379,7 +379,7 @@ export default function LoveLetterForm() {
         let locationInfo = null
         if (uploadResult.metadata.gps?.coordinates) {
           const { latitude, longitude } = uploadResult.metadata.gps.coordinates
-          locationInfo = await reverseGeocode(latitude, longitude)
+          locationInfo = await reverseGeocode(latitude, longitude, language)
         }
 
         // 更新元数据，添加地理位置信息

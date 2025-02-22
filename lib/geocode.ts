@@ -10,11 +10,15 @@ interface GeocodingResult {
 
 export async function reverseGeocode(
   latitude: number,
-  longitude: number
+  longitude: number,
+  language: string = 'en'
 ): Promise<GeocodingResult | null> {
   try {
+    // 根据用户语言选择地址语言
+    const lang = language === 'zh' ? 'zh-CN' : 'en'
+    
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&language=zh-CN`
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&language=${lang}`
     )
 
     if (!response.ok) {
