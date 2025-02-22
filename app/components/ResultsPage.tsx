@@ -344,10 +344,12 @@ export default function ResultsPage({ id }: { id: string }) {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: 0.4, duration: 0.8 }}
                       >
-                        <div className="relative h-[50vh] md:h-[60vh] overflow-hidden rounded-xl bg-black/40">
+                        <div className="relative w-full rounded-xl bg-black/40 overflow-hidden">
                           <div
                             className={cn(
-                              'absolute inset-0 transition-opacity duration-500',
+                              'relative w-full pt-[56.25%]', // 16:9 默认比例
+                              'max-h-[80vh]', // 最大高度限制
+                              'transition-opacity duration-500',
                               imageLoaded ? 'opacity-100' : 'opacity-0'
                             )}
                           >
@@ -356,13 +358,29 @@ export default function ResultsPage({ id }: { id: string }) {
                               alt="Your special moment"
                               fill
                               className={cn(
-                                'object-contain',
+                                'absolute top-0 left-0 w-full h-full object-contain',
                                 letter.metadata?.orientation === 6 && 'rotate-90',
                                 letter.metadata?.orientation === 3 && 'rotate-180',
                                 letter.metadata?.orientation === 8 && '-rotate-90'
                               )}
                               onError={() => setImageError(true)}
-                              onLoad={() => setImageLoaded(true)}
+                              onLoad={(e) => {
+                                // 获取图片实际尺寸
+                                const img = e.target as HTMLImageElement
+                                const container = img.parentElement
+                                if (container) {
+                                  // 计算宽高比
+                                  const ratio = img.naturalHeight / img.naturalWidth
+                                  // 如果图片高度超过宽度的1.5倍（3:2），则限制高度
+                                  if (ratio > 1.5) {
+                                    container.style.paddingTop = '150%'
+                                  } else {
+                                    // 否则使用实际比例
+                                    container.style.paddingTop = `${ratio * 100}%`
+                                  }
+                                }
+                                setImageLoaded(true)
+                              }}
                               priority
                               unoptimized
                               sizes="(max-width: 768px) 100vw, (max-width: 1600px) 80vw, 1280px"
