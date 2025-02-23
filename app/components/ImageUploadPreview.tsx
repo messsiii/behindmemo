@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
+import { ImageIcon, Loader2, Upload, X } from 'lucide-react'
 import Image from 'next/image'
 import { useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
@@ -108,6 +108,13 @@ const CacheManager = {
 // 定期清理缓存
 let cleanupInterval: NodeJS.Timeout | null = null
 
+// 添加支持的文件类型常量
+const SUPPORTED_FILE_TYPES = {
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/heic': ['.heic']
+}
+
 export function ImageUploadPreview({
   onFileSelect,
   onFileRemove,
@@ -209,12 +216,30 @@ export function ImageUploadPreview({
     }
   }, [])
 
-  // 当文件被选中时创建预览
+  // 修改文件验证和处理逻辑
   const handleFileSelect = useCallback(
     async (file: File) => {
-      await createPreview(file)
-      if (!error) {
-        onFileSelect(file)
+      try {
+        // 检查文件类型
+        const isSupported = Object.keys(SUPPORTED_FILE_TYPES).some(type => 
+          file.type === type || 
+          (file.type === '' && SUPPORTED_FILE_TYPES[type as keyof typeof SUPPORTED_FILE_TYPES].some(ext => 
+            file.name.toLowerCase().endsWith(ext)
+          ))
+        )
+
+        if (!isSupported) {
+          throw new Error('不支持的文件格式。请上传 JPG、PNG 或 HEIC 格式的图片。')
+        }
+
+        await createPreview(file)
+        if (!error) {
+          onFileSelect(file)
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '文件格式错误')
+        setPreview(null)
+        setIsLoading(false)
       }
     },
     [createPreview, onFileSelect, error]
@@ -222,14 +247,40 @@ export function ImageUploadPreview({
 
   // 处理文件删除
   const handleRemove = useCallback(() => {
-    if (selectedFile) {
-      const key = CacheManager.createKey(selectedFile)
-      CacheManager.delete(key)
+    try {
+      if (selectedFile) {
+        // 清除文件缓存
+        const key = CacheManager.createKey(selectedFile)
+        CacheManager.delete(key)
+      }
+      
+      if (preview) {
+        // 清除预览URL
+        URL.revokeObjectURL(preview)
+      }
+
+      // 重置容器高度
+      const container = document.querySelector('.preview-container')
+      if (container instanceof HTMLElement) {
+        container.style.height = '220px'
+      }
+
+      // 重置状态
+      setPreview(null)
+      setError(null)
+      setIsLoading(false)
+      
+      // 调用父组件的删除回调
+      onFileRemove()
+    } catch (error) {
+      console.error('Error removing file:', error)
+      // 即使发生错误也要确保状态被重置
+      setPreview(null)
+      setError(null)
+      setIsLoading(false)
+      onFileRemove()
     }
-    setPreview(null)
-    setError(null)
-    onFileRemove()
-  }, [onFileRemove, selectedFile])
+  }, [onFileRemove, selectedFile, preview])
 
   // 当 selectedFile 改变时更新预览
   useEffect(() => {
@@ -254,14 +305,31 @@ export function ImageUploadPreview({
     }
   }, [])
 
-  // 设置拖拽区域
+  // 修改 useDropzone 配置
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.heic'],
-    },
+    accept: SUPPORTED_FILE_TYPES,
     maxFiles: 1,
     onDrop: (files: File[]) => files[0] && handleFileSelect(files[0]),
+    noKeyboard: true,
+    onDropRejected: () => {
+      setError('不支持的文件格式。请上传 JPG、PNG 或 HEIC 格式的图片。')
+    }
   })
+
+  // 添加键盘事件处理
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        // 如果正在加载或已有预览图片，阻止默认行为
+        if (isLoading || preview) {
+          e.preventDefault()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [isLoading, preview])
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -277,7 +345,8 @@ export function ImageUploadPreview({
             : error
             ? 'border-destructive/50 hover:border-destructive'
             : 'border-muted hover:border-primary/30 hover:bg-muted/5',
-          preview ? 'bg-black/5 backdrop-blur-sm' : 'bg-transparent'
+          preview ? 'bg-black/5 backdrop-blur-sm' : 'bg-transparent',
+          !preview && 'h-[220px]'
         )}
       >
         <input {...getInputProps()} />
@@ -288,7 +357,7 @@ export function ImageUploadPreview({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="flex flex-col items-center gap-3 p-2"
+              className="flex flex-col items-center justify-center gap-3 p-2 h-full"
             >
               <Loader2 className="w-8 h-8 animate-spin" />
               <p className="text-sm animate-pulse">
@@ -302,7 +371,7 @@ export function ImageUploadPreview({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="flex flex-col items-center gap-3 p-2 text-center"
+              className="flex flex-col items-center justify-center gap-3 p-2 text-center h-full"
             >
               <p className="text-sm max-w-[80%]">{error}</p>
               <p className="text-xs text-destructive/70">Click or drag to try again</p>
@@ -313,7 +382,7 @@ export function ImageUploadPreview({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full aspect-[3/2] rounded-lg overflow-hidden"
+              className="relative w-full min-h-[220px] rounded-lg overflow-hidden preview-container"
             >
               <Image
                 src={preview}
@@ -321,6 +390,17 @@ export function ImageUploadPreview({
                 fill
                 className="object-contain"
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                onLoad={(e) => {
+                  // 获取图片实际尺寸
+                  const img = e.target as HTMLImageElement
+                  const container = img.parentElement
+                  if (container) {
+                    // 计算宽高比
+                    const ratio = img.naturalHeight / img.naturalWidth
+                    // 设置容器高度
+                    container.style.height = `${Math.min(Math.max(220, container.offsetWidth * ratio), 600)}px`
+                  }
+                }}
                 onError={() => {
                   setError('Failed to load image preview')
                   setPreview(null)
@@ -337,7 +417,7 @@ export function ImageUploadPreview({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex flex-col items-center gap-3 p-2 text-center"
+              className="flex flex-col items-center justify-center gap-3 p-2 text-center h-full"
             >
               {isDragActive ? (
                 <>
@@ -368,12 +448,11 @@ export function ImageUploadPreview({
         >
           <Button
             variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+            size="icon"
+            className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive"
             onClick={handleRemove}
           >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Remove photo
+            <X className="h-4 w-4" />
           </Button>
         </motion.div>
       )}

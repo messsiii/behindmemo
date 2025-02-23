@@ -27,6 +27,7 @@ const content = {
     error: 'Failed to generate letter',
     creditsError: 'Insufficient credits',
     creditsCheck: 'Checking credits...',
+    enterHint: 'Press Enter to continue',
   },
   zh: {
     title: '写一封情书',
@@ -39,6 +40,7 @@ const content = {
     error: '生成失败',
     creditsError: '创作配额不足',
     creditsCheck: '正在检查配额...',
+    enterHint: '按回车键继续',
   },
 } as const
 
@@ -115,10 +117,24 @@ export default function LoveLetterForm() {
   const [formData, setFormData] = useState<Partial<FormData>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const debounceRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const currentQuestion = useMemo(() => questions[currentStep], [currentStep])
+
+  // 检测移动设备
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase()
+      const isMobileDevice = /iphone|ipad|ipod|android|mobile/.test(userAgent)
+      setIsMobile(isMobileDevice)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   const handleInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -126,12 +142,10 @@ export default function LoveLetterForm() {
       if (type === 'file') {
         const fileInput = e.target as HTMLInputElement
         const file = fileInput.files?.[0]
-        if (file) {
-          setFormData(prev => ({
-            ...prev,
-            [name]: file,
-          }))
-        }
+        setFormData(prev => ({
+          ...prev,
+          [name]: file || null // 确保当没有文件时设置为 null
+        }))
       } else {
         setFormData(prev => ({
           ...prev,
@@ -156,7 +170,7 @@ export default function LoveLetterForm() {
       // 检查当前字段是否有值
       if (
         currentValue &&
-        // 对于文件类型，检查是否是 File 对象
+        // 对于文件类型，检查是否是有效的 File 对象
         ((currentField === 'photo' && currentValue instanceof File) ||
           // 对于其他类型，检查是否有非空字符串
           (currentField !== 'photo' &&
@@ -498,6 +512,56 @@ export default function LoveLetterForm() {
     console.log('showCreditsAlert state changed:', showCreditsAlert)
   }, [showCreditsAlert])
 
+  // 修改键盘事件处理，在移动端不处理
+  const handleKeyPress = useCallback(
+    (e: KeyboardEvent) => {
+      if (isMobile) return // 移动端不处理键盘事件
+
+      // 获取当前焦点元素
+      const activeElement = document.activeElement as HTMLElement
+      const isFileInput = activeElement?.tagName === 'INPUT' && activeElement.getAttribute('type') === 'file'
+
+      // 如果是文件输入框，阻止所有 Enter 键行为
+      if (isFileInput) {
+        e.preventDefault()
+        return
+      }
+
+      if (
+        e.key === 'Enter' &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        currentQuestion.type !== 'textarea' &&
+        !isSubmitting &&
+        !debounceRef.current
+      ) {
+        e.preventDefault()
+        
+        // 如果当前是文件上传步骤，确保没有正在进行的上传
+        if (currentQuestion.type === 'file') {
+          // 检查是否已经选择了文件
+          const hasFile = formData[currentQuestion.field] instanceof File
+          if (!hasFile) {
+            triggerShake()
+            return
+          }
+        }
+
+        handleNext()
+      }
+    },
+    [currentQuestion.type, currentQuestion.field, formData, handleNext, isSubmitting, isMobile, triggerShake]
+  )
+
+  // 添加键盘事件监听
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress)
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress)
+    }
+  }, [handleKeyPress])
+
   return (
     <div className="w-full max-w-2xl">
       <form onSubmit={handleSubmit} className="relative" noValidate>
@@ -564,21 +628,34 @@ export default function LoveLetterForm() {
                     />
                   </div>
                 ) : (
-                  <Input
-                    type={currentQuestion.type}
-                    name={currentQuestion.field}
-                    value={
-                      typeof formData[currentQuestion.field] === 'string'
-                        ? (formData[currentQuestion.field] as string)
-                        : ''
-                    }
-                    onChange={handleInputChange}
-                    className="text-lg border-0 border-b-2 rounded-none bg-transparent focus:ring-0 focus:border-primary [&:not(:focus)]:hover:border-b-2"
-                    placeholder={currentQuestion.placeholder}
-                    required
-                    autoComplete="off"
-                    title=""
-                  />
+                  <div className="relative">
+                    <Input
+                      type={currentQuestion.type}
+                      name={currentQuestion.field}
+                      value={
+                        typeof formData[currentQuestion.field] === 'string'
+                          ? (formData[currentQuestion.field] as string)
+                          : ''
+                      }
+                      onChange={handleInputChange}
+                      className="text-lg border-0 border-b-2 rounded-none bg-transparent focus:ring-0 focus:border-primary [&:not(:focus)]:hover:border-b-2"
+                      placeholder={currentQuestion.placeholder}
+                      required
+                      autoComplete="off"
+                      title=""
+                    />
+                    {/* Enter 提示 - 只在桌面端显示 */}
+                    {!isMobile && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="absolute right-0 -bottom-6 text-xs text-muted-foreground/70"
+                      >
+                        {content[language].enterHint}
+                      </motion.div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
