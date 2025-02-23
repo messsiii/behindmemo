@@ -96,10 +96,9 @@ export default function HistoryPage() {
   const [allLetters, setAllLetters] = useState<Letter[]>([])
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  const [mounted, setMounted] = useState(false)
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const observerTarget = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -152,7 +151,6 @@ export default function HistoryPage() {
           setHasMore(currentPage < (data.pagination.pages || 1))
           setIsLoadingMore(false)
           loadingRef.current = false
-          setIsInitialLoading(false)
         }
       },
     }
@@ -196,8 +194,11 @@ export default function HistoryPage() {
     }
   }, [handleObserver])
 
-  // 如果还没有挂载或正在加载初始数据，显示骨架屏
-  if (!mounted || isInitialLoading) {
+  // 如果还没有挂载，返回 null
+  if (!mounted) return null
+
+  // 只在初始加载时显示骨架屏
+  if (isLoading && !allLetters.length) {
     return (
       <div className="min-h-screen flex flex-col">
         <div
