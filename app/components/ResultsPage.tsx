@@ -26,13 +26,68 @@ interface Letter {
   }
 }
 
-// 添加卡片样式常量
-const CARD_STYLES = {
-  width: 1200,
-  padding: 60,
-  background: 'linear-gradient(to bottom, #000000, #1a1a1a, #000000)',
-  titleFont: '"Cormorant Garamond", serif',
-  contentFont: '"Cormorant Garamond", serif',
+// 添加模板常量
+const TEMPLATES = {
+  classic: {
+    name: 'Classic Dark',
+    style: {
+      width: 1200,
+      padding: 80,
+      background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)',
+      titleFont: '"Cormorant Garamond", serif',
+      contentFont: '"Cormorant Garamond", serif',
+    }
+  },
+  postcard: {
+    name: 'Postcard',
+    style: {
+      width: 1200,
+      padding: 60,
+      background: 'linear-gradient(to right, #f9f7f7 0%, #ffffff 100%)',
+      titleFont: '"Playfair Display", serif',
+      contentFont: '"Cormorant Garamond", serif',
+    }
+  },
+  magazine: {
+    name: 'Magazine',
+    style: {
+      width: 1200,
+      padding: 80,
+      background: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)',
+      titleFont: '"Playfair Display", serif',
+      contentFont: '"Cormorant Garamond", serif',
+    }
+  },
+  minimal: {
+    name: 'Minimal',
+    style: {
+      width: 1200,
+      padding: 100,
+      background: '#000000',
+      titleFont: '"Cormorant Garamond", serif',
+      contentFont: '"Cormorant Garamond", serif',
+    }
+  },
+  vintage: {
+    name: 'Vintage',
+    style: {
+      width: 1200,
+      padding: 80,
+      background: '#f4efe7',
+      titleFont: '"Playfair Display", serif',
+      contentFont: '"Cormorant Garamond", serif',
+    }
+  },
+  avantgarde: {
+    name: 'Avant-garde',
+    style: {
+      width: 1200,
+      padding: 80,
+      background: '#0D0D0D',
+      titleFont: '"Playfair Display", serif',
+      contentFont: '"Cormorant Garamond", serif',
+    }
+  }
 }
 
 export default function ResultsPage({ id }: { id: string }) {
@@ -43,6 +98,8 @@ export default function ResultsPage({ id }: { id: string }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof TEMPLATES>('classic')
+  const [isGenerating, setIsGenerating] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -120,77 +177,31 @@ export default function ResultsPage({ id }: { id: string }) {
   }, [letter])
 
   // 修改保存为图片的函数
-  const saveAsImage = async () => {
+  const saveAsImage = async (templateKey: keyof typeof TEMPLATES = selectedTemplate) => {
     if (!contentRef.current || isSaving) return
     
     try {
       setIsSaving(true)
-      toast({
-        title: "Processing",
-        description: "Creating your beautiful love letter image...",
-      })
-
-      // 创建临时容器
+      setIsGenerating(true)
+      
+      const template = TEMPLATES[templateKey]
       const tempContainer = document.createElement('div')
       tempContainer.style.position = 'absolute'
       tempContainer.style.left = '-9999px'
-      tempContainer.style.width = `${CARD_STYLES.width}px`
+      tempContainer.style.width = `${template.style.width}px`
       document.body.appendChild(tempContainer)
       
-      // 创建美化的内容模板
-      tempContainer.innerHTML = `
-        <div style="
-          width: ${CARD_STYLES.width}px;
-          padding: ${CARD_STYLES.padding}px;
-          background: ${CARD_STYLES.background};
-          color: white;
-          font-family: ${CARD_STYLES.contentFont};
-        ">
-          ${letter?.imageUrl ? `
-            <div style="
-              margin: 40px 0;
-              border-radius: 16px;
-              overflow: hidden;
-              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            ">
-              <img 
-                src="${letter.imageUrl}" 
-                style="width: 100%; height: auto; display: block;"
-                crossorigin="anonymous"
-              />
-            </div>
-          ` : ''}
-
-          <div style="
-            font-size: 24px;
-            line-height: 1.8;
-            font-style: italic;
-            color: rgba(255, 255, 255, 0.9);
-            text-align: justify;
-            padding: 40px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            margin-top: 40px;
-          ">${letter?.content?.split('\n').filter(p => p.trim()).join('<br><br>')}</div>
-
-          <div style="
-            margin-top: 40px;
-            text-align: right;
-            font-size: 24px;
-            font-style: italic;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 40px;
-          ">With behindmemory.com</div>
-        </div>
-      `
+      // 根据不同模板创建内容
+      tempContainer.innerHTML = await generateTemplateHtml(letter, template.style, language, templateKey)
 
       // 生成图片
       const canvas = await html2canvas(tempContainer, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#000000',
+        backgroundColor: template.style.background.startsWith('#') 
+          ? template.style.background 
+          : '#000000',
         logging: false,
       })
 
@@ -200,12 +211,11 @@ export default function ResultsPage({ id }: { id: string }) {
       // 获取图片 URL
       const image = canvas.toDataURL('image/png', 1.0)
       setPreviewImage(image)
-      setShowPreview(true)
-
-      toast({
-        title: "Success",
-        description: "Your love letter image is ready!",
-      })
+      setSelectedTemplate(templateKey)
+      
+      if (!showPreview) {
+        setShowPreview(true)
+      }
     } catch (error) {
       console.error('Error generating image:', error)
       toast({
@@ -214,7 +224,566 @@ export default function ResultsPage({ id }: { id: string }) {
         variant: "destructive",
       })
     } finally {
+      setIsGenerating(false)
       setIsSaving(false)
+    }
+  }
+
+  // 处理模板切换
+  const handleTemplateChange = async (templateKey: keyof typeof TEMPLATES) => {
+    if (templateKey !== selectedTemplate) {
+      await saveAsImage(templateKey)
+    }
+  }
+
+  // 添加模板 HTML 生成函数
+  const generateTemplateHtml = async (
+    letter: Letter | null, 
+    style: typeof TEMPLATES[keyof typeof TEMPLATES]['style'],
+    language: string,
+    templateType: keyof typeof TEMPLATES = 'classic'
+  ) => {
+    if (!letter) return ''
+
+    // 根据语言选择字体
+    const fontFamily = language === 'zh' ? style.contentFont + ', "Noto Serif SC"' : style.contentFont
+
+    switch (templateType) {
+      case 'postcard':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background: ${style.background};
+            position: relative;
+            font-family: ${fontFamily};
+            color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            <div style="
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 8px;
+              background: linear-gradient(90deg, #738fbd, #cc8eb1);
+            "></div>
+
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 24px;
+              line-height: 1.8;
+              color: #2c3e50;
+              font-style: italic;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: rgba(255,255,255,0.8);
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            ">
+              <div style="
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                font-size: 60px;
+                line-height: 1;
+                color: #738fbd;
+                opacity: 0.2;
+                font-family: Georgia, serif;
+              ">"</div>
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+              <div style="
+                position: absolute;
+                bottom: 20px;
+                right: 20px;
+                font-size: 60px;
+                line-height: 1;
+                color: #cc8eb1;
+                opacity: 0.2;
+                font-family: Georgia, serif;
+              ">"</div>
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: right;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+            ">With behindmemory.com</div>
+          </div>
+        `
+
+      case 'magazine':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background: ${style.background};
+            font-family: ${style.contentFont};
+            color: #333;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin-bottom: 60px;
+                position: relative;
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    border-radius: 8px;
+                    box-shadow: 0 12px 36px rgba(0,0,0,0.15);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              column-count: 2;
+              column-gap: 60px;
+              font-size: 22px;
+              line-height: 1.8;
+              text-align: justify;
+              padding: 40px;
+              background: white;
+              border-radius: 12px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            ">${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}</div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: right;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+            ">With behindmemory.com</div>
+          </div>
+        `
+
+      case 'minimal':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background: ${style.background};
+            font-family: ${style.contentFont};
+            color: white;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            <div style="
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 80px;
+              align-items: center;
+              height: 100%;
+            ">
+              ${letter.imageUrl ? `
+                <div style="position: relative;">
+                  <img 
+                    src="${letter.imageUrl}" 
+                    style="
+                      width: 100%;
+                      height: auto;
+                      display: block;
+                      filter: grayscale(100%);
+                      border: 1px solid rgba(255,255,255,0.2);
+                    "
+                    crossorigin="anonymous"
+                  />
+                  <div style="
+                    position: absolute;
+                    inset: -10px;
+                    border: 1px solid rgba(255,255,255,0.2);
+                    pointer-events: none;
+                  "></div>
+                </div>
+              ` : ''}
+
+              <div style="
+                font-size: 24px;
+                line-height: 2;
+                font-style: italic;
+                padding: 40px;
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 4px;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                color: rgba(255,255,255,0.95);
+              ">${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}</div>
+            </div>
+
+            <div style="
+              position: absolute;
+              bottom: 40px;
+              right: 40px;
+              font-size: 16px;
+              color: rgba(255,255,255,0.6);
+              font-style: italic;
+              text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            ">With behindmemory.com</div>
+          </div>
+        `
+
+      case 'vintage':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background: ${style.background};
+            font-family: ${style.contentFont};
+            color: #4a4a4a;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            background-image: url('data:image/png;base64,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');
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                padding: 20px;
+                background: white;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                transform: rotate(-2deg);
+                margin-bottom: 60px;
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    filter: sepia(20%);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              padding: 60px;
+              background: white;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+              transform: rotate(2deg);
+              font-size: 24px;
+              line-height: 1.8;
+              color: #4a4a4a;
+              position: relative;
+            ">
+              <div style="
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 20px;
+                background-image: repeating-linear-gradient(45deg, #cc8eb1 0, #cc8eb1 1px, transparent 0, transparent 50%);
+                background-size: 10px 10px;
+                opacity: 0.1;
+              "></div>
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+              <div style="
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 20px;
+                background-image: repeating-linear-gradient(45deg, #738fbd 0, #738fbd 1px, transparent 0, transparent 50%);
+                background-size: 10px 10px;
+                opacity: 0.1;
+              "></div>
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: right;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              transform: rotate(-1deg);
+            ">With behindmemory.com</div>
+          </div>
+        `
+
+      case 'avantgarde':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background: linear-gradient(135deg, #111111 0%, #000000 100%);
+            font-family: ${style.contentFont};
+            color: white;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border-radius: 16px;
+            overflow: hidden;
+          ">
+            <div style="
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: 
+                radial-gradient(circle at 0% 0%, rgba(255, 99, 71, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(64, 224, 208, 0.15) 0%, transparent 50%);
+              mix-blend-mode: soft-light;
+            "></div>
+
+            <div style="
+              display: grid;
+              grid-template-columns: 1fr 1.2fr;
+              gap: 100px;
+              min-height: calc(100% - 100px);
+              align-items: center;
+              position: relative;
+            ">
+              ${letter.imageUrl ? `
+                <div style="
+                  position: relative;
+                  padding: 40px;
+                ">
+                  <div style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 160px;
+                    height: 160px;
+                    border-left: 2px solid rgba(255, 99, 71, 0.3);
+                    border-top: 2px solid rgba(255, 99, 71, 0.3);
+                    z-index: 1;
+                  "></div>
+                  
+                  <img 
+                    src="${letter.imageUrl}" 
+                    style="
+                      width: 100%;
+                      height: auto;
+                      display: block;
+                      border-radius: 2px;
+                      box-shadow: 40px 40px 80px rgba(0,0,0,0.6);
+                      position: relative;
+                      z-index: 2;
+                      filter: contrast(1.05) brightness(1.05);
+                    "
+                    crossorigin="anonymous"
+                  />
+                  
+                  <div style="
+                    position: absolute;
+                    bottom: 0;
+                    right: 0;
+                    width: 160px;
+                    height: 160px;
+                    border-right: 2px solid rgba(64, 224, 208, 0.3);
+                    border-bottom: 2px solid rgba(64, 224, 208, 0.3);
+                    z-index: 1;
+                  "></div>
+                </div>
+              ` : ''}
+
+              <div style="
+                position: relative;
+                padding: 60px 40px;
+              ">
+                <div style="
+                  position: absolute;
+                  top: -40px;
+                  right: -40px;
+                  width: 80px;
+                  height: 80px;
+                  background: rgba(255, 99, 71, 0.15);
+                  filter: blur(30px);
+                "></div>
+                
+                <div style="
+                  font-size: 26px;
+                  line-height: 1.9;
+                  color: rgba(255,255,255,0.92);
+                  font-style: italic;
+                  position: relative;
+                  z-index: 2;
+                ">
+                  ${letter.content?.split('\n').filter(p => p.trim()).map(p => `
+                    <p style="
+                      position: relative;
+                      margin: 2em 0;
+                      padding-left: 28px;
+                      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                    ">
+                      <span style="
+                        position: absolute;
+                        left: 0;
+                        top: 0.3em;
+                        bottom: 0.3em;
+                        width: 2px;
+                        background: linear-gradient(to bottom, rgba(255, 99, 71, 0.6), rgba(64, 224, 208, 0.6));
+                      "></span>
+                      ${p}
+                    </p>
+                  `).join('')}
+                </div>
+                
+                <div style="
+                  position: absolute;
+                  bottom: -40px;
+                  left: -40px;
+                  width: 80px;
+                  height: 80px;
+                  background: rgba(64, 224, 208, 0.15);
+                  filter: blur(30px);
+                "></div>
+              </div>
+            </div>
+
+            <div style="
+              position: absolute;
+              bottom: 40px;
+              left: 50%;
+              transform: translateX(-50%);
+              font-size: 12px;
+              color: rgba(255,255,255,0.3);
+              font-style: italic;
+              letter-spacing: 4px;
+              text-transform: uppercase;
+              text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+              white-space: nowrap;
+            ">With behindmemory.com</div>
+          </div>
+        `
+
+      default: // classic
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background: ${style.background};
+            color: white;
+            font-family: ${fontFamily};
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            <div style="
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: radial-gradient(circle at top right, rgba(115,143,189,0.1), transparent 70%),
+                          radial-gradient(circle at bottom left, rgba(204,142,177,0.1), transparent 70%);
+            "></div>
+
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 40px 0;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+                position: relative;
+              ">
+                <div style="
+                  position: absolute;
+                  inset: 0;
+                  background: linear-gradient(to bottom, transparent 80%, rgba(0,0,0,0.2));
+                  pointer-events: none;
+                "></div>
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 24px;
+              line-height: 1.8;
+              color: rgba(255,255,255,0.9);
+              font-style: italic;
+              text-align: justify;
+              padding: 60px;
+              background: rgba(255,255,255,0.05);
+              border-radius: 16px;
+              border: 1px solid rgba(255,255,255,0.1);
+              position: relative;
+              backdrop-filter: blur(10px);
+            ">
+              <div style="
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                width: 40px;
+                height: 40px;
+                border-left: 2px solid rgba(115,143,189,0.3);
+                border-top: 2px solid rgba(115,143,189,0.3);
+              "></div>
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+              <div style="
+                position: absolute;
+                bottom: 20px;
+                right: 20px;
+                width: 40px;
+                height: 40px;
+                border-right: 2px solid rgba(204,142,177,0.3);
+                border-bottom: 2px solid rgba(204,142,177,0.3);
+              "></div>
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: right;
+              font-size: 16px;
+              font-style: italic;
+              color: rgba(255,255,255,0.5);
+            ">With behindmemory.com</div>
+          </div>
+        `
     }
   }
 
@@ -504,20 +1073,22 @@ export default function ResultsPage({ id }: { id: string }) {
                           <Button
                             variant="outline"
                             className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
-                            onClick={saveAsImage}
+                            onClick={() => saveAsImage()}
                             disabled={isSaving}
                           >
-                            {isSaving ? (
-                              <span className="flex items-center justify-center gap-2">
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                {language === 'en' ? 'Saving...' : '保存中...'}
-                              </span>
-                            ) : (
-                              <span className="flex items-center justify-center gap-2">
-                                <Download className="w-4 h-4" />
-                                {language === 'en' ? 'Save as Image' : '保存为图片'}
-                              </span>
-                            )}
+                            <span className="flex items-center justify-center gap-2">
+                              {isSaving ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  {language === 'en' ? 'Generating...' : '生成中...'}
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="w-4 h-4" />
+                                  {language === 'en' ? 'Save as Image' : '保存为图片'}
+                                </>
+                              )}
+                            </span>
                           </Button>
                           <Link href="/history" className="w-full sm:w-auto">
                             <Button
@@ -552,6 +1123,10 @@ export default function ResultsPage({ id }: { id: string }) {
         onClose={() => setShowPreview(false)}
         imageUrl={previewImage || ''}
         onDownload={downloadImage}
+        templates={TEMPLATES}
+        selectedTemplate={selectedTemplate}
+        onTemplateChange={handleTemplateChange}
+        isGenerating={isGenerating}
       />
     </>
   )
