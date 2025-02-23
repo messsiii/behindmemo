@@ -398,7 +398,7 @@ export function ImageUploadPreview({
                     // 计算宽高比
                     const ratio = img.naturalHeight / img.naturalWidth
                     // 设置容器高度
-                    container.style.height = `${Math.min(Math.max(220, container.offsetWidth * ratio), 600)}px`
+                    container.style.height = `${Math.min(Math.max(220, container.offsetWidth * ratio), 400)}px`
                   }
                 }}
                 onError={() => {
@@ -406,6 +406,18 @@ export function ImageUploadPreview({
                   setPreview(null)
                 }}
               />
+              {/* 删除按钮 */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive bg-black/20 text-white hover:text-white z-10"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRemove()
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
                 <p className="text-white text-sm bg-black/40 px-5 py-2 rounded-full backdrop-blur-sm">
                   Click to change image
@@ -438,24 +450,6 @@ export function ImageUploadPreview({
           )}
         </AnimatePresence>
       </div>
-
-      {/* 删除按钮 */}
-      {preview && !isLoading && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex justify-end"
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive"
-            onClick={handleRemove}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </motion.div>
-      )}
     </div>
   )
 } 
