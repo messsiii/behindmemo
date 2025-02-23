@@ -6,8 +6,8 @@ import Link from 'next/link'
 import LoveLetterForm from '../components/LoveLetterForm'
 
 export const metadata: Metadata = {
-  title: '写一封情书',
-  description: '用AI帮你写一封动人的情书',
+  title: 'Write a Love Letter',
+  description: 'Create a heartfelt love letter with AI assistance',
 }
 
 export default function WritePage() {

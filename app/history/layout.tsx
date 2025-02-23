@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'History - Behind Memo',
+  title: 'History - Behind Memory',
   description: 'View your love letter history',
 }
 

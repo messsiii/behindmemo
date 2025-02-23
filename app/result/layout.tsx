@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Your Love Letter',
+  title: 'Your Love Letter - Behind Memory',
   description: 'View your personalized love letter',
 }
 

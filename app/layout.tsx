@@ -8,8 +8,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AI Love Letter - 让每一字都充满意义',
-  description: '用AI帮你写一封动人的情书',
+  title: 'Behind Memory - AI Love Letter Generator',
+  description: 'Create meaningful love letters with AI assistance',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
