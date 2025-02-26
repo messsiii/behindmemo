@@ -1,14 +1,15 @@
 'use client'
 
-import { BetaAlert } from '@/components/BetaAlert'
 import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
+import PaddleScript from '@/components/PaddleScript'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { openCreditsCheckout, openSubscriptionCheckout } from '@/lib/paddle'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface Question {
   q: string
@@ -342,15 +343,15 @@ const plans = {
 
 const creditPackages = {
   en: [
-    { credits: 10, price: 0.99, originalPrice: 1.99 },
-    { credits: 100, price: 10, originalPrice: 19.9 },
-    { credits: 500, price: 38.9, originalPrice: 89.9 },
+    { credits: 10, price: 0.99, originalPrice: 1.99, bestValue: false },
+    { credits: 100, price: 10, originalPrice: 19.9, bestValue: false },
+    { credits: 500, price: 38.9, originalPrice: 89.9, bestValue: false },
     { credits: 1000, price: 64.9, originalPrice: 159.9, bestValue: true },
   ],
   zh: [
-    { credits: 10, price: 0.99, originalPrice: 1.99 },
-    { credits: 100, price: 10, originalPrice: 19.9 },
-    { credits: 500, price: 38.9, originalPrice: 89.9 },
+    { credits: 10, price: 0.99, originalPrice: 1.99, bestValue: false },
+    { credits: 100, price: 10, originalPrice: 19.9, bestValue: false },
+    { credits: 500, price: 38.9, originalPrice: 89.9, bestValue: false },
     { credits: 1000, price: 64.9, originalPrice: 159.9, bestValue: true },
   ],
 }
@@ -411,66 +412,38 @@ function FAQList({ questions, language }: { questions: Question[]; language: str
 
 export default function Pricing() {
   const { language } = useLanguage()
-  const [showBetaAlert, setShowBetaAlert] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const allQuestions = content[language].faqSections.reduce<Question[]>((acc, section) => [...acc, ...section.questions], [])
+  const [userPlan, setUserPlan] = useState("free") // 可以是 "free" 或 "subscription"
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const handleSubscribe = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setShowBetaAlert(true)
+  // Paddle 相关处理函数
+  const handleSubscribe = async () => {
+    await openSubscriptionCheckout()
   }
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <div
-          className="fixed inset-0 z-0"
-          style={{
-            backgroundImage: `
-              linear-gradient(135deg, 
-                #738fbd 0%,
-                #a8c3d4 20%,
-                #dbd6df 40%,
-                #ecc6c7 60%,
-                #db88a4 80%,
-                #cc8eb1 100%
-              )
-            `,
-            opacity: 0.3,
-          }}
-        />
-        <Nav />
-        <div className="relative z-10 flex-1">
-          <div className="max-w-7xl mx-auto px-6 py-20 pt-32">
-            <div className="text-center space-y-4 mb-16">
-              <div className="h-12 w-96 mx-auto bg-white/20 animate-pulse rounded-lg" />
-              <div className="h-8 w-80 mx-auto bg-white/20 animate-pulse rounded-lg" />
-            </div>
-            <div className="grid md:grid-cols-2 gap-8 mb-16">
-              {[1, 2].map((i) => (
-                <div key={i} className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-sm border border-gray-100 animate-pulse">
-                  <div className="space-y-6">
-                    <div className="h-8 w-48 bg-gray-200 rounded" />
-                    <div className="h-4 w-full bg-gray-200 rounded" />
-                    <div className="h-24 w-full bg-gray-200 rounded" />
-                    <div className="h-12 w-full bg-gray-200 rounded-full" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    )
+  const handleBuyCredits = async (credits: number) => {
+    switch (credits) {
+      case 10:
+        await openCreditsCheckout(10)
+        break
+      case 100:
+        await openCreditsCheckout(100)
+        break
+      case 500:
+        await openCreditsCheckout(500)
+        break
+      case 1000:
+        await openCreditsCheckout(1000)
+        break
+      default:
+        console.error('Invalid credits package')
+    }
   }
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* 加载 Paddle 脚本 */}
+      <PaddleScript />
+      
       <div
         className="fixed inset-0 z-0"
         style={{
@@ -543,7 +516,7 @@ export default function Pricing() {
                       <>
                         <span className="text-gray-500 line-through">${plan.originalPrice}</span>
                         <span className="text-[#cc8eb1] font-semibold">
-                          {content[language].currentDiscount} {Math.round((1 - parseInt(plan.price) / parseInt(plan.originalPrice)) * 100)}%{" "}
+                          {content[language].currentDiscount} {Math.round((1 - Number(plan.price) / Number(plan.originalPrice)) * 100)}%{" "}
                           {content[language].off}
                         </span>
                       </>
@@ -568,9 +541,14 @@ export default function Pricing() {
                         ? "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white"
                         : "bg-gray-50 hover:bg-gray-100 text-gray-900"
                     } ${language === "en" ? "font-serif" : "font-serif-zh"}`}
-                    onClick={handleSubscribe}
+                    onClick={plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅") ? handleSubscribe : undefined}
+                    disabled={plan.name.toLowerCase() === userPlan}
                   >
-                    {plan.cta}
+                    {plan.name.toLowerCase() === userPlan
+                      ? language === "en"
+                        ? "Current Plan"
+                        : "当前方案"
+                      : plan.cta}
                   </Button>
                 </div>
               </div>
@@ -583,17 +561,18 @@ export default function Pricing() {
             >
               {language === "en" ? "Credit Packages" : "点数套餐"}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {creditPackages[language].map((pkg, index) => (
-                <div
+                <button
                   key={index}
-                  className={`relative ${
+                  onClick={() => handleBuyCredits(pkg.credits)}
+                  className={`${
                     pkg.bestValue
-                      ? "bg-gradient-to-br from-[#738fbd] to-[#cc8eb1] text-white transform scale-105 z-10"
-                      : "bg-gray-50 text-gray-900"
+                      ? "bg-gradient-to-br from-[#738fbd] to-[#cc8eb1] text-white"
+                      : "bg-gray-50 text-gray-900 hover:bg-gray-100"
                   } rounded-lg p-4 text-center transition-all duration-300 hover:shadow-lg ${
                     pkg.bestValue ? "shadow-md" : ""
-                  }`}
+                  } relative overflow-hidden`}
                 >
                   {pkg.bestValue && (
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">
@@ -614,16 +593,8 @@ export default function Pricing() {
                   {pkg.bestValue && (
                     <p className="mt-2 text-sm">{language === "en" ? "Most popular choice!" : "最受欢迎的选择！"}</p>
                   )}
-                </div>
+                </button>
               ))}
-            </div>
-            <div className="text-center">
-              <Button
-                className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-3 text-lg"
-                onClick={handleSubscribe}
-              >
-                {language === "en" ? "Choose Your Credit Package" : "选择你的点数套餐"}
-              </Button>
             </div>
           </div>
 
@@ -670,10 +641,7 @@ export default function Pricing() {
           <div className="mt-16 text-center">
             <p className={`text-sm text-gray-500 ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
               {content[language].cta}
-              <Link 
-                href="mailto:sean@behindmemory.com" 
-                className="text-[#738fbd] hover:text-[#cc8eb1] transition-colors ml-1"
-              >
+              <Link href="mailto:sean@behindmemory.com" className="text-[#738fbd] hover:text-[#cc8eb1] transition-colors ml-1">
                 {content[language].contact}
               </Link>
             </p>
@@ -682,8 +650,7 @@ export default function Pricing() {
       </div>
 
       <Footer />
-      
-      <BetaAlert open={showBetaAlert} onOpenChange={setShowBetaAlert} />
     </div>
   )
 }
+

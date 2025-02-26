@@ -122,9 +122,25 @@ export function UserAvatar() {
         <DropdownMenuItem asChild>
           <Link href="/history">{language === 'en' ? 'History' : '历史'}</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/pricing">{language === 'en' ? 'Upgrade' : '升级'}</Link>
-        </DropdownMenuItem>
+        {creditsInfo?.isVIP ? (
+          <DropdownMenuItem>
+            <div className="flex flex-col">
+              <span className="text-green-500 font-medium">
+                {language === 'en' ? 'VIP Member' : 'VIP 会员'}
+              </span>
+              {creditsInfo.vipExpiresAt && (
+                <span className="text-xs text-muted-foreground">
+                  {language === 'en' ? 'Expires: ' : '到期时间: '}
+                  {new Date(creditsInfo.vipExpiresAt).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem asChild>
+            <Link href="/pricing">{language === 'en' ? 'Upgrade' : '升级'}</Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-red-500 focus:text-red-500"

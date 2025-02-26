@@ -5,6 +5,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -22,7 +25,11 @@
     "fix:imports": "eslint --fix --rule 'unused-imports/no-unused-imports: error' .",
     "fix:style": "prettier --write . && eslint --fix .",
     "fix:types": "tsc --noEmit",
-    "stress": "NODE_OPTIONS='--experimental-vm-modules' jest tests/stress/stress.test.ts --detectOpenHandles"
+    "stress": "NODE_OPTIONS='--experimental-vm-modules' jest tests/stress/stress.test.ts --detectOpenHandles",
+    "db:backup": "node scripts/backup-db.js",
+    "db:migrate:dev": "node scripts/safe-migrate.js dev",
+    "db:migrate:deploy": "node scripts/safe-migrate.js deploy",
+    "db:push": "node scripts/safe-migrate.js push"
   },
   "dependencies": {
     "@auth/core": "^0.37.4",
@@ -98,7 +105,7 @@
     "@types/autocannon": "^7.12.6",
     "@types/dotenv": "^8.2.3",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22",
+    "@types/node": "^22.13.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.22.0",
@@ -120,7 +127,7 @@
     "tailwindcss": "^3.4.17",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5.7.3"
   },
   "eslintConfig": {
     "extends": [

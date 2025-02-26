@@ -93,6 +93,18 @@ export const authConfig = {
         // 只记录路径名，不记录完整 URL
         console.debug('Processing redirect:', pathname)
 
+        // 特殊处理支付成功页面，避免重定向循环
+        if (pathname === '/checkout/success' || pathname.startsWith('/checkout/success')) {
+          console.debug('检测到支付成功页面，保持原始URL:', url)
+          return url
+        }
+
+        // 防止重定向循环
+        if (url.includes('/api/auth/session') || url.includes('/api/auth/csrf')) {
+          console.debug('检测到认证API调用，保持原始URL:', url)
+          return url
+        }
+
         // 2. 获取并处理 callbackUrl
         let finalCallbackUrl = urlObj.searchParams.get('callbackUrl')
         
