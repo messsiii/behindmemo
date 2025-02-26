@@ -99,6 +99,8 @@ export default function HistoryPage() {
   const observerTarget = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
   const [mounted, setMounted] = useState(false)
+  const [forceLoading, setForceLoading] = useState(true)
+  const [showEmptyState, setShowEmptyState] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -128,14 +130,28 @@ export default function HistoryPage() {
       ? `/api/letters?page=${currentPage}&limit=${ITEMS_PER_PAGE}`
       : null,
     async url => {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error('Failed to fetch letters')
-      return res.json()
+      if (currentPage === 1) {
+        setForceLoading(true)
+        setShowEmptyState(false)
+      }
+      
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error('Failed to fetch letters')
+        return res.json()
+      } catch (error) {
+        if (currentPage === 1) {
+          setForceLoading(false)
+        }
+        throw error
+      }
     },
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
       revalidateOnMount: true,
+      dedupingInterval: 0,
+      loadingTimeout: 0,
       onSuccess: data => {
         if (data?.letters) {
           if (currentPage === 1) {
@@ -151,31 +167,77 @@ export default function HistoryPage() {
           setHasMore(currentPage < (data.pagination.pages || 1))
           setIsLoadingMore(false)
           loadingRef.current = false
+          
+          if (currentPage === 1) {
+            setTimeout(() => {
+              setForceLoading(false)
+              
+              if (data.letters.length === 0) {
+                setShowEmptyState(true)
+              } else {
+                setShowEmptyState(false)
+              }
+            }, 50)
+          }
         }
       },
+      onError: () => {
+        setForceLoading(false)
+        setIsLoadingMore(false)
+        loadingRef.current = false
+        setShowEmptyState(currentPage === 1)
+      }
     }
   )
 
   useEffect(() => {
-    setCurrentPage(1)
-    setAllLetters([])
-    mutate()
+    const resetData = () => {
+      setForceLoading(true)
+      setShowEmptyState(false)
+      setAllLetters([])
+      setCurrentPage(1)
+      mutate()
+    }
+    
+    resetData()
+    
+    window.addEventListener('popstate', resetData)
+    
+    return () => {
+      window.removeEventListener('popstate', resetData)
+      setAllLetters([])
+      setForceLoading(true)
+    }
   }, [pathname, mutate])
+  
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setForceLoading(true)
+        setShowEmptyState(false)
+        setAllLetters([])
+        mutate()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [mutate])
 
-  // 处理滚动加载
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const target = entries[0]
-      if (target.isIntersecting && hasMore && !isLoading && !loadingRef.current) {
+      if (target.isIntersecting && hasMore && !isLoading && !loadingRef.current && !forceLoading && !isLoadingMore) {
         loadingRef.current = true
         setIsLoadingMore(true)
         setCurrentPage(prev => prev + 1)
       }
     },
-    [hasMore, isLoading]
+    [hasMore, isLoading, forceLoading, isLoadingMore]
   )
 
-  // 设置 Intersection Observer
   useEffect(() => {
     const observer = new IntersectionObserver(handleObserver, {
       threshold: 0.1,
@@ -194,11 +256,11 @@ export default function HistoryPage() {
     }
   }, [handleObserver])
 
-  // 如果还没有挂载，返回 null
   if (!mounted) return null
 
-  // 只在初始加载时显示骨架屏
-  if (isLoading && !allLetters.length) {
+  const showSkeleton = (isLoading && !allLetters.length) || forceLoading;
+  
+  if (showSkeleton) {
     return (
       <div className="min-h-screen flex flex-col">
         <div
@@ -238,7 +300,6 @@ export default function HistoryPage() {
     )
   }
 
-  // 渲染列表时对信件进行排序
   const sortedLetters = [...allLetters].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
@@ -276,7 +337,7 @@ export default function HistoryPage() {
           >
             <h1 className="text-4xl font-bold text-center mb-12">{content[language].title}</h1>
 
-            {!sortedLetters.length ? (
+            {!sortedLetters.length && showEmptyState ? (
               <motion.div
                 className="text-center space-y-4"
                 initial={{ opacity: 0, scale: 0.95 }}

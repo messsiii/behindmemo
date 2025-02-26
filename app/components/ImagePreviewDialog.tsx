@@ -31,7 +31,7 @@ interface ImagePreviewDialogProps {
   onDownload: () => void
   templates: Record<string, Template>
   selectedTemplate: string
-  onTemplateChange: (template: "classic" | "postcard" | "magazine" | "minimal" | "vintage") => void
+  onTemplateChange: (template: "classic" | "postcard" | "magazine") => void
   isGenerating: boolean
 }
 
@@ -157,7 +157,7 @@ export function ImagePreviewDialog({
       newIndex = (currentTemplateIndex - 1 + totalTemplates) % totalTemplates
     }
     
-    onTemplateChange(templateKeys[newIndex] as "classic" | "postcard" | "magazine" | "minimal" | "vintage")
+    onTemplateChange(templateKeys[newIndex] as "classic" | "postcard" | "magazine")
   }
 
   return (
@@ -272,7 +272,7 @@ export function ImagePreviewDialog({
                         ? "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] text-white shadow-lg shadow-black/20"
                         : "bg-black/20 text-white/70 hover:text-white hover:bg-black/40 border-white/10 hover:shadow-lg hover:shadow-black/10"
                     )}
-                    onClick={() => onTemplateChange(key as "classic" | "postcard" | "magazine" | "minimal" | "vintage")}
+                    onClick={() => onTemplateChange(key as "classic" | "postcard" | "magazine")}
                     disabled={isGenerating}
                   >
                     {template.name}
