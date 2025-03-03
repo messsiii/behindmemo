@@ -43,13 +43,10 @@ export async function POST(req: NextRequest) {
 
     console.log(`调用Paddle API验证交易: ${transactionId}`)
     
-    // 根据环境确定API基础URL
-    const isProdEnv = process.env.NODE_ENV === 'production'
-    const paddleApiBaseUrl = isProdEnv 
-      ? 'https://api.paddle.com' 
-      : 'https://sandbox-api.paddle.com'
+    // 直接使用生产环境URL
+    const paddleApiBaseUrl = 'https://api.paddle.com'
     
-    console.log(`使用Paddle API环境: ${isProdEnv ? '生产' : '沙盒'}, 基础URL: ${paddleApiBaseUrl}`)
+    console.log(`使用Paddle API环境: 生产, 基础URL: ${paddleApiBaseUrl}`)
     
     const paddleApiResponse = await fetch(`${paddleApiBaseUrl}/transactions/${transactionId}`, {
       headers: {

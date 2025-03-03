@@ -21,8 +21,8 @@ export default function PaddleScript() {
       if (window.Paddle) {
         console.log('初始化Paddle...')
         try {
-          // 设置环境（开发环境使用sandbox）
-          window.Paddle.Environment.set('sandbox')
+          // 设置为生产环境，移除沙盒模式
+          window.Paddle.Environment.set('production')
           
           // 初始化Paddle，使用环境变量中的客户端令牌
           window.Paddle.Setup({ 
