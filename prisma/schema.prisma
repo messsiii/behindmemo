@@ -37,7 +37,7 @@ model Session {
 }
 
 model User {
-  id                       String        @id @default(cuid())
+  id                       String         @id @default(cuid())
   name                     String?
   email                    String?        @unique
   emailVerified            DateTime?
@@ -55,8 +55,8 @@ model User {
   accounts                 Account[]
   letters                  Letter[]
   sessions                 Session[]
-  transactions             Transaction[]
   Subscription             Subscription[]
+  transactions             Transaction[]
 
   @@map("users")
 }

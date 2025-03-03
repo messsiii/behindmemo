@@ -1,10 +1,9 @@
 import { authConfig } from '@/auth'
+import { CREDITS_PER_GENERATION } from '@/lib/constants'
 import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
-
-const CREDITS_PER_GENERATION = 10 // 每次生成消耗的点数
 
 export async function POST(req: Request) {
   try {
@@ -30,33 +29,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // 检查配额是否足够
-    if (user.credits < CREDITS_PER_GENERATION) {
+    // 检查用户是否是有效的VIP
+    const isActiveVIP = user.isVIP && (!user.vipExpiresAt || user.vipExpiresAt > new Date())
+
+    // 如果不是VIP，检查配额是否足够
+    if (!isActiveVIP && user.credits < CREDITS_PER_GENERATION) {
       return NextResponse.json({ 
         error: 'Insufficient credits',
         required: CREDITS_PER_GENERATION,
         available: user.credits,
-        isVIP: user.isVIP && (!user.vipExpiresAt || user.vipExpiresAt > new Date())
+        isVIP: isActiveVIP
       }, { status: 400 })
     }
 
-    // 扣除配额
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        credits: { decrement: CREDITS_PER_GENERATION },
-        totalUsage: { increment: CREDITS_PER_GENERATION },
-      },
-    })
-
-    // 清除用户配额缓存
-    await redis.del(`user:credits:${session.user.id}`)
+    // 只有非VIP用户才扣除配额
+    if (!isActiveVIP) {
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          credits: { decrement: CREDITS_PER_GENERATION },
+          totalUsage: { increment: CREDITS_PER_GENERATION },
+        },
+      })
+      
+      // 清除用户配额缓存
+      await redis.del(`user:credits:${session.user.id}`)
+    }
 
     return NextResponse.json({ 
       success: true,
-      creditsUsed: CREDITS_PER_GENERATION,
-      creditsRemaining: user.credits - CREDITS_PER_GENERATION,
-      isVIP: user.isVIP && (!user.vipExpiresAt || user.vipExpiresAt > new Date())
+      creditsUsed: isActiveVIP ? 0 : CREDITS_PER_GENERATION,
+      creditsRemaining: isActiveVIP ? user.credits : user.credits - CREDITS_PER_GENERATION,
+      isVIP: isActiveVIP
     })
   } catch (error) {
     console.error('Error in consume-credits:', error)

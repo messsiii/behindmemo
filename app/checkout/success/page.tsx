@@ -4,7 +4,6 @@ import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { simulateWebhookEvent } from '@/lib/paddle'
 import { CheckCircle } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -19,8 +18,6 @@ const content = {
     subscriptionNote: 'If you purchased a subscription, it will be activated immediately. If you purchased credits, they have been added to your account.',
     backToHome: 'Back to Home',
     viewAccount: 'View My Account',
-    testButton: 'Simulate Credits (Dev Only)',
-    testingMessage: 'Testing webhook...',
     verifyingPayment: 'Verifying your payment...',
     verificationFailed: 'Payment verification failed. Please contact support.'
   },
@@ -31,8 +28,6 @@ const content = {
     subscriptionNote: '如果您购买了订阅，它将立即激活。如果您购买了点数，它们已添加到您的账户中。',
     backToHome: '返回首页',
     viewAccount: '查看我的账户',
-    testButton: '模拟点数到账（仅开发环境）',
-    testingMessage: '正在测试webhook...',
     verifyingPayment: '正在验证您的支付...',
     verificationFailed: '支付验证失败，请联系客服。'
   }
@@ -44,12 +39,10 @@ export default function CheckoutSuccess() {
   const { data: session, update } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [isTesting, setIsTesting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationError, setVerificationError] = useState('')
   const [hasVerified, setHasVerified] = useState(false)
   const [effectRan, setEffectRan] = useState(false)
-  const isDev = process.env.NODE_ENV === 'development'
   
   // 在页面加载时刷新用户数据并验证交易
   useEffect(() => {
@@ -106,22 +99,6 @@ export default function CheckoutSuccess() {
     
     refreshUserData()
   }, [session, router, searchParams, t.verificationFailed, hasVerified, effectRan])
-  
-  // 模拟webhook事件（仅用于测试）
-  const handleSimulateWebhook = async () => {
-    if (!session?.user?.id) return
-    
-    setIsTesting(true)
-    try {
-      await simulateWebhookEvent('transaction.completed', session.user.id, 100)
-      // 刷新用户数据
-      await update()
-    } catch (error) {
-      console.error('模拟webhook失败:', error)
-    } finally {
-      setIsTesting(false)
-    }
-  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -162,26 +139,6 @@ export default function CheckoutSuccess() {
               <Link href="/account">{t.viewAccount}</Link>
             </Button>
           </div>
-          
-          {/* 开发环境测试按钮 */}
-          {isDev && (
-            <div className="mt-8 w-full">
-              <Button 
-                onClick={handleSimulateWebhook} 
-                disabled={isTesting}
-                variant="outline" 
-                className="w-full mt-4 border-dashed border-gray-300"
-              >
-                {isTesting ? t.testingMessage : t.testButton}
-              </Button>
-              <p className="text-xs text-gray-400 mt-2">
-                {language === 'en' 
-                  ? 'This button is only visible in development mode and simulates a webhook event to add 100 credits to your account.'
-                  : '此按钮仅在开发模式下可见，用于模拟webhook事件，向您的账户添加100点数。'
-                }
-              </p>
-            </div>
-          )}
         </div>
       </main>
       <Footer />

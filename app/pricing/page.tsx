@@ -9,7 +9,7 @@ import { openCreditsCheckout, openSubscriptionCheckout } from '@/lib/paddle'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface Question {
   q: string
@@ -414,6 +414,27 @@ export default function Pricing() {
   const { language } = useLanguage()
   const allQuestions = content[language].faqSections.reduce<Question[]>((acc, section) => [...acc, ...section.questions], [])
   const [userPlan, setUserPlan] = useState("free") // 可以是 "free" 或 "subscription"
+  const [isVIP, setIsVIP] = useState(false)
+
+  // 获取用户信息，检查是否为VIP
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      try {
+        const response = await fetch('/api/user/info')
+        if (response.ok) {
+          const userData = await response.json()
+          // 检查用户是否为有效的VIP
+          const userIsVIP = userData.isVIP && (!userData.vipExpiresAt || new Date(userData.vipExpiresAt) > new Date())
+          setIsVIP(userIsVIP)
+          setUserPlan(userIsVIP ? "subscription" : "free")
+        }
+      } catch (error) {
+        console.error('Failed to fetch user status:', error)
+      }
+    }
+    
+    checkUserStatus()
+  }, [])
 
   // Paddle 相关处理函数
   const handleSubscribe = async () => {
@@ -542,13 +563,11 @@ export default function Pricing() {
                         : "bg-gray-50 hover:bg-gray-100 text-gray-900"
                     } ${language === "en" ? "font-serif" : "font-serif-zh"}`}
                     onClick={plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅") ? handleSubscribe : undefined}
-                    disabled={plan.name.toLowerCase() === userPlan}
+                    disabled={(plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅")) ? isVIP : !isVIP}
                   >
-                    {plan.name.toLowerCase() === userPlan
-                      ? language === "en"
-                        ? "Current Plan"
-                        : "当前方案"
-                      : plan.cta}
+                    {(plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅")) ? 
+                      (isVIP ? (language === "en" ? "Current Plan" : "当前方案") : plan.cta) : 
+                      (!isVIP ? (language === "en" ? "Current Plan" : "当前方案") : plan.cta)}
                   </Button>
                 </div>
               </div>
@@ -572,7 +591,7 @@ export default function Pricing() {
                       : "bg-gray-50 text-gray-900 hover:bg-gray-100"
                   } rounded-lg p-4 text-center transition-all duration-300 hover:shadow-lg ${
                     pkg.bestValue ? "shadow-md" : ""
-                  } relative overflow-hidden`}
+                  } relative`}
                 >
                   {pkg.bestValue && (
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">

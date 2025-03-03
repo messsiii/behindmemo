@@ -31,21 +31,11 @@ export async function POST(req: NextRequest) {
     console.log('收到Paddle webhook请求:', {
       signature: signature.substring(0, 10) + '...',
       hasWebhookSecret: !!webhookSecret,
-      headers: Object.fromEntries(req.headers.entries())
     })
 
-    // 在开发环境中，可以跳过签名验证
-    const isDevelopment = process.env.NODE_ENV === 'development'
-    let isValidSignature = false
-
-    if (isDevelopment && !signature) {
-      console.log('开发环境：跳过签名验证')
-      isValidSignature = true
-    } else {
-      // 验证签名
-      isValidSignature = verifyWebhookSignature(payload, signature, webhookSecret)
-      console.log('签名验证结果:', isValidSignature)
-    }
+    // 验证签名 - 生产环境下必须验证
+    const isValidSignature = verifyWebhookSignature(payload, signature, webhookSecret)
+    console.log('签名验证结果:', isValidSignature)
 
     if (!isValidSignature) {
       console.error('无效的签名')
@@ -64,35 +54,116 @@ export async function POST(req: NextRequest) {
     console.log(`接收到Paddle事件: ${eventType}, ID: ${eventId}`)
     console.log('事件数据:', JSON.stringify(eventData))
 
-    // 根据事件类型处理不同的逻辑
-    switch (eventType) {
-      case 'subscription.created':
-        await handleSubscriptionCreated(eventData)
-        break
-      case 'subscription.updated':
-        await handleSubscriptionUpdated(eventData)
-        break
-      case 'subscription.canceled':
-        await handleSubscriptionCanceled(eventData)
-        break
-      case 'transaction.completed':
-        await handleTransactionCompleted(eventData)
-        break
-      case 'customer.created':
-        await handleCustomerCreated(eventData)
-        break
-      // 添加其他事件处理...
-      default:
-        console.log(`未处理的事件类型: ${eventType}`)
+    // 检查是否已处理过该事件
+    const isProcessed = await isEventProcessed(eventId)
+    if (isProcessed) {
+      console.log(`事件 ${eventId} 已处理过，跳过`)
+      return NextResponse.json({ success: true, message: 'Event already processed' })
     }
 
-    return NextResponse.json({ success: true })
+    // 记录事件开始处理
+    await recordWebhookEvent(eventId, eventType, eventData, 'processing')
+
+    try {
+      // 根据事件类型处理不同的逻辑
+      switch (eventType) {
+        case 'subscription.created':
+          await handleSubscriptionCreated(eventData)
+          break
+        case 'subscription.updated':
+          await handleSubscriptionUpdated(eventData)
+          break
+        case 'subscription.canceled':
+          await handleSubscriptionCanceled(eventData)
+          break
+        case 'transaction.completed':
+          await handleTransactionCompleted(eventData)
+          break
+        case 'customer.created':
+          await handleCustomerCreated(eventData)
+          break
+        // 添加其他事件处理...
+        default:
+          console.log(`未处理的事件类型: ${eventType}`)
+      }
+
+      // 更新事件状态为已完成
+      await updateWebhookEventStatus(eventId, 'completed')
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error(`处理 ${eventType} 事件错误:`, error)
+      // 更新事件状态为失败
+      await updateWebhookEventStatus(eventId, 'failed', error)
+      // 返回 200 状态码，避免 Paddle 重试
+      return NextResponse.json({ 
+        success: false, 
+        error: `Error processing ${eventType} event` 
+      })
+    }
   } catch (error) {
     console.error('Webhook处理错误:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
+  }
+}
+
+// 检查事件是否已处理
+async function isEventProcessed(eventId: string): Promise<boolean> {
+  try {
+    const existingEvent = await prisma.webhookEvent.findUnique({
+      where: { paddleEventId: eventId }
+    })
+    return !!existingEvent && existingEvent.status === 'completed'
+  } catch (error) {
+    console.error('检查事件处理状态错误:', error)
+    return false
+  }
+}
+
+// 记录 webhook 事件
+async function recordWebhookEvent(
+  eventId: string, 
+  eventType: string, 
+  eventData: any, 
+  status: string
+) {
+  try {
+    await prisma.webhookEvent.create({
+      data: {
+        paddleEventId: eventId,
+        eventType: eventType,
+        eventData: eventData,
+        status: status
+      }
+    })
+  } catch (error) {
+    console.error('记录webhook事件错误:', error)
+    // 非致命错误，继续处理
+  }
+}
+
+// 更新 webhook 事件状态
+async function updateWebhookEventStatus(
+  eventId: string, 
+  status: string, 
+  error?: any
+) {
+  try {
+    await prisma.webhookEvent.update({
+      where: { paddleEventId: eventId },
+      data: {
+        status: status,
+      }
+    })
+    
+    if (error) {
+      console.error(`Webhook处理错误详情: ${error.message}`)
+    }
+  } catch (updateError) {
+    console.error('更新webhook事件状态错误:', updateError)
+    // 非致命错误，不需要中断流程
   }
 }
 

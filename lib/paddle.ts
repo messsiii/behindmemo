@@ -1,4 +1,5 @@
 // Paddle客户端工具函数
+import axios from 'axios';
 import { getSession } from 'next-auth/react';
 
 // 定义价格ID类型
@@ -156,35 +157,64 @@ export async function openCreditsCheckout(amount: number) {
   }
 }
 
-// 模拟webhook事件（仅用于开发环境测试）
-export async function simulateWebhookEvent(eventType: string, userId: string, creditAmount: number = 100) {
-  if (process.env.NODE_ENV !== 'development') {
-    console.error('此功能仅在开发环境可用')
-    return
-  }
-  
-  try {
-    const response = await fetch('/api/dev/simulate-webhook', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        eventType,
-        userId,
-        creditAmount
-      }),
-    })
+export class PaddleClient {
+  private apiKey: string;
+  private baseUrl: string;
+
+  constructor() {
+    // 生产环境模式 - 移除开发/生产环境的动态判断，直接使用生产环境 URL
+    this.baseUrl = process.env.PADDLE_API_URL || 'https://api.paddle.com';
+    this.apiKey = process.env.PADDLE_API_KEY || '';
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (!this.apiKey) {
+      console.warn('Paddle API密钥未设置，API调用可能会失败');
     }
     
-    const result = await response.json()
-    console.log('模拟webhook结果:', result)
-    return result
-  } catch (error) {
-    console.error('模拟webhook失败:', error)
-    throw error
+    console.log(`Paddle客户端初始化: 使用生产环境 URL=${this.baseUrl}`);
+  }
+
+  /**
+   * 获取当前使用的API基础URL
+   * @returns API基础URL字符串
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  /**
+   * 取消订阅
+   * @param subscriptionId Paddle订阅ID
+   * @param effectiveFrom 取消生效时间，可以是'immediately'或'next_billing_period'
+   */
+  async cancelSubscription(subscriptionId: string, effectiveFrom: 'immediately' | 'next_billing_period' = 'next_billing_period') {
+    try {
+      const url = `${this.baseUrl}/subscriptions/${subscriptionId}/cancel`;
+      
+      // 添加调试信息
+      console.log(`尝试取消订阅: ${subscriptionId}，生效时间: ${effectiveFrom}`);
+      console.log(`API URL: ${url}`);
+      
+      // 检查环境变量
+      if (!this.apiKey) {
+        throw new Error('缺少Paddle API密钥配置，请检查环境变量');
+      }
+      
+      const headers = {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const data = {
+        effective_from: effectiveFrom
+      };
+      
+      // 调用 API
+      const response = await axios.post(url, data, { headers });
+      console.log('Paddle API响应成功:', response.status);
+      return response.data;
+    } catch (error) {
+      console.error('取消订阅时出错:', error);
+      throw error;
+    }
   }
 } 

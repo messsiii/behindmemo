@@ -375,14 +375,20 @@ export default function HistoryPage() {
                         <div className="group bg-white/80 backdrop-blur-sm rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1">
                           <div className="relative">
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <Image
-                              src={letter.imageUrl}
-                              alt="Love letter memory"
-                              width={800}
-                              height={600}
-                              className="w-full h-auto object-cover"
-                              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                            />
+                            {letter.imageUrl && letter.imageUrl !== "" ? (
+                              <Image
+                                src={letter.imageUrl}
+                                alt="Love letter memory"
+                                width={800}
+                                height={600}
+                                className="w-full h-auto object-cover"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                              />
+                            ) : (
+                              <div className="w-full aspect-[4/3] bg-gray-200 flex items-center justify-center">
+                                <span className="text-gray-400">{language === 'en' ? 'No image' : '无图片'}</span>
+                              </div>
+                            )}
                           </div>
                           <div className="p-4 bg-gradient-to-b from-white/80 to-white">
                             <p className="text-sm text-gray-500 mb-2">

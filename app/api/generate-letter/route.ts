@@ -1,4 +1,5 @@
 import { authConfig } from '@/auth'
+import { CREDITS_PER_GENERATION } from '@/lib/constants'
 import { prisma } from '@/lib/prisma'
 import { letterQueue } from '@/lib/queue'
 import { getServerSession } from 'next-auth'
@@ -65,7 +66,12 @@ export async function POST(req: Request) {
       throw new Error('Failed to consume credits')
     }
 
-    // 创建信件记录
+    // 解析consumeResponse获取VIP状态和实际消耗的点数
+    const consumeData = await consumeResponse.json()
+    const isVIP = consumeData.isVIP || false
+    const creditsUsed = consumeData.creditsUsed || CREDITS_PER_GENERATION
+
+    // 创建信件记录，并保存VIP状态到metadata
     const letter = await prisma.letter.create({
       data: {
         userId: session.user.id,
@@ -73,7 +79,11 @@ export async function POST(req: Request) {
         imageUrl: blobUrl,
         prompt: `From ${name} to ${loverName}: ${story}`,
         language: 'en',
-        metadata: metadata || {},
+        metadata: {
+          ...metadata,
+          isVIP: isVIP,
+          creditsUsed: creditsUsed
+        },
         status: 'pending',
       },
     })

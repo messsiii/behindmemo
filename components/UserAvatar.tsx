@@ -82,7 +82,7 @@ export function UserAvatar() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={session.user.image || ''} alt={session.user.name || ''} />
+            <AvatarImage src={session.user.image || undefined} alt={session.user.name || ''} />
             <AvatarFallback>{session.user.name?.[0]}</AvatarFallback>
           </Avatar>
         </Button>
@@ -121,6 +121,9 @@ export function UserAvatar() {
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/history">{language === 'en' ? 'History' : '历史'}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account">{language === 'en' ? 'My Account' : '我的账户'}</Link>
         </DropdownMenuItem>
         {creditsInfo?.isVIP ? (
           <DropdownMenuItem>
