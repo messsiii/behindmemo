@@ -36,7 +36,7 @@ const content = {
 export default function CheckoutSuccess() {
   const { language } = useLanguage()
   const t = content[language as keyof typeof content]
-  const { data: session, update } = useSession()
+  const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isVerifying, setIsVerifying] = useState(false)

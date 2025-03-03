@@ -18,12 +18,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from "@/components/ui/use-toast"
 import { useLanguage } from '@/contexts/LanguageContext'
-import { openCreditsCheckout, openSubscriptionCheckout } from '@/lib/paddle'
+import { openSubscriptionCheckout } from '@/lib/paddle'
 import { motion } from 'framer-motion'
 import { Loader2 } from "lucide-react"
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 
@@ -172,7 +171,6 @@ function LoadingSkeleton() {
 export default function AccountPage() {
   const { data: session } = useSession()
   const { language } = useLanguage()
-  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -320,27 +318,22 @@ export default function AccountPage() {
   )
 
   // 获取交易记录
-  const { data: transactions, error: transactionsError } = useSWR<Transaction[]>(
+  const { data: transactions } = useSWR<Transaction[]>(
     mounted && session?.user?.id ? '/api/user/transactions' : null,
     fetcher('/api/user/transactions', language)
   )
 
   // 获取订阅信息
-  const { data: subscription, error: subscriptionError, mutate: mutateSubscription } = useSWR<Subscription | null>(
+  const { data: subscription, mutate: mutateSubscription } = useSWR<Subscription | null>(
     mounted && session?.user?.id ? '/api/user/subscription' : null,
     fetcher('/api/user/subscription', language)
   )
 
   // 获取使用记录
-  const { data: usageRecords, error: usageError } = useSWR<UsageRecord[]>(
+  const { data: usageRecords } = useSWR<UsageRecord[]>(
     mounted && session?.user?.id ? '/api/user/usage' : null,
     fetcher('/api/user/usage', language)
   )
-
-  // 处理购买点数
-  const handleBuyCredits = (amount: 10 | 100 | 500 | 1000) => {
-    openCreditsCheckout(amount)
-  }
 
   // 处理升级为 VIP
   const handleUpgradeToVIP = () => {

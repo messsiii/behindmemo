@@ -413,7 +413,6 @@ function FAQList({ questions, language }: { questions: Question[]; language: str
 export default function Pricing() {
   const { language } = useLanguage()
   const allQuestions = content[language].faqSections.reduce<Question[]>((acc, section) => [...acc, ...section.questions], [])
-  const [userPlan, setUserPlan] = useState("free") // 可以是 "free" 或 "subscription"
   const [isVIP, setIsVIP] = useState(false)
 
   // 获取用户信息，检查是否为VIP
@@ -426,7 +425,6 @@ export default function Pricing() {
           // 检查用户是否为有效的VIP
           const userIsVIP = userData.isVIP && (!userData.vipExpiresAt || new Date(userData.vipExpiresAt) > new Date())
           setIsVIP(userIsVIP)
-          setUserPlan(userIsVIP ? "subscription" : "free")
         }
       } catch (error) {
         console.error('Failed to fetch user status:', error)
