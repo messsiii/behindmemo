@@ -1,5 +1,6 @@
 'use client'
 
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
@@ -14,6 +15,7 @@ declare global {
 export default function PaddleScript() {
   const router = useRouter()
   const { update } = useSession()
+  const { language } = useLanguage()
   
   useEffect(() => {
     // 当脚本加载完成后初始化Paddle
@@ -24,9 +26,25 @@ export default function PaddleScript() {
           // 设置为生产环境，移除沙盒模式
           window.Paddle.Environment.set('production')
           
+          // 获取用户当前语言设置
+          const userLanguage = language || localStorage.getItem('preferred_language') || 'zh'
+          // 将语言转换为Paddle支持的locale格式
+          const localeMap: Record<string, string> = {
+            'zh': 'zh-CN', // 简体中文
+            'en': 'en'     // 英文
+          }
+          const locale = localeMap[userLanguage] || 'zh-CN'
+          console.log(`使用语言设置: ${userLanguage}, Paddle locale: ${locale}`)
+          
           // 初始化Paddle，使用环境变量中的客户端令牌
           window.Paddle.Setup({ 
             token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN,
+            // 设置默认的结账选项
+            checkout: {
+              settings: {
+                locale: locale // 设置结账窗口的默认语言
+              }
+            },
             // 添加事件回调
             eventCallback: async function(eventData: any) {
               console.log('Paddle事件:', eventData)
@@ -95,7 +113,7 @@ export default function PaddleScript() {
     return () => {
       window.removeEventListener('paddle:loaded', initializePaddle)
     }
-  }, [router, update])
+  }, [router, update, language]) // 添加language作为依赖项
 
   return (
     <Script
