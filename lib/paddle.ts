@@ -13,6 +13,7 @@ interface PaddleCheckoutConfig {
   customer?: {
     email: string;
   };
+  locale?: string; // 添加语言设置选项
 }
 
 // 定义结账项目类型
@@ -36,13 +37,23 @@ export async function openCheckout(priceId: string) {
       return
     }
 
+    // 获取用户当前语言设置
+    const userLanguage = localStorage.getItem('preferred_language') || 'zh'
+    // 将语言转换为Paddle支持的locale格式
+    const localeMap: Record<string, string> = {
+      'zh': 'zh-CN', // 简体中文
+      'en': 'en'     // 英文
+    }
+    const locale = localeMap[userLanguage] || 'zh-CN'
+
     // 创建结账配置
     const checkoutConfig: PaddleCheckoutConfig = {
       items: [{ priceId, quantity: 1 }],
       customData: {
         userId: session.user.id
       },
-      success_url: `${window.location.origin}/checkout/success?transaction_id={transaction_id}`
+      success_url: `${window.location.origin}/checkout/success?transaction_id={transaction_id}`,
+      locale: locale // 设置结账窗口的语言
     }
 
     // 如果用户有邮箱，添加到客户信息中
@@ -75,13 +86,23 @@ export async function openSubscriptionCheckout() {
       return
     }
 
+    // 获取用户当前语言设置
+    const userLanguage = localStorage.getItem('preferred_language') || 'zh'
+    // 将语言转换为Paddle支持的locale格式
+    const localeMap: Record<string, string> = {
+      'zh': 'zh-CN', // 简体中文
+      'en': 'en'     // 英文
+    }
+    const locale = localeMap[userLanguage] || 'zh-CN'
+
     // 创建结账配置
     const checkoutConfig: PaddleCheckoutConfig = {
       items: [{ priceId, quantity: 1 }],
       customData: {
         userId: session.user.id
       },
-      success_url: `${window.location.origin}/checkout/success?transaction_id={transaction_id}`
+      success_url: `${window.location.origin}/checkout/success?transaction_id={transaction_id}`,
+      locale: locale // 设置结账窗口的语言
     }
 
     // 如果用户有邮箱，添加到客户信息中
@@ -134,13 +155,23 @@ export async function openCreditsCheckout(amount: number) {
       return
     }
 
+    // 获取用户当前语言设置
+    const userLanguage = localStorage.getItem('preferred_language') || 'zh'
+    // 将语言转换为Paddle支持的locale格式
+    const localeMap: Record<string, string> = {
+      'zh': 'zh-CN', // 简体中文
+      'en': 'en'     // 英文
+    }
+    const locale = localeMap[userLanguage] || 'zh-CN'
+
     // 创建结账配置
     const checkoutConfig: PaddleCheckoutConfig = {
       items: [{ priceId, quantity: 1 }],
       customData: {
         userId: session.user.id
       },
-      success_url: `${window.location.origin}/checkout/success?transaction_id={transaction_id}`
+      success_url: `${window.location.origin}/checkout/success?transaction_id={transaction_id}`,
+      locale: locale // 设置结账窗口的语言
     }
 
     // 如果用户有邮箱，添加到客户信息中
