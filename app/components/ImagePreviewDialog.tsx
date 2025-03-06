@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -110,9 +110,9 @@ export function ImagePreviewDialog({
   onClose,
   imageUrl,
   onDownload,
-  templates,
-  selectedTemplate,
-  onTemplateChange,
+  templates: _templates,
+  selectedTemplate: _selectedTemplate,
+  onTemplateChange: _onTemplateChange,
   isGenerating,
 }: ImagePreviewDialogProps) {
   const { language } = useLanguage()
