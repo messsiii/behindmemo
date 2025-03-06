@@ -1,15 +1,14 @@
 import { Button } from '@/components/ui/button'
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
+import { Download, X } from 'lucide-react'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
@@ -142,28 +141,21 @@ export function ImagePreviewDialog({
     }
   }
 
-  // 获取当前模板的索引
-  const currentTemplateIndex = Object.keys(templates).indexOf(selectedTemplate)
-  const totalTemplates = Object.keys(templates).length
-
-  // 切换到下一个或上一个模板
-  const switchTemplate = (direction: 'next' | 'prev') => {
-    const templateKeys = Object.keys(templates)
-    let newIndex = currentTemplateIndex
-    
-    if (direction === 'next') {
-      newIndex = (currentTemplateIndex + 1) % totalTemplates
-    } else {
-      newIndex = (currentTemplateIndex - 1 + totalTemplates) % totalTemplates
-    }
-    
-    onTemplateChange(templateKeys[newIndex] as "classic" | "postcard" | "magazine")
-  }
-
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-transparent border-0 h-[calc(100vh-2rem)] sm:h-[calc(100vh-4rem)] my-[1rem] sm:my-[2rem] flex flex-col">
+        <DialogContent 
+          className="max-w-4xl p-0 overflow-hidden bg-transparent border-0 flex flex-col"
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            height: 'calc(90vh)',
+            maxHeight: '800px',
+            margin: '0'
+          }}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -173,7 +165,7 @@ export function ImagePreviewDialog({
           >
             <DialogHeader className="p-4 sm:p-6 border-b border-white/10 flex-shrink-0">
               <DialogTitle className="text-lg sm:text-xl font-semibold text-center text-white">
-                {language === 'en' ? 'Choose Your Style' : '选择你的样式'}
+                {language === 'en' ? 'Your Love Letter' : '你的情书'}
               </DialogTitle>
               <DialogDescription className="text-center text-white/60 text-sm sm:text-base">
                 {isMobile 
@@ -181,8 +173,8 @@ export function ImagePreviewDialog({
                       ? 'Press and hold the image to save to your photos'
                       : '长按图片可保存到相册')
                   : (language === 'en'
-                      ? 'Preview your love letter in different styles'
-                      : '预览不同风格的情书')}
+                      ? 'Download your love letter as a beautiful image'
+                      : '将你的情书下载为精美图片')}
               </DialogDescription>
             </DialogHeader>
 
@@ -221,63 +213,6 @@ export function ImagePreviewDialog({
                     )}
                   </div>
                 </motion.div>
-
-                {/* 模板切换按钮 */}
-                <div className={cn(
-                  "absolute left-0 right-0 flex justify-between pointer-events-none",
-                  isMobile ? "top-[45%] px-2" : "top-1/2 -translate-y-1/2 px-4"
-                )}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "rounded-full bg-black/60 text-white hover:bg-black/80 pointer-events-auto",
-                      isMobile ? "h-7 w-7" : "h-8 w-8 sm:h-10 sm:w-10"
-                    )}
-                    onClick={() => switchTemplate('prev')}
-                    disabled={isGenerating}
-                  >
-                    <ChevronLeft className={cn(
-                      isMobile ? "h-4 w-4" : "h-4 w-4 sm:h-6 sm:w-6"
-                    )} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "rounded-full bg-black/60 text-white hover:bg-black/80 pointer-events-auto",
-                      isMobile ? "h-7 w-7" : "h-8 w-8 sm:h-10 sm:w-10"
-                    )}
-                    onClick={() => switchTemplate('next')}
-                    disabled={isGenerating}
-                  >
-                    <ChevronRight className={cn(
-                      isMobile ? "h-4 w-4" : "h-4 w-4 sm:h-6 sm:w-6"
-                    )} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* 模板选择器 */}
-            <div className="px-4 sm:px-6 py-4 sm:py-6 flex-shrink-0 border-t border-white/10">
-              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                {Object.entries(templates).map(([key, template]) => (
-                  <Button
-                    key={key}
-                    variant={selectedTemplate === key ? "default" : "outline"}
-                    className={cn(
-                      "rounded-full px-4 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm transition-all duration-300",
-                      selectedTemplate === key
-                        ? "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] text-white shadow-lg shadow-black/20"
-                        : "bg-black/20 text-white/70 hover:text-white hover:bg-black/40 border-white/10 hover:shadow-lg hover:shadow-black/10"
-                    )}
-                    onClick={() => onTemplateChange(key as "classic" | "postcard" | "magazine")}
-                    disabled={isGenerating}
-                  >
-                    {template.name}
-                  </Button>
-                ))}
               </div>
             </div>
 
