@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { ImagePreviewDialog } from './ImagePreviewDialog'
+import { StyleDrawer } from './StyleDrawer'
 
 interface Letter {
   id: string
@@ -73,6 +74,7 @@ export default function ResultsPage({ id }: { id: string }) {
   const contentRef = useRef<HTMLDivElement>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [showStyleDrawer, setShowStyleDrawer] = useState(false)
 
   // 获取信件详情
   useEffect(() => {
@@ -146,15 +148,25 @@ export default function ResultsPage({ id }: { id: string }) {
     generateContent()
   }, [letter])
 
-  // 修改保存为图片的函数
-  const saveAsImage = async (templateKey: keyof typeof TEMPLATES = selectedTemplate) => {
+  // 切换抽屉显示状态
+  const toggleStyleDrawer = () => {
+    setShowStyleDrawer(!showStyleDrawer)
+  }
+
+  // 处理模板变更 - 从StyleDrawer组件调用
+  const handleTemplateChangeFromDrawer = (template: string) => {
+    setSelectedTemplate(template as keyof typeof TEMPLATES)
+  }
+
+  // 修改saveAsImage函数 - 直接使用当前选中的模板
+  const saveAsImage = async () => {
     if (!contentRef.current || isSaving) return
     
     try {
       setIsSaving(true)
       setIsGenerating(true)
       
-      const template = TEMPLATES[templateKey]
+      const template = TEMPLATES[selectedTemplate]
       const tempContainer = document.createElement('div')
       tempContainer.style.position = 'absolute'
       tempContainer.style.left = '-9999px'
@@ -162,7 +174,7 @@ export default function ResultsPage({ id }: { id: string }) {
       document.body.appendChild(tempContainer)
       
       // 根据不同模板创建内容
-      tempContainer.innerHTML = await generateTemplateHtml(letter, template.style, language, templateKey)
+      tempContainer.innerHTML = await generateTemplateHtml(letter, template.style, language, selectedTemplate)
 
       // 生成图片
       const canvas = await html2canvas(tempContainer, {
@@ -181,7 +193,6 @@ export default function ResultsPage({ id }: { id: string }) {
       // 获取图片 URL
       const image = canvas.toDataURL('image/png', 1.0)
       setPreviewImage(image)
-      setSelectedTemplate(templateKey)
       
       if (!showPreview) {
         setShowPreview(true)
@@ -196,13 +207,6 @@ export default function ResultsPage({ id }: { id: string }) {
     } finally {
       setIsGenerating(false)
       setIsSaving(false)
-    }
-  }
-
-  // 处理模板切换
-  const handleTemplateChange = async (templateKey: keyof typeof TEMPLATES) => {
-    if (templateKey !== selectedTemplate) {
-      await saveAsImage(templateKey)
     }
   }
 
@@ -648,16 +652,34 @@ export default function ResultsPage({ id }: { id: string }) {
                       </motion.div>
                     )}
 
-                    {/* 信件内容 */}
+                    {/* 信件内容 - 根据选中的模板应用不同样式 */}
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.6, duration: 0.8 }}
-                      className="bg-black/40 backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border border-white/10"
+                      className={cn(
+                        "backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border transition-all duration-500",
+                        selectedTemplate === 'classic' 
+                          ? "bg-black/40 border-white/10" 
+                          : selectedTemplate === 'postcard'
+                            ? "bg-[#f9f7f7]/90 border-black/5"
+                            : "bg-white/90 border-black/5" // magazine样式
+                      )}
                     >
-                      <div className="prose prose-lg prose-invert max-w-none">
+                      <motion.div 
+                        layout
+                        transition={{ duration: 0.5, type: "spring", damping: 20 }}
+                        className={cn(
+                          "prose prose-lg max-w-none transition-all duration-300",
+                          selectedTemplate === 'classic' 
+                            ? "prose-invert" 
+                            : "prose-slate",
+                          // 杂志模板添加双列布局
+                          selectedTemplate === 'magazine' && "sm:columns-2 sm:gap-8"
+                        )}
+                      >
                         {/* 内容区域的 loading 状态 */}
-                        {letter.status === 'pending' && (
+                        {letter?.status === 'pending' && (
                           <div className="flex items-center justify-center space-x-3 py-8">
                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -665,7 +687,7 @@ export default function ResultsPage({ id }: { id: string }) {
                           </div>
                         )}
 
-                        {letter.status === 'generating' && (
+                        {letter?.status === 'generating' && (
                           <div className="flex items-center justify-center space-x-3 py-8">
                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -673,20 +695,36 @@ export default function ResultsPage({ id }: { id: string }) {
                           </div>
                         )}
 
-                        {letter.status === 'completed' &&
-                          paragraphs.map((paragraph, index) => (
-                            <motion.p
-                              key={index}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.5, delay: index * 0.1 }}
-                              className="text-gray-100 font-serif italic leading-relaxed text-lg md:text-xl"
-                              style={{ fontFamily: '"Cormorant Garamond", serif' }}
-                            >
-                              {paragraph.trim()}
-                            </motion.p>
-                          ))}
-                      </div>
+                        {letter?.status === 'completed' && (
+                          <div className={cn(
+                            "transition-all duration-500",
+                          )}>
+                            {paragraphs.map((paragraph, index) => (
+                              <motion.p
+                                key={index}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: index * 0.1 }}
+                                className={cn(
+                                  "font-serif italic leading-relaxed text-lg md:text-xl transition-colors duration-300",
+                                  selectedTemplate === 'classic' 
+                                    ? "text-gray-100"
+                                    : selectedTemplate === 'magazine'
+                                      ? "text-gray-900"
+                                      : "text-gray-800"
+                                )}
+                                style={{ 
+                                  fontFamily: language === 'zh' 
+                                    ? `${TEMPLATES[selectedTemplate].style.contentFont}, "Noto Serif SC", serif`
+                                    : TEMPLATES[selectedTemplate].style.contentFont
+                                }}
+                              >
+                                {paragraph.trim()}
+                              </motion.p>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
                     </motion.div>
 
                     {/* 底部状态和按钮 */}
@@ -806,17 +844,28 @@ export default function ResultsPage({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Preview Dialog */}
+      {/* Preview Dialog - 不再支持模板切换 */}
       <ImagePreviewDialog
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
         imageUrl={previewImage || ''}
         onDownload={downloadImage}
-        templates={TEMPLATES}
+        templates={{[selectedTemplate]: TEMPLATES[selectedTemplate]}} // 只提供当前选中模板
         selectedTemplate={selectedTemplate}
-        onTemplateChange={handleTemplateChange}
+        onTemplateChange={() => {}} // 空函数，不再支持切换
         isGenerating={isGenerating}
       />
+
+      {/* 样式抽屉 - 仅在信件生成完成后显示 */}
+      {letter?.status === 'completed' && (
+        <StyleDrawer
+          templates={TEMPLATES}
+          selectedTemplate={selectedTemplate}
+          onTemplateChange={handleTemplateChangeFromDrawer}
+          isShown={showStyleDrawer}
+          onToggle={toggleStyleDrawer}
+        />
+      )}
     </>
   )
 }
