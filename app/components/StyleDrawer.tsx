@@ -3,8 +3,10 @@
 import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckIcon, ChevronUp, Info } from 'lucide-react'
+import { CheckIcon, ChevronUp, Infinity, Sparkles } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 
 interface Template {
   name: string
@@ -23,6 +25,78 @@ interface StyleDrawerProps {
   onTemplateChange: (template: string) => void
   isShown: boolean
   onToggle: () => void
+}
+
+// 积分信息接口
+interface CreditsInfo {
+  credits: number
+  isVIP: boolean
+  vipExpiresAt: string | null
+}
+
+// 数据获取函数
+const fetcher = (url: string) =>
+  fetch(url, {
+    credentials: 'include',
+  }).then(res => {
+    if (!res.ok) throw new Error('Failed to fetch credits')
+    return res.json()
+  })
+
+// 自定义积分显示组件，为深色背景优化
+function StyleDrawerCredits() {
+  const { data: session } = useSession()
+  const { language } = useLanguage()
+
+  const {
+    data: creditsInfo,
+    isLoading,
+    error,
+  } = useSWR<CreditsInfo>(session?.user?.id ? '/api/user/credits' : null, fetcher, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    refreshInterval: 30000,
+    dedupingInterval: 5000,
+  })
+
+  // 如果未登录，不显示任何内容
+  if (!session?.user?.id) return null
+
+  // 如果发生错误，显示错误状态
+  if (error) {
+    return (
+      <div className="flex items-center gap-1 text-red-400">
+        <span className="text-sm font-medium">!</span>
+        <Sparkles className="h-4 w-4" />
+      </div>
+    )
+  }
+
+  // 如果正在加载，显示加载状态
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-1 text-white/60 animate-pulse">
+        <span className="text-sm font-medium">...</span>
+        <Sparkles className="h-4 w-4" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-white">
+      {creditsInfo?.isVIP ? (
+        <>
+          <Infinity className="h-4 w-4 text-white" />
+          <span className="text-sm font-medium text-white">VIP</span>
+        </>
+      ) : (
+        <>
+          <span className="text-sm font-medium text-white">{creditsInfo?.credits}</span>
+          <Sparkles className="h-4 w-4 text-white" />
+        </>
+      )}
+    </div>
+  )
 }
 
 export function StyleDrawer({
@@ -54,7 +128,6 @@ export function StyleDrawer({
   return (
     <div className={cn(
       "fixed bottom-0 left-0 right-0 z-50 overflow-hidden",
-      // 当抽屉收起时，只有抽屉把手区域可点击，其他区域不捕获点击事件
       !isShown && "pointer-events-none"
     )}>
       <AnimatePresence initial={false}>
@@ -132,35 +205,31 @@ export function StyleDrawer({
               <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-rose-500/30 via-amber-500/30 to-transparent rounded-full blur-3xl"></div>
             </div>
 
-            {/* 标题区域 - 移至顶部，移动端使用垂直布局 */}
-            <div className="max-w-6xl mx-auto relative px-4 sm:px-6">
-              <motion.div 
-                initial={initialRender ? false : { opacity: 0, y: 20 }}
-                animate={{ opacity: isShown ? 1 : 0, y: isShown ? 0 : 20 }}
-                transition={{ duration: 0.4, delay: 0.1 }}
-                className={cn(
-                  "flex items-center border-b border-white/10",
-                  // 移动端使用垂直布局，桌面使用水平布局
-                  "flex-col sm:flex-row sm:justify-between",
-                  "pt-0.5 pb-3 mb-6 sm:mb-8 gap-2 sm:gap-0"
-                )}
-              >
+            {/* 标题和积分区域 */}
+            <div className="max-w-6xl mx-auto relative px-4 sm:px-6 pt-3 pb-5 border-b border-white/10 mb-6">
+              {/* 标题和积分 */}
+              <div className="flex items-center justify-between">
                 <motion.h3 
+                  initial={initialRender ? false : { opacity: 0, y: 20 }}
+                  animate={{ opacity: isShown ? 1 : 0, y: isShown ? 0 : 20 }}
+                  transition={{ duration: 0.4, delay: 0.1 }}
                   className="text-2xl font-semibold text-white tracking-tight"
                 >
                   {language === 'en' ? 'Style Gallery' : '样式画廊'}
                 </motion.h3>
                 
-                <div
-                  className="text-xs text-white/60 bg-white/5 px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                {/* 自定义积分显示组件 */}
+                <motion.div
+                  initial={initialRender ? false : { opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: isShown ? 1 : 0, scale: isShown ? 1 : 0.9 }}
+                  transition={{ duration: 0.4, delay: 0.2 }}
                 >
-                  <Info size={12} className="text-white/40" />
-                  {language === 'en' ? 'Choose a style for your letter' : '为您的信件选择一种样式'}
-                </div>
-              </motion.div>
+                  <StyleDrawerCredits />
+                </motion.div>
+              </div>
             </div>
 
-            {/* 模板卡片区域 - 移动端优化布局 */}
+            {/* 模板卡片区域 */}
             <div className="max-w-6xl mx-auto relative px-4 sm:px-6 pb-4">
               <motion.div 
                 initial={initialRender ? false : { opacity: 0 }}
