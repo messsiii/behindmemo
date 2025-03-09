@@ -117,12 +117,6 @@ export function UserAvatar() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/write">{language === 'en' ? 'Write Letter' : '写信'}</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/history">{language === 'en' ? 'History' : '历史'}</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
           <Link href="/account">{language === 'en' ? 'My Account' : '我的账户'}</Link>
         </DropdownMenuItem>
         {creditsInfo?.isVIP ? (

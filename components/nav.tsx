@@ -30,6 +30,7 @@ export function Nav() {
 
   const links = [
     { href: status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
+    ...(status === 'authenticated' ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }] : []),
   ]
 
   // 在客户端渲染前返回一个占位内容
@@ -105,7 +106,7 @@ export function Nav() {
                 key={href}
                 href={href}
                 className={`transition-colors hover:text-foreground/80 text-foreground relative
-                  ${pathname === href ? 'after:absolute after:bottom-[-1.5rem] after:left-0 after:right-0 after:h-[2px] after:bg-foreground' : ''}`}
+                  ${pathname === href && href !== '/history' ? 'after:absolute after:bottom-[-1.5rem] after:left-0 after:right-0 after:h-[2px] after:bg-foreground' : ''}`}
               >
                 {label}
               </Link>
