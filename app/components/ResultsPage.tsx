@@ -1,18 +1,27 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { toast } from '@/components/ui/use-toast'
-import { useLanguage } from '@/contexts/LanguageContext'
-import { cn } from '@/lib/utils'
-import { AnimatePresence, motion } from 'framer-motion'
-import html2canvas from 'html2canvas'
-import { Download, Home } from 'lucide-react'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
-import { ImagePreviewDialog } from './ImagePreviewDialog'
-import { StyleDrawer } from './StyleDrawer'
+// 添加全局类型声明，确保TypeScript识别window.Paddle
+declare global {
+  interface Window {
+    Paddle: any;
+  }
+}
+
+import PaddleScript from '@/components/PaddleScript';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { cn } from '@/lib/utils';
+import { AnimatePresence, motion } from 'framer-motion';
+import html2canvas from 'html2canvas';
+import { Download, Home } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { ImagePreviewDialog } from './ImagePreviewDialog';
+import { StyleDrawer } from './StyleDrawer';
+import { UnlockTemplateDialog } from './UnlockTemplateDialog';
 
 interface Letter {
   id: string
@@ -37,7 +46,8 @@ const TEMPLATES = {
       background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)',
       titleFont: '"Cormorant Garamond", serif',
       contentFont: '"Cormorant Garamond", serif',
-    }
+    },
+    isFree: true // 免费模板
   },
   postcard: {
     name: 'Postcard',
@@ -47,7 +57,8 @@ const TEMPLATES = {
       background: 'linear-gradient(to right, #f9f7f7 0%, #ffffff 100%)',
       titleFont: '"Playfair Display", serif',
       contentFont: '"Cormorant Garamond", serif',
-    }
+    },
+    isFree: true // 免费模板
   },
   magazine: {
     name: 'Magazine',
@@ -57,7 +68,107 @@ const TEMPLATES = {
       background: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)',
       titleFont: '"Playfair Display", serif',
       contentFont: '"Cormorant Garamond", serif',
-    }
+    },
+    isFree: true // 免费模板
+  },
+  artisan: {
+    name: 'Artisan Red',
+    style: {
+      width: 1200,
+      padding: 60,
+      background: 'url(/images/artisan-red-bg.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  natural: {
+    name: 'Natural Parchment',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/natural-bg.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  darkWine: {
+    name: 'Dark Wine',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/dark-wine-bg.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  paperMemo: {
+    name: 'Paper Memoir',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/annie-spratt-fDghTk7Typw-unsplash.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  oceanBreeze: {
+    name: 'Ocean Breeze',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  darkCrimson: {
+    name: 'Dark Crimson',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/sufyan-eRpeXTJEgMw-unsplash.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  purpleDream: {
+    name: 'Purple Dream',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  elegantPaper: {
+    name: 'Elegant Paper',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/lunelle-B-9i06FP0SI-unsplash.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
+  },
+  roseParchment: {
+    name: 'Rose Parchment',
+    style: {
+      width: 1173,
+      padding: 49,
+      background: 'url(/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg) no-repeat center center / cover',
+      titleFont: '"Source Serif Pro", serif',
+      contentFont: '"Source Serif Pro", serif',
+    },
+    isFree: false // 需要VIP或解锁
   }
 }
 
@@ -75,6 +186,13 @@ export default function ResultsPage({ id }: { id: string }) {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [showStyleDrawer, setShowStyleDrawer] = useState(false)
+  const [unlockedTemplates, setUnlockedTemplates] = useState<string[]>([])
+  const [isVIP, setIsVIP] = useState(false)
+  const [userCredits, setUserCredits] = useState(0)
+  const [isUnlocking, setIsUnlocking] = useState(false)
+  const [showUnlockDialog, setShowUnlockDialog] = useState(false)
+  const [templateToUnlock, setTemplateToUnlock] = useState<string | null>(null)
+  const [checkingVipStatus, setCheckingVipStatus] = useState(false)
 
   // 获取信件详情
   useEffect(() => {
@@ -102,6 +220,178 @@ export default function ResultsPage({ id }: { id: string }) {
 
     fetchLetter()
   }, [id])
+
+  // 获取用户信息，包括积分和VIP状态
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const res = await fetch('/api/user/credits')
+        if (!res.ok) return
+        
+        const data = await res.json()
+        setUserCredits(data.credits)
+        setIsVIP(data.isVIP)
+      } catch (error) {
+        console.error('[FETCH_CREDITS_ERROR]', error)
+      }
+    }
+
+    // 定期检查VIP状态
+    const checkVipStatus = () => {
+      if (checkingVipStatus) {
+        fetchUserInfo().then(() => {
+          // 延迟重新检查
+          setTimeout(checkVipStatus, 10000) // 每10秒检查一次
+        })
+      }
+    }
+
+    // 获取已解锁的模板
+    const fetchUnlockedTemplates = async () => {
+      if (!id) return
+      
+      try {
+        const res = await fetch(`/api/user/unlock-template/check?letterId=${id}`)
+        if (!res.ok) return
+        
+        const data = await res.json()
+        setUnlockedTemplates(data.unlockedTemplates || [])
+      } catch (error) {
+        console.error('[FETCH_UNLOCKED_TEMPLATES_ERROR]', error)
+      }
+    }
+
+    // 立即获取用户信息和已解锁模板
+    fetchUserInfo()
+    fetchUnlockedTemplates()
+
+    // 开始检查VIP状态
+    const startVipCheck = () => {
+      console.log('开始检查VIP状态')
+      setCheckingVipStatus(true)
+      checkVipStatus()
+      
+      // 30秒后停止检查
+      setTimeout(() => {
+        setCheckingVipStatus(false)
+        // 最后再检查一次，确保获取最新状态
+        fetchUserInfo()
+      }, 30000)
+    }
+
+    // 监听订阅成功事件
+    window.addEventListener('subscription:success', startVipCheck)
+
+    return () => {
+      setCheckingVipStatus(false)
+      window.removeEventListener('subscription:success', startVipCheck)
+    }
+  }, [id, checkingVipStatus])
+
+  // 解锁模板
+  const unlockTemplate = async (templateId: string) => {
+    if (isUnlocking) return
+    
+    try {
+      setIsUnlocking(true)
+      
+      const res = await fetch('/api/user/unlock-template', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateId,
+          letterId: id,
+        }),
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) {
+        toast({
+          title: language === 'en' ? 'Error' : '错误',
+          description: data.error || (language === 'en' ? 'Failed to unlock template' : '解锁模板失败'),
+          variant: 'destructive',
+        })
+        return false
+      }
+      
+      // 更新积分
+      if (data.creditsRemaining !== undefined) {
+        setUserCredits(data.creditsRemaining)
+        
+        // 触发自定义事件，通知其他组件刷新积分数据
+        const event = new CustomEvent('credits:update')
+        window.dispatchEvent(event)
+      }
+      
+      // 更新已解锁模板列表
+      setUnlockedTemplates(prev => [...prev, templateId])
+      
+      toast({
+        title: language === 'en' ? 'Success' : '成功',
+        description: language === 'en' ? 'Template unlocked successfully' : '模板解锁成功',
+      })
+      
+      return true
+    } catch (error) {
+      console.error('[UNLOCK_TEMPLATE_ERROR]', error)
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: language === 'en' ? 'Failed to unlock template' : '解锁模板失败',
+        variant: 'destructive',
+      })
+      return false
+    } finally {
+      setIsUnlocking(false)
+    }
+  }
+
+  // 处理模板变更 - 从StyleDrawer组件调用
+  const handleTemplateChangeFromDrawer = async (template: string) => {
+    const templateKey = template as keyof typeof TEMPLATES
+    const targetTemplate = TEMPLATES[templateKey]
+    
+    // 如果是免费模板或用户是VIP，直接切换
+    if (targetTemplate.isFree || isVIP || unlockedTemplates.includes(template)) {
+      setSelectedTemplate(templateKey)
+      return
+    }
+    
+    // 否则，需要解锁 - 弹出解锁对话框
+    setTemplateToUnlock(template)
+    setShowUnlockDialog(true)
+  }
+
+  // 处理解锁确认
+  const handleUnlockConfirm = async () => {
+    if (!templateToUnlock || isUnlocking) return
+    
+    try {
+      setIsUnlocking(true)
+      
+      const success = await unlockTemplate(templateToUnlock)
+      if (success) {
+        setSelectedTemplate(templateToUnlock as keyof typeof TEMPLATES)
+        setShowUnlockDialog(false)
+        setTemplateToUnlock(null)
+      }
+    } finally {
+      setIsUnlocking(false)
+    }
+  }
+  
+  // 处理解锁取消
+  const handleUnlockCancel = () => {
+    setShowUnlockDialog(false)
+    setTemplateToUnlock(null)
+  }
+
+  // 切换抽屉显示状态
+  const toggleStyleDrawer = () => {
+    setShowStyleDrawer(!showStyleDrawer)
+  }
 
   // 如果是新创建的信件，自动开始生成
   useEffect(() => {
@@ -147,16 +437,6 @@ export default function ResultsPage({ id }: { id: string }) {
 
     generateContent()
   }, [letter])
-
-  // 切换抽屉显示状态
-  const toggleStyleDrawer = () => {
-    setShowStyleDrawer(!showStyleDrawer)
-  }
-
-  // 处理模板变更 - 从StyleDrawer组件调用
-  const handleTemplateChangeFromDrawer = (template: string) => {
-    setSelectedTemplate(template as keyof typeof TEMPLATES)
-  }
 
   // 修改saveAsImage函数 - 直接使用当前选中的模板
   const saveAsImage = async () => {
@@ -378,6 +658,647 @@ export default function ResultsPage({ id }: { id: string }) {
           </div>
         `
 
+      case 'artisan':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/artisan-red-bg.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #B00702;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #B00702;
+              font-style: italic;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #CFCFCC;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(176, 7, 2, 0.1);
+              margin: 0 10px;
+            ">
+              <div style="
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                font-size: 60px;
+                line-height: 1;
+                color: #B00702;
+                opacity: 0.2;
+                font-family: Georgia, serif;
+              ">"</div>
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+              <div style="
+                position: absolute;
+                bottom: 20px;
+                right: 20px;
+                font-size: 60px;
+                line-height: 1;
+                color: #B00702;
+                opacity: 0.2;
+                font-family: Georgia, serif;
+              ">"</div>
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'natural':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/natural-bg.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #5E4027;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #5E4027;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #FFFFF2;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(94, 64, 39, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'darkWine':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/dark-wine-bg.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #F4F4F4;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #F4F4F4;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #430311;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(244, 244, 244, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'paperMemo':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/annie-spratt-fDghTk7Typw-unsplash.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #151212;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #151212;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #C9C9C9;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(21, 18, 18, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'oceanBreeze':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #0B5A6B;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #0B5A6B;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #F5F5EF;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(11, 90, 107, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'darkCrimson':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/sufyan-eRpeXTJEgMw-unsplash.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #FF1100;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #FF1100;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #000000;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(255, 17, 0, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'purpleDream':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #E83DEE;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #E83DEE;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #E7F5F9;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(232, 61, 238, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'elegantPaper':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/lunelle-B-9i06FP0SI-unsplash.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #E75C31;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #E75C31;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #EFE9DB;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(231, 92, 49, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
+      case 'roseParchment':
+        return `
+          <div style="
+            width: ${style.width}px;
+            min-height: ${style.width * 0.75}px;
+            padding: ${style.padding}px;
+            background-image: url('/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            font-family: ${fontFamily};
+            color: #E358A2;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+          ">
+            ${letter.imageUrl ? `
+              <div style="
+                margin: 20px 0 40px;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+              ">
+                <img 
+                  src="${letter.imageUrl}" 
+                  style="
+                    width: 100%;
+                    height: auto;
+                    display: block;
+                    transform: scale(1.01);
+                  "
+                  crossorigin="anonymous"
+                />
+              </div>
+            ` : ''}
+
+            <div style="
+              font-size: 22px;
+              line-height: 1.8;
+              color: #E358A2;
+              font-style: normal;
+              text-align: justify;
+              position: relative;
+              padding: 40px;
+              background: #FAEFDA;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(227, 88, 162, 0.1);
+              margin: 0 10px;
+            ">
+              ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+            </div>
+
+            <div style="
+              margin-top: 40px;
+              text-align: center;
+              font-size: 16px;
+              color: #666;
+              font-style: italic;
+              height: 35px;
+              display: flex;
+              justify-content: center;
+            ">
+              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+            </div>
+          </div>
+        `;
+
       default: // classic
         return `
           <div style="
@@ -536,7 +1457,33 @@ export default function ResultsPage({ id }: { id: string }) {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black overflow-x-hidden">
+      <div className={cn(
+        "min-h-screen overflow-x-hidden relative",
+        selectedTemplate === 'artisan' 
+          ? "before:bg-[url('/images/artisan-red-bg.jpg')] before:safari-fixed" 
+          : selectedTemplate === 'natural'
+            ? "before:bg-[url('/images/natural-bg.jpg')] before:safari-fixed"
+            : selectedTemplate === 'darkWine'
+              ? "before:bg-[url('/images/dark-wine-bg.jpg')] before:safari-fixed"
+              : selectedTemplate === 'paperMemo'
+                ? "before:bg-[url('/images/annie-spratt-fDghTk7Typw-unsplash.jpg')] before:safari-fixed"
+                : selectedTemplate === 'oceanBreeze'
+                  ? "before:bg-[url('/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg')] before:safari-fixed"
+                  : selectedTemplate === 'darkCrimson'
+                    ? "before:bg-[url('/images/sufyan-eRpeXTJEgMw-unsplash.jpg')] before:safari-fixed"
+                    : selectedTemplate === 'purpleDream'
+                      ? "before:bg-[url('/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg')] before:safari-fixed"
+                      : selectedTemplate === 'elegantPaper'
+                        ? "before:bg-[url('/images/lunelle-B-9i06FP0SI-unsplash.jpg')] before:safari-fixed"
+                        : selectedTemplate === 'roseParchment'
+                          ? "before:bg-[url('/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg')] before:safari-fixed"
+                          : "bg-gradient-to-b from-black via-gray-900 to-black"
+      )}
+      style={{
+        '--bg-url': `url(${TEMPLATES[selectedTemplate].style.background.includes('url') ? 
+          TEMPLATES[selectedTemplate].style.background.match(/url\((.*?)\)/)?.[1] : ''})`
+      } as React.CSSProperties}
+      >
         {/* 返回首页按钮 */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -558,7 +1505,13 @@ export default function ResultsPage({ id }: { id: string }) {
         <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
           <div className="relative min-h-screen">
             {/* 背景效果 */}
-            <div className="fixed inset-0 opacity-20">
+            <div className={cn(
+              "fixed inset-0",
+              // 对带背景图的模板隐藏或减少蒙版不透明度
+              TEMPLATES[selectedTemplate].style.background.includes('url')
+                ? "opacity-0" // 带背景图模板不需要额外的蒙版
+                : "opacity-20" // 其他模板保持原有蒙版效果
+            )}>
               <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
               {letter.imageUrl && (
                 <Image
@@ -588,12 +1541,58 @@ export default function ResultsPage({ id }: { id: string }) {
                       initial={{ opacity: 0, y: -20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3, duration: 0.8 }}
-                      className="text-5xl md:text-6xl font-bold text-center font-display tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1]"
+                      className={cn(
+                        "text-5xl md:text-6xl font-bold text-center font-display tracking-wide",
+                        TEMPLATES[selectedTemplate].style.background.includes('url')
+                          ? selectedTemplate === 'artisan'
+                            ? "text-[#B00702] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
+                            : selectedTemplate === 'natural'
+                              ? "text-[#5E4027] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
+                              : selectedTemplate === 'darkWine'
+                                ? "text-[#F4F4F4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
+                                : selectedTemplate === 'paperMemo'
+                                  ? "text-[#151212] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
+                                  : selectedTemplate === 'oceanBreeze'
+                                    ? "text-[#0B5A6B] drop-shadow-[0_1px_2px_rgba(173,216,230,0.5)]"
+                                    : selectedTemplate === 'darkCrimson'
+                                      ? "text-[#FF1100] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
+                                      : selectedTemplate === 'purpleDream'
+                                        ? "text-[#E83DEE] drop-shadow-[0_0_12px_rgba(255,105,244,0.6)]"
+                                        : selectedTemplate === 'elegantPaper'
+                                          ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
+                                          : selectedTemplate === 'roseParchment'
+                                            ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+                                            : "text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]"
+                          : "bg-clip-text text-transparent bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1]"
+                      )}
                     >
                       Your Love Letter
                     </motion.h1>
                     <motion.div
-                      className="mt-8 w-20 h-1 mx-auto bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]"
+                      className={cn(
+                        "mt-8 w-20 h-1 mx-auto", 
+                        TEMPLATES[selectedTemplate].style.background.includes('url')
+                          ? selectedTemplate === 'artisan'
+                            ? "bg-[#B00702]"
+                            : selectedTemplate === 'natural'
+                              ? "bg-[#5E4027]"
+                              : selectedTemplate === 'darkWine'
+                                ? "bg-[#F4F4F4]"
+                                : selectedTemplate === 'paperMemo'
+                                  ? "bg-[#151212]"
+                                  : selectedTemplate === 'oceanBreeze'
+                                    ? "bg-[#0B5A6B]"
+                                    : selectedTemplate === 'darkCrimson'
+                                      ? "bg-[#FF1100]"
+                                      : selectedTemplate === 'purpleDream'
+                                        ? "bg-[#E83DEE]"
+                                        : selectedTemplate === 'elegantPaper'
+                                          ? "bg-[#E75C31]"
+                                          : selectedTemplate === 'roseParchment'
+                                            ? "bg-[#E358A2]"
+                                            : "bg-white/80 shadow-md"
+                          : "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]"
+                      )}
                       initial={{ width: 0 }}
                       animate={{ width: 80 }}
                       transition={{ duration: 0.8, delay: 0.5 }}
@@ -663,7 +1662,23 @@ export default function ResultsPage({ id }: { id: string }) {
                           ? "bg-black/40 border-white/10" 
                           : selectedTemplate === 'postcard'
                             ? "bg-[#f9f7f7]/90 border-black/5"
-                            : "bg-white/90 border-black/5" // magazine样式
+                            : selectedTemplate === 'artisan'
+                              ? "bg-[#CFCFCC] border-[#B00702]/10 relative"
+                              : selectedTemplate === 'natural'
+                                ? "bg-[#FFFFF2] border-[#5E4027]/10 relative"
+                                : selectedTemplate === 'darkWine'
+                                  ? "bg-[#430311] border-[#F4F4F4]/10 relative"
+                                  : selectedTemplate === 'paperMemo'
+                                    ? "bg-[#C9C9C9] border-[#151212]/10 relative"
+                                    : selectedTemplate === 'oceanBreeze'
+                                      ? "bg-[#F5F5EF] border-[#4A90A2]/10 relative"
+                                      : selectedTemplate === 'darkCrimson'
+                                        ? "bg-[#000000] border-[#FF1100]/20 relative"
+                                        : selectedTemplate === 'purpleDream'
+                                          ? "bg-[#E7F5F9] border-[#E83DEE]/20 relative"
+                                          : selectedTemplate === 'elegantPaper'
+                                            ? "bg-[#EFE9DB] border-[#E75C31]/20 relative"
+                                            : "bg-white/90 border-black/5" // magazine样式
                       )}
                     >
                       <motion.div 
@@ -671,9 +1686,11 @@ export default function ResultsPage({ id }: { id: string }) {
                         transition={{ duration: 0.5, type: "spring", damping: 20 }}
                         className={cn(
                           "prose prose-lg max-w-none transition-all duration-300",
-                          selectedTemplate === 'classic' 
+                          selectedTemplate === 'classic' || selectedTemplate === 'darkWine'
                             ? "prose-invert" 
-                            : "prose-slate",
+                            : selectedTemplate === 'artisan' || selectedTemplate === 'natural'
+                              ? "prose-slate"
+                              : "prose-slate",
                           // 杂志模板添加双列布局
                           selectedTemplate === 'magazine' && "sm:columns-2 sm:gap-8"
                         )}
@@ -711,7 +1728,25 @@ export default function ResultsPage({ id }: { id: string }) {
                                     ? "text-gray-100"
                                     : selectedTemplate === 'magazine'
                                       ? "text-gray-900"
-                                      : "text-gray-800"
+                                      : selectedTemplate === 'artisan'
+                                        ? "text-[#B00702]"
+                                        : selectedTemplate === 'natural'
+                                          ? "text-[#5E4027]"
+                                          : selectedTemplate === 'darkWine'
+                                            ? "text-[#F4F4F4]"
+                                            : selectedTemplate === 'paperMemo'
+                                              ? "text-[#151212]"
+                                              : selectedTemplate === 'oceanBreeze'
+                                                ? "text-[#0B5A6B]"
+                                                : selectedTemplate === 'darkCrimson'
+                                                  ? "text-[#FF1100]"
+                                                  : selectedTemplate === 'purpleDream'
+                                                    ? "text-[#E83DEE]"
+                                                    : selectedTemplate === 'elegantPaper'
+                                                      ? "text-[#E75C31]"
+                                                      : selectedTemplate === 'roseParchment'
+                                                        ? "text-[#E358A2]"
+                                                        : "text-gray-800"
                                 )}
                                 style={{ 
                                   fontFamily: language === 'zh' 
@@ -856,16 +1891,32 @@ export default function ResultsPage({ id }: { id: string }) {
         isGenerating={isGenerating}
       />
 
-      {/* 样式抽屉 - 仅在信件生成完成后显示 */}
-      {letter?.status === 'completed' && (
-        <StyleDrawer
-          templates={TEMPLATES}
-          selectedTemplate={selectedTemplate}
-          onTemplateChange={handleTemplateChangeFromDrawer}
-          isShown={showStyleDrawer}
-          onToggle={toggleStyleDrawer}
+      {/* 样式抽屉 */}
+      <StyleDrawer
+        templates={TEMPLATES}
+        selectedTemplate={selectedTemplate}
+        onTemplateChange={handleTemplateChangeFromDrawer}
+        isShown={showStyleDrawer}
+        onToggle={toggleStyleDrawer}
+        isVIP={isVIP}
+        unlockedTemplates={unlockedTemplates}
+      />
+
+      {/* 解锁模板对话框 */}
+      {templateToUnlock && (
+        <UnlockTemplateDialog
+          isOpen={showUnlockDialog}
+          onClose={handleUnlockCancel}
+          onConfirm={handleUnlockConfirm}
+          templateName={TEMPLATES[templateToUnlock as keyof typeof TEMPLATES].name}
+          credits={userCredits}
+          language={language}
+          isLoading={isUnlocking}
         />
       )}
+
+      {/* PaddleScript component */}
+      <PaddleScript />
     </>
   )
 }

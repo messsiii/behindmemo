@@ -1,7 +1,15 @@
 'use client'
 
-import { Footer } from '@/components/footer'
-import { Nav } from '@/components/nav'
+// 添加全局类型声明，确保TypeScript识别window.Paddle
+declare global {
+  interface Window {
+    Paddle: any;
+  }
+}
+
+import { Footer } from '@/components/footer';
+import { Nav } from '@/components/nav';
+import PaddleScript from '@/components/PaddleScript';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -11,20 +19,20 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { toast } from "@/components/ui/use-toast"
-import { useLanguage } from '@/contexts/LanguageContext'
-import { openSubscriptionCheckout } from '@/lib/paddle'
-import { motion } from 'framer-motion'
-import { Loader2 } from "lucide-react"
-import { useSession } from 'next-auth/react'
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import useSWR from 'swr'
+} from "@/components/ui/alert-dialog";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from "@/components/ui/use-toast";
+import { useLanguage } from '@/contexts/LanguageContext';
+import { openSubscriptionCheckout } from '@/lib/paddle';
+import { motion } from 'framer-motion';
+import { Brush, Loader2, PenLine, Sparkles } from "lucide-react";
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 
 // 定义接口
 interface UserInfo {
@@ -220,7 +228,7 @@ export default function AccountPage() {
       managedThroughPaddle: 'Your subscription is managed through Paddle',
       noSubscription: 'You don\'t have an active subscription',
       noUsageRecords: 'No usage records yet',
-      usageType: 'Activity',
+      usageType: 'Usage Type',
       pointsUsed: 'Points Used',
       description: 'Description',
       subscriptionType: 'Subscription',
@@ -243,7 +251,9 @@ export default function AccountPage() {
       back: 'Back',
       confirmCancel: 'Confirm Cancellation',
       confirmResume: 'Confirm Resume',
-      cancelled: 'Cancelled'
+      cancelled: 'Cancelled',
+      letterGeneration: 'Letter Generation',
+      templateUnlock: 'Template Unlock'
     },
     zh: {
       title: '账户管理',
@@ -282,7 +292,7 @@ export default function AccountPage() {
       managedThroughPaddle: '您的订阅通过 Paddle 管理',
       noSubscription: '您没有活跃的订阅',
       noUsageRecords: '暂无使用记录',
-      usageType: '活动',
+      usageType: '使用类型',
       pointsUsed: '使用点数',
       description: '描述',
       subscriptionType: '订阅',
@@ -305,7 +315,9 @@ export default function AccountPage() {
       back: '返回',
       confirmCancel: '确认取消自动续费',
       confirmResume: '确认恢复自动续费',
-      cancelled: '已取消'
+      cancelled: '已取消',
+      letterGeneration: '生成情书',
+      templateUnlock: '解锁模板'
     }
   }
 
@@ -337,7 +349,41 @@ export default function AccountPage() {
 
   // 处理升级为 VIP
   const handleUpgradeToVIP = () => {
-    openSubscriptionCheckout()
+    try {
+      // 检查 Paddle 是否已加载
+      if (!window.Paddle || !window.Paddle.Checkout) {
+        throw new Error(language === 'en' 
+          ? 'Payment system is not available. Please try again later.' 
+          : '支付系统暂不可用，请稍后再试。'
+        )
+      }
+      
+      openSubscriptionCheckout()
+      
+      // 显示提示信息
+      toast({
+        title: language === 'en' ? 'Processing payment' : '正在处理支付',
+        description: language === 'en' 
+          ? 'Please complete the payment process.' 
+          : '请完成支付流程。',
+      })
+      
+      // 30秒后自动刷新页面，以确保能看到最新状态
+      setTimeout(() => {
+        window.location.reload()
+      }, 30000)
+    } catch (error) {
+      console.error('Failed to open checkout:', error)
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: error instanceof Error 
+          ? error.message 
+          : (language === 'en' 
+              ? 'Failed to open payment window. Please try again.' 
+              : '打开支付窗口失败，请重试。'),
+        variant: 'destructive'
+      })
+    }
   }
 
   // 格式化日期
@@ -529,23 +575,10 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <div className="fixed inset-0 z-0 opacity-30 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
-      {userInfo?.image && (
-        <div className="fixed inset-0 z-0 opacity-5">
-          <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
-          <img
-            src={userInfo.image}
-            alt="Background"
-            className="w-full h-full object-cover opacity-20 filter blur-3xl scale-110 mix-blend-overlay"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      )}
-      
+    <div className="min-h-screen flex flex-col">
       <Nav />
-      <main className="relative z-10 flex-1">
-        <div className="container max-w-4xl mx-auto px-4 py-8">
+      <main className="flex-1">
+        <div className="container py-6 md:py-12">
           <motion.h1 
             className={`text-4xl font-bold mb-8 text-center bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent ${language === 'en' ? 'font-serif' : 'font-serif-zh'}`}
             initial={{ opacity: 0, y: 20 }}
@@ -875,8 +908,24 @@ export default function AccountPage() {
                               {usageRecords?.map((record) => (
                                 <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors duration-150">
                                   <td className="p-3">{formatDate(record.createdAt)}</td>
-                                  <td className="p-3">{record.type}</td>
-                                  <td className="p-3">{record.pointsUsed}</td>
+                                  <td className="p-3">
+                                    <div className="flex items-center gap-1.5">
+                                      {record.type === (language === 'en' ? 'Letter Generation' : '生成情书') ? (
+                                        <PenLine className="h-4 w-4 text-blue-500" />
+                                      ) : record.type === (language === 'en' ? 'Template Unlock' : '解锁模板') ? (
+                                        <Brush className="h-4 w-4 text-purple-500" />
+                                      ) : (
+                                        <Sparkles className="h-4 w-4 text-amber-500" />
+                                      )}
+                                      <span>{record.type}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`flex items-center ${record.pointsUsed > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                                      {record.pointsUsed > 0 ? record.pointsUsed : '-'}
+                                      {record.pointsUsed > 0 && <Sparkles className="h-3 w-3 ml-1" />}
+                                    </span>
+                                  </td>
                                   <td className="p-3">{record.description}</td>
                                 </tr>
                               ))}
@@ -961,6 +1010,9 @@ export default function AccountPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Paddle Script */}
+      <PaddleScript />
     </div>
   )
 } 

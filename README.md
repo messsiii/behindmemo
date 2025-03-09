@@ -638,3 +638,195 @@ app/
    - 安装 Prettier 插件
    - 配置自动保存时修复
    - 快捷键绑定修复命令
+
+## 添加新模板要领总结
+
+添加新模板需要在四个关键位置进行修改，确保模板在各个环境下都能正确显示。以下是完整的步骤和要点：
+
+#### 1. 在 ResultsPage.tsx 定义模板
+
+在 `TEMPLATES` 常量中添加新模板的定义：
+
+```typescript
+const TEMPLATES = {
+  // 现有模板...
+  myNewTemplate: {
+    name: '模板名称',
+    style: {
+      width: 1200,            // 推荐宽度1173-1200px
+      padding: 60,            // 内边距大小影响内容区域
+      background: 'url(/images/my-bg.jpg) no-repeat center center / cover', // 背景可使用图片或渐变色
+      titleFont: '"Font Name", serif',  // 标题字体
+      contentFont: '"Font Name", serif', // 内容字体
+    }
+  }
+}
+```
+
+#### 2. 实现模板HTML生成逻辑
+
+在 `generateTemplateHtml` 函数中添加模板的HTML结构：
+
+```typescript
+case 'myNewTemplate':
+  return `
+    <div style="
+      width: ${style.width}px;
+      min-height: ${style.width * 0.75}px;
+      padding: ${style.padding}px;
+      background: ${style.background};
+      position: relative;
+      font-family: ${fontFamily};
+      color: #颜色代码;           // 根据背景选择合适的文字颜色
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      border-radius: 12px;
+      overflow: hidden;
+    ">
+      ${/* 图片区域 */}
+      ${letter.imageUrl ? `
+        <div style="
+          margin: 20px 0 40px;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        ">
+          <img 
+            src="${letter.imageUrl}" 
+            style="
+              width: 100%;
+              height: auto;
+              display: block;
+            "
+            crossorigin="anonymous"
+          />
+        </div>
+      ` : ''}
+
+      ${/* 文字区域 */}
+      <div style="
+        font-size: 22px;
+        line-height: 1.8;
+        color: #颜色代码;
+        text-align: justify;
+        padding: 30px;
+        background: rgba(255,255,255,0.9);  // 根据设计调整背景色和透明度
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      ">
+        ${letter.content?.split('\n').filter(p => p.trim()).join('<br><br>')}
+      </div>
+
+      ${/* 水印区域 - 根据背景色选择 */}
+      <div style="
+        margin-top: 30px;
+        text-align: center;
+        font-size: 16px;
+        color: #颜色代码;        // 水印文字颜色
+        font-style: italic;
+        height: 35px;
+        display: flex;
+        justify-content: center;
+      ">
+        ${/* 浅色背景用深色水印，深色背景用浅色水印 */}
+        <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+        ${/* 或 <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" /> */}
+      </div>
+    </div>
+  `;
+```
+
+#### 3. 在 StyleDrawer 添加模板预览
+
+在 `StyleDrawer.tsx` 中修改多处代码以支持新模板的预览显示：
+
+```typescript
+// 1. 模板卡片背景 - 使用颜色渐变或背景图
+key === 'myNewTemplate' && "overflow-hidden", // 使用背景图时设置overflow-hidden
+
+// 2. 如果使用背景图，添加背景图层
+{key === 'myNewTemplate' && (
+  <>
+    <div className="absolute inset-0 bg-cover bg-center" 
+         style={{ backgroundImage: 'url(/images/my-bg.jpg)' }}></div>
+    <div className="absolute inset-0 bg-black/10"></div> // 添加轻微遮罩提高文字可见度
+  </>
+)}
+
+// 3. 内容容器样式
+key === 'myNewTemplate'
+  ? "border-white/20" // 带背景图的模板使用简单边框
+  : "border-black/10 bg-white/90"
+
+// 4. 文字部分预览
+// 根据模板特点决定是使用普通文本线条还是特殊布局
+{key === 'myNewTemplate' ? (
+  <div className="w-full h-full flex flex-col justify-center items-center relative">
+    {/* 可以添加特殊边框或效果 */}
+    <div className="absolute inset-2 border-2 border-[#颜色代码]/30 rounded-sm"></div>
+    {/* 添加3-4行文本线条 */}
+    <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#颜色代码]" />
+    <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#颜色代码]" />
+    <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#颜色代码]" />
+  </div>
+) : null}
+
+// 对于双列布局的模板（如杂志），使用如下结构:
+{key === 'magazine' && (
+  <div className="w-full h-full flex justify-center items-center px-2">
+    <div className="w-1/2 pr-2 flex flex-col justify-center items-center border-r border-gray-200">
+      <div className="w-[85%] h-[2px] rounded-full my-[3px] bg-black/20" />
+      <div className="w-[75%] h-[2px] rounded-full my-[3px] bg-black/20" />
+      <div className="w-[65%] h-[2px] rounded-full my-[3px] bg-black/20" />
+    </div>
+    <div className="w-1/2 pl-2 flex flex-col justify-center items-center">
+      <div className="w-[75%] h-[2px] rounded-full my-[3px] bg-black/20" />
+      <div className="w-[85%] h-[2px] rounded-full my-[3px] bg-black/20" />
+      <div className="w-[65%] h-[2px] rounded-full my-[3px] bg-black/20" />
+    </div>
+  </div>
+)}
+```
+
+#### 4. 更新结果页面渲染
+
+确保 `ResultsPage.tsx` 中的实时预览部分也支持新模板：
+
+```typescript
+// 页面级背景适配
+<div className={cn(
+  "min-h-screen overflow-x-hidden",
+  selectedTemplate === 'myNewTemplate' 
+    ? "bg-[url('/images/my-bg.jpg')] bg-cover bg-center bg-fixed" 
+    : // 其他模板的背景
+)}>
+
+// 信件容器适配
+<div className={cn(
+  "backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border transition-all duration-500",
+  selectedTemplate === 'myNewTemplate'
+    ? "bg-[#颜色代码]/80 border-[#颜色代码]/10" 
+    : "bg-white/90 border-black/5"
+)}>
+```
+
+#### 5. 注意事项和最佳实践
+
+1. **水印选择**: 
+   - 浅色背景模板（如Postcard、Magazine）使用浅色水印（`watermark-light.svg`）
+   - 深色背景模板（如Classic Dark、Dark Wine）使用深色水印（`watermark-dark.svg`）
+
+2. **背景图片**:
+   - 背景图尺寸建议为1200×1600px或更大，以适应不同屏幕
+   - 优化图片文件大小，保持质量的同时减少加载时间
+   - 图片放置于`/public/images/`目录下
+
+3. **文字和图片区域**:
+   - 文字区域应有足够的对比度，确保可读性
+   - 为图片区域添加适当的阴影和圆角，提升视觉效果
+   - 根据内容类型（情书、明信片等）调整布局和间距
+
+4. **响应式考虑**:
+   - 模板设计应考虑在移动设备上的显示效果
+   - 字体大小和行高应适合长文本阅读

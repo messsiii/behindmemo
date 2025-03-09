@@ -3,7 +3,7 @@
 import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckIcon, ChevronUp, Infinity, Sparkles } from 'lucide-react'
+import { CheckIcon, ChevronUp, Infinity, Lock, Sparkles } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
@@ -17,6 +17,7 @@ interface Template {
     titleFont: string
     contentFont: string
   }
+  isFree?: boolean
 }
 
 interface StyleDrawerProps {
@@ -25,6 +26,8 @@ interface StyleDrawerProps {
   onTemplateChange: (template: string) => void
   isShown: boolean
   onToggle: () => void
+  isVIP?: boolean
+  unlockedTemplates?: string[]
 }
 
 // 积分信息接口
@@ -46,18 +49,44 @@ const fetcher = (url: string) =>
 // 自定义积分显示组件，为深色背景优化
 function StyleDrawerCredits() {
   const { data: session } = useSession()
-  const { language } = useLanguage()
-
+  const [refreshKey, setRefreshKey] = useState(0) // 添加一个状态用于强制刷新
+  
+  // 监听积分更新事件
+  useEffect(() => {
+    const handleCreditsUpdate = () => {
+      // 通过增加 refreshKey 来触发 SWR 重新获取数据
+      setRefreshKey(prevKey => prevKey + 1)
+    }
+    
+    window.addEventListener('credits:update', handleCreditsUpdate)
+    
+    return () => {
+      window.removeEventListener('credits:update', handleCreditsUpdate)
+    }
+  }, [])
+  
   const {
     data: creditsInfo,
     isLoading,
     error,
-  } = useSWR<CreditsInfo>(session?.user?.id ? '/api/user/credits' : null, fetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    refreshInterval: 30000,
-    dedupingInterval: 5000,
-  })
+    mutate // 添加 mutate 函数
+  } = useSWR<CreditsInfo>(
+    session?.user?.id ? ['/api/user/credits', refreshKey] : null, 
+    ([url]) => fetcher(url), 
+    {
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      refreshInterval: 30000,
+      dedupingInterval: 5000,
+    }
+  )
+  
+  // 检测到 refreshKey 变化时重新获取数据
+  useEffect(() => {
+    if (refreshKey > 0) {
+      mutate() // 手动触发 SWR 重新获取数据
+    }
+  }, [refreshKey, mutate])
 
   // 如果未登录，不显示任何内容
   if (!session?.user?.id) return null
@@ -105,6 +134,8 @@ export function StyleDrawer({
   onTemplateChange,
   isShown,
   onToggle,
+  isVIP = false,
+  unlockedTemplates = []
 }: StyleDrawerProps) {
   const { language } = useLanguage()
   const [isHovered, setIsHovered] = useState<string | null>(null)
@@ -158,8 +189,6 @@ export function StyleDrawer({
               onToggle()
             }}
           >
-            <div className="absolute top-[6px] left-1/2 transform -translate-x-1/2 w-10 h-1 bg-white/20 rounded-full" />
-            
             <motion.div
               animate={{ opacity: isShown ? 0 : 1, y: isShown ? -10 : 0 }}
               transition={{ duration: 0.2 }}
@@ -260,8 +289,17 @@ export function StyleDrawer({
                           ? "ring-2 ring-offset-2 ring-offset-black/80 ring-white/80 scale-105 shadow-xl shadow-black/40"
                           : "opacity-80 hover:opacity-100 hover:scale-105 hover:shadow-lg hover:shadow-black/20 hover:ring-1 hover:ring-white/30 hover:ring-offset-1 hover:ring-offset-black/80",
                         key === 'classic' && "bg-gradient-to-br from-[#0F0F0F] to-[#252525]",
-                        key === 'postcard' && "bg-gradient-to-r from-[#f9f7f7] to-[#ffffff]",
-                        key === 'magazine' && "bg-gradient-to-br from-[#ffffff] to-[#f5f5f5]"
+                        key === 'postcard' && "overflow-hidden",
+                        key === 'magazine' && "overflow-hidden",
+                        key === 'artisan' && "overflow-hidden",
+                        key === 'natural' && "overflow-hidden",
+                        key === 'darkWine' && "overflow-hidden",
+                        key === 'paperMemo' && "overflow-hidden",
+                        key === 'oceanBreeze' && "overflow-hidden",
+                        key === 'darkCrimson' && "overflow-hidden",
+                        key === 'purpleDream' && "overflow-hidden",
+                        key === 'elegantPaper' && "overflow-hidden",
+                        key === 'roseParchment' && "overflow-hidden"
                       )}
                     >
                       {/* 选中标记 - 右上角 */}
@@ -276,25 +314,181 @@ export function StyleDrawer({
                         </motion.div>
                       )}
                       
+                      {/* 锁定标记 - 当模板是付费且未解锁时 */}
+                      {!templates[key].isFree && !isVIP && !unlockedTemplates.includes(key) && (
+                        <motion.div 
+                          className="absolute top-2 left-2 z-10 bg-black/70 rounded-full py-1 px-2 flex items-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <Lock className="h-3.5 w-3.5 text-white" />
+                          <span className="text-[10px] font-medium text-white ml-1">5点</span>
+                        </motion.div>
+                      )}
+                      
+                      {/* VIP标记 - 当模板是付费且用户是VIP时 */}
+                      {!templates[key].isFree && isVIP && (
+                        <motion.div 
+                          className="absolute top-2 left-2 z-10 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full p-1.5"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <Infinity className="h-3.5 w-3.5 text-white" />
+                        </motion.div>
+                      )}
+                      
                       {/* 模板预览内容 */}
                       <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-3">
+                      
                         <div
                           className={cn(
                             "relative w-full h-full flex flex-col items-center justify-center",
                             "rounded-md overflow-hidden border shadow-md",
                             key === 'classic' 
                               ? "border-white/20 bg-black/40" 
-                              : "border-black/10 bg-white/90",
+                              : key === 'artisan'
+                                ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                : key === 'natural'
+                                  ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                  : key === 'darkWine'
+                                    ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                    : key === 'paperMemo'
+                                      ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                      : key === 'oceanBreeze'
+                                        ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                        : key === 'darkCrimson'
+                                          ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                          : key === 'purpleDream'
+                                            ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                            : key === 'elegantPaper'
+                                              ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                              : key === 'roseParchment'
+                                                ? "border-white/20" // 去掉背景色，使用真实背景图片
+                                                : key === 'postcard' || key === 'magazine'
+                                                  ? "border-white/20" // 使用相同的边框样式
+                                                  : "border-black/10 bg-white/90",
                             selectedTemplate === key && "shadow-inner"
                           )}
                         >
+                          {/* Artisan模板特殊背景 */}
+                          {key === 'artisan' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/artisan-red-bg.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/10"></div>
+                            </>
+                          )}
+
+                          {/* Natural模板特殊背景 */}
+                          {key === 'natural' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/natural-bg.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/10"></div>
+                            </>
+                          )}
+
+                          {/* Dark Wine模板特殊背景 */}
+                          {key === 'darkWine' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/dark-wine-bg.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/10"></div>
+                            </>
+                          )}
+
+                          {/* Paper Memo模板特殊背景 */}
+                          {key === 'paperMemo' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/annie-spratt-fDghTk7Typw-unsplash.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/10"></div>
+                            </>
+                          )}
+
+                          {/* Ocean Breeze模板特殊背景 */}
+                          {key === 'oceanBreeze' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/10"></div>
+                            </>
+                          )}
+
+                          {/* Dark Crimson模板特殊背景 */}
+                          {key === 'darkCrimson' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/sufyan-eRpeXTJEgMw-unsplash.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/20"></div>
+                            </>
+                          )}
+
+                          {/* Purple Dream模板特殊背景 */}
+                          {key === 'purpleDream' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/20"></div>
+                            </>
+                          )}
+
+                          {/* Elegant Paper模板特殊背景 */}
+                          {key === 'elegantPaper' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/lunelle-B-9i06FP0SI-unsplash.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/20"></div>
+                            </>
+                          )}
+
+                          {/* Rose Parchment模板特殊背景 */}
+                          {key === 'roseParchment' && (
+                            <>
+                              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg)' }}></div>
+                              <div className="absolute inset-0 bg-black/20"></div>
+                            </>
+                          )}
+
+                          {/* Postcard模板特殊背景 */}
+                          {key === 'postcard' && (
+                            <>
+                              <div className="absolute inset-0 bg-gradient-to-br from-[#f9f7f7] to-[#ffffff]"></div>
+                              <div className="absolute inset-0 bg-black/5"></div>
+                            </>
+                          )}
+
+                          {/* Magazine模板特殊背景 */}
+                          {key === 'magazine' && (
+                            <>
+                              <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff] to-[#f5f5f5]"></div>
+                              <div className="absolute inset-0 bg-black/5"></div>
+                            </>
+                          )}
+
                           {/* 卡片光效 */}
                           <div 
                             className={cn(
                               "absolute inset-0 opacity-30 pointer-events-none",
                               key === 'classic' 
                                 ? "bg-gradient-to-br from-blue-900/20 via-transparent to-purple-900/20" 
-                                : "bg-gradient-to-br from-blue-100/30 via-transparent to-rose-100/30"
+                                : key === 'artisan'
+                                  ? "bg-gradient-to-r from-red-900/40 via-transparent to-red-900/10" // Artisan模板的光效
+                                  : key === 'natural'
+                                    ? "bg-gradient-to-r from-yellow-900/40 via-transparent to-yellow-900/10" // Natural模板的光效
+                                    : key === 'darkWine'
+                                      ? "bg-gradient-to-r from-pink-900/40 via-transparent to-pink-900/10" // Dark Wine模板的光效
+                                      : key === 'paperMemo'
+                                        ? "bg-gradient-to-r from-gray-900/40 via-transparent to-gray-900/10" // Paper Memo模板的光效
+                                        : key === 'oceanBreeze'
+                                          ? "bg-gradient-to-r from-blue-900/40 via-transparent to-blue-900/10" // Ocean Breeze模板的光效
+                                          : key === 'darkCrimson'
+                                            ? "bg-gradient-to-r from-red-900/40 via-transparent to-red-900/10" // Dark Crimson模板的光效
+                                            : key === 'purpleDream'
+                                              ? "bg-gradient-to-r from-pink-900/40 via-transparent to-pink-900/10" // Purple Dream模板的光效
+                                              : key === 'elegantPaper'
+                                                ? "bg-gradient-to-r from-gray-900/40 via-transparent to-gray-900/10" // Elegant Paper模板的光效
+                                                : key === 'roseParchment'
+                                                  ? "bg-gradient-to-r from-pink-900/40 via-transparent to-pink-900/10" // Rose Parchment模板的光效
+                                                  : key === 'postcard'
+                                                    ? "bg-gradient-to-r from-blue-200/40 via-transparent to-pink-200/10" // Postcard模板的光效
+                                                    : key === 'magazine'
+                                                      ? "bg-gradient-to-r from-indigo-200/40 via-transparent to-purple-200/10" // Magazine模板的光效
+                                                      : "bg-gradient-to-br from-blue-100/30 via-transparent to-rose-100/30"
                             )}
                           />
                           
@@ -302,7 +496,7 @@ export function StyleDrawer({
                           <div
                             className={cn(
                               "absolute top-2 left-0 right-0 text-center px-2 font-semibold",
-                              key === 'classic' ? "text-white" : "text-black"
+                              (key === 'classic' || key === 'darkWine' || key === 'paperMemo' || key === 'oceanBreeze' || key === 'darkCrimson' || key === 'purpleDream') ? "text-white" : "text-black" 
                             )}
                             style={{
                               fontFamily: template.style.titleFont,
@@ -317,12 +511,21 @@ export function StyleDrawer({
                             className={cn(
                               "absolute top-8 left-2 right-2 h-[28%]", 
                               "rounded overflow-hidden",
-                              key === 'classic' 
+                              (key === 'classic' || key === 'artisan' || key === 'natural' || key === 'darkWine')
                                 ? "bg-gray-800 shadow-sm shadow-white/5" 
                                 : "bg-gray-100 shadow-sm shadow-black/5"
                             )}
                           >
-                            <div className="w-full h-full bg-gradient-to-br from-rose-300/30 via-purple-300/30 to-blue-300/30" />
+                            <div className={cn(
+                              "w-full h-full",
+                              key === 'artisan' 
+                                ? "bg-gradient-to-br from-rose-300/50 via-red-300/50 to-orange-300/50" // Artisan模板的图片背景色
+                                : key === 'natural'
+                                  ? "bg-gradient-to-br from-yellow-300/50 via-orange-300/50 to-orange-300/50" // Natural模板的图片背景色
+                                  : key === 'darkWine'
+                                    ? "bg-gradient-to-br from-pink-300/50 via-purple-300/50 to-purple-300/50" // Dark Wine模板的图片背景色
+                                    : "bg-gradient-to-br from-rose-300/30 via-purple-300/30 to-blue-300/30"
+                            )} />
                           </div>
                           
                           {/* 模板示例内容 - 文本部分 */}
@@ -332,24 +535,126 @@ export function StyleDrawer({
                               "rounded",
                               key === 'classic' 
                                 ? "bg-white/10 border border-white/20" 
-                                : "bg-white border border-black/10",
-                              key === 'magazine' && "columns-2 gap-1"
+                                : key === 'artisan'
+                                  ? "bg-[#CFCFCC] border-none" // Artisan模板的文本背景 
+                                  : key === 'natural'
+                                    ? "bg-[#FFFFF2] border-none" // Natural模板的文本背景
+                                    : key === 'darkWine'
+                                      ? "bg-[#430311] border-none" // Dark Wine模板的文本背景
+                                      : key === 'paperMemo'
+                                        ? "bg-[#C9C9C9] border-none" // Paper Memo模板的文本背景
+                                        : key === 'oceanBreeze'
+                                          ? "bg-[#F5F5EF] border-none" // Ocean Breeze模板的文本背景
+                                          : key === 'darkCrimson'
+                                            ? "bg-[#000000] border-none" // Dark Crimson模板的文本背景
+                                            : key === 'purpleDream'
+                                              ? "bg-[#F5F5EF] border-none" // Purple Dream模板的文本背景
+                                              : key === 'elegantPaper'
+                                                ? "bg-[#EFE9DB] border-none" // Elegant Paper模板的文本背景
+                                                : key === 'roseParchment'
+                                                  ? "bg-[#FAEFDA] border-none" // Rose Parchment模板的文本背景
+                                                  : key === 'postcard' || key === 'magazine'
+                                                    ? "bg-white border border-black/10" // 浅色背景下的文本区域
+                                                    : "bg-white border border-black/10"
                             )}
                           >
-                            <div className={cn(
-                              "w-full h-full flex flex-col justify-center",
-                              key === 'classic' ? "items-center" : "items-center"
-                            )}>
-                              {[1, 2, 3].map((line) => (
-                                <div 
-                                  key={line}
-                                  className={cn(
-                                    "w-[70%] h-[2px] rounded-full my-[3px]",
-                                    key === 'classic' ? "bg-white/30" : "bg-black/20"
-                                  )}
-                                />
-                              ))}
-                            </div>
+                            {/* Magazine模板双列文字样式优化 */}
+                            {key === 'magazine' ? (
+                              <div className="w-full h-full flex justify-center items-center px-2">
+                                <div className="w-1/2 pr-2 flex flex-col justify-center items-center border-r border-gray-200">
+                                  <div className="w-[85%] h-[2px] rounded-full my-[3px] bg-black/20" />
+                                  <div className="w-[75%] h-[2px] rounded-full my-[3px] bg-black/20" />
+                                  <div className="w-[65%] h-[2px] rounded-full my-[3px] bg-black/20" />
+                                </div>
+                                <div className="w-1/2 pl-2 flex flex-col justify-center items-center">
+                                  <div className="w-[75%] h-[2px] rounded-full my-[3px] bg-black/20" />
+                                  <div className="w-[85%] h-[2px] rounded-full my-[3px] bg-black/20" />
+                                  <div className="w-[65%] h-[2px] rounded-full my-[3px] bg-black/20" />
+                                </div>
+                              </div>
+                            ) : key === 'artisan' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Artisan模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#B00702]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#B00702]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#B00702]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#B00702]/70" />
+                              </div>
+                            ) : key === 'natural' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Natural模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#5E4027]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#5E4027]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#5E4027]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#5E4027]/70" />
+                              </div>
+                            ) : key === 'paperMemo' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Paper Memo模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#151212]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#151212]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#151212]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#151212]/70" />
+                              </div>
+                            ) : key === 'oceanBreeze' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Ocean Breeze模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#0B5A6B]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#0B5A6B]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#0B5A6B]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#0B5A6B]/70" />
+                              </div>
+                            ) : key === 'darkCrimson' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Dark Crimson模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#C41100]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#C41100]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#C41100]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#C41100]/70" />
+                              </div>
+                            ) : key === 'purpleDream' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Purple Dream模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#E83DEE]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#E83DEE]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#E83DEE]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#E83DEE]/70" />
+                              </div>
+                            ) : key === 'elegantPaper' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Elegant Paper模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#E75C31]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#E75C31]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#E75C31]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#E75C31]/70" />
+                              </div>
+                            ) : key === 'roseParchment' ? (
+                              <div className="w-full h-full flex flex-col justify-center items-center relative">
+                                {/* Rose Parchment模板骨架 */}
+                                <div className="absolute inset-2 border-2 border-[#E358A2]/30 rounded-sm"></div>
+                                <div className="w-[70%] h-[2px] rounded-full my-[3px] bg-[#E358A2]/70" />
+                                <div className="w-[60%] h-[2px] rounded-full my-[3px] bg-[#E358A2]/70" />
+                                <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#E358A2]/70" />
+                              </div>
+                            ) : (
+                              <div className={cn(
+                                "w-full h-full flex flex-col justify-center items-center"
+                              )}>
+                                {[1, 2, 3].map((line) => (
+                                  <div 
+                                    key={line}
+                                    className={cn(
+                                      "w-[70%] h-[2px] rounded-full my-[3px]",
+                                      key === 'classic' || key === 'darkWine'
+                                        ? "bg-white/30"
+                                        : key === 'postcard'
+                                          ? "bg-black/20"
+                                          : "bg-black/20"
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
