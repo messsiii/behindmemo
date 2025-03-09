@@ -14,6 +14,13 @@ import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 
+// 为 Window 对象添加自定义属性声明
+declare global {
+  interface Window {
+    preventReloadOnVisibilityChange?: boolean;
+  }
+}
+
 interface Letter {
   id: string
   content: string
@@ -212,11 +219,25 @@ export default function HistoryPage() {
   
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      // 只有当页面从不可见变为可见，且上次隐藏时间不是从外部标签页切换过来时，才重新加载
+      if (document.visibilityState === 'visible' && window.preventReloadOnVisibilityChange !== true) {
         setForceLoading(true)
         setShowEmptyState(false)
         setAllLetters([])
         mutate()
+      }
+      
+      // 当页面变为可见时，标记为不需要阻止重新加载
+      if (document.visibilityState === 'visible') {
+        window.preventReloadOnVisibilityChange = false;
+      }
+      
+      // 当页面变为不可见时，检查是否应该阻止下次重新加载
+      if (document.visibilityState === 'hidden') {
+        // 使用 setTimeout 延迟标记，如果是切换到应用内的其他页面，这个值会被重置
+        setTimeout(() => {
+          window.preventReloadOnVisibilityChange = true;
+        }, 300);
       }
     }
     

@@ -1,12 +1,16 @@
 'use client'
 
-import { SessionProvider } from 'next-auth/react'
-import { LanguageProvider } from '@/contexts/LanguageContext'
+import { LanguageProvider } from '@/contexts/LanguageContext';
+import { SessionProvider } from 'next-auth/react';
+import { NavigationEventsHandler } from './NavigationEventsHandler';
 
 export function Providers({ children, session }: { children: React.ReactNode; session: any }) {
   return (
     <SessionProvider session={session}>
-      <LanguageProvider>{children}</LanguageProvider>
+      <LanguageProvider>
+        <NavigationEventsHandler />
+        {children}
+      </LanguageProvider>
     </SessionProvider>
   )
 }
