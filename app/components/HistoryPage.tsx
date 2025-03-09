@@ -108,6 +108,12 @@ export default function HistoryPage() {
   const [mounted, setMounted] = useState(false)
   const [forceLoading, setForceLoading] = useState(true)
   const [showEmptyState, setShowEmptyState] = useState(false)
+  // 添加一个引用来跟踪页面可见性状态
+  const pageVisibilityRef = useRef({
+    wasLoading: false,           // 页面隐藏前是否正在加载
+    wasLoadingMore: false,       // 页面隐藏前是否正在加载更多
+    pageWasHidden: false,        // 页面是否曾经隐藏
+  });
 
   useEffect(() => {
     setMounted(true)
@@ -142,11 +148,21 @@ export default function HistoryPage() {
         setShowEmptyState(false)
       }
       
+      // 创建中止控制器，用于取消请求
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
       try {
-        const res = await fetch(url)
+        const res = await fetch(url, { signal })
         if (!res.ok) throw new Error('Failed to fetch letters')
         return res.json()
-      } catch (error) {
+      } catch (error: any) {
+        // 如果是中止错误，不显示错误状态
+        if (error.name === 'AbortError') {
+          console.log('Fetch aborted');
+          return { letters: [], pagination: { total: 0, pages: 0, current: 1, limit: ITEMS_PER_PAGE } };
+        }
+        
         if (currentPage === 1) {
           setForceLoading(false)
         }
@@ -203,6 +219,14 @@ export default function HistoryPage() {
       setShowEmptyState(false)
       setAllLetters([])
       setCurrentPage(1)
+      // 重置所有加载状态引用
+      loadingRef.current = false;
+      // 重置页面可见性状态引用
+      pageVisibilityRef.current = {
+        wasLoading: false,
+        wasLoadingMore: false,
+        pageWasHidden: false
+      };
       mutate()
     }
     
@@ -219,38 +243,70 @@ export default function HistoryPage() {
   
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // 只有当页面从不可见变为可见，且上次隐藏时间不是从外部标签页切换过来时，才重新加载
-      if (document.visibilityState === 'visible' && window.preventReloadOnVisibilityChange !== true) {
-        setForceLoading(true)
-        setShowEmptyState(false)
-        setAllLetters([])
-        mutate()
-      }
-      
-      // 当页面变为可见时，标记为不需要阻止重新加载
-      if (document.visibilityState === 'visible') {
-        window.preventReloadOnVisibilityChange = false;
-      }
-      
-      // 当页面变为不可见时，检查是否应该阻止下次重新加载
+      // 当页面变为隐藏状态时
       if (document.visibilityState === 'hidden') {
-        // 使用 setTimeout 延迟标记，如果是切换到应用内的其他页面，这个值会被重置
+        // 保存当前加载状态
+        pageVisibilityRef.current.wasLoading = forceLoading;
+        pageVisibilityRef.current.wasLoadingMore = isLoadingMore;
+        pageVisibilityRef.current.pageWasHidden = true;
+        
+        // 延迟设置防止重载标志
         setTimeout(() => {
           window.preventReloadOnVisibilityChange = true;
         }, 300);
       }
+      
+      // 当页面变为可见状态时
+      if (document.visibilityState === 'visible') {
+        // 如果页面之前被隐藏
+        if (pageVisibilityRef.current.pageWasHidden) {
+          // 无论如何先重置加载状态
+          loadingRef.current = false;
+          setIsLoadingMore(false);
+          
+          // 如果是从外部标签页返回
+          if (window.preventReloadOnVisibilityChange === true) {
+            // 重置UI加载状态，无论之前是什么状态
+            if (forceLoading) {
+              setForceLoading(false);
+            }
+            
+            // 如果在隐藏前正在加载更多内容，重置为上一页
+            if (pageVisibilityRef.current.wasLoadingMore) {
+              // 重置当前页码，回到上一页
+              setCurrentPage(prev => Math.max(1, prev - 1));
+            }
+          } else {
+            // 如果不是从外部标签页返回，执行完整重新加载
+            setForceLoading(true);
+            setShowEmptyState(false);
+            setAllLetters([]);
+            setCurrentPage(1);
+            mutate();
+          }
+        }
+        
+        // 重置页面可见性状态
+        pageVisibilityRef.current.pageWasHidden = false;
+        pageVisibilityRef.current.wasLoading = false;
+        pageVisibilityRef.current.wasLoadingMore = false;
+        
+        // 重置防止重载标志
+        window.preventReloadOnVisibilityChange = false;
+      }
     }
     
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
-  }, [mutate])
+  }, [mutate, forceLoading, isLoadingMore]);
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const target = entries[0]
-      if (target.isIntersecting && hasMore && !isLoading && !loadingRef.current && !forceLoading && !isLoadingMore) {
+      if (target.isIntersecting && hasMore && !isLoading && !loadingRef.current && !forceLoading && !isLoadingMore && document.visibilityState === 'visible') {
         loadingRef.current = true
         setIsLoadingMore(true)
         setCurrentPage(prev => prev + 1)
