@@ -271,24 +271,47 @@ async function handleSubscriptionUpdated(eventData: any) {
     return
   }
 
+  console.log(`处理订阅更新: ${subscriptionId}, 状态: ${status}, 取消状态: ${subscription.canceled_at ? '已取消' : '未取消'}`)
+  
+  // 记录更新前的状态
+  console.log('订阅更新前:', {
+    id: subscriptionRecord.id,
+    status: subscriptionRecord.status,
+    canceledAt: subscriptionRecord.canceledAt,
+    endedAt: subscriptionRecord.endedAt,
+    nextBillingAt: subscriptionRecord.nextBillingAt
+  });
+
   // 更新订阅记录
-  await prisma.subscription.update({
+  const updatedSubscription = await prisma.subscription.update({
     where: { paddleSubscriptionId: subscriptionId },
     data: {
       status: status,
       nextBillingAt: subscription.current_billing_period?.ends_at
         ? new Date(subscription.current_billing_period.ends_at)
-        : undefined,
+        : null,
+      // 关键修复：明确将canceledAt设置为null而不是undefined
       canceledAt: subscription.canceled_at
         ? new Date(subscription.canceled_at)
-        : undefined,
+        : null,
+      // 关键修复：当订阅恢复active且没有canceled_at时，重置endedAt
+      endedAt: status === 'active' && !subscription.canceled_at ? null : subscriptionRecord.endedAt,
       metadata: subscription
     }
   })
+  
+  // 记录更新后的状态
+  console.log('订阅更新后:', {
+    id: updatedSubscription.id,
+    status: updatedSubscription.status,
+    canceledAt: updatedSubscription.canceledAt,
+    endedAt: updatedSubscription.endedAt,
+    nextBillingAt: updatedSubscription.nextBillingAt
+  });
 
   // 更新用户VIP状态
   if (status === 'active') {
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: subscriptionRecord.userId },
       data: {
         isVIP: true,
@@ -298,9 +321,16 @@ async function handleSubscriptionUpdated(eventData: any) {
         paddleSubscriptionStatus: status
       }
     })
+    
+    console.log('用户VIP状态已更新(active):', {
+      id: updatedUser.id,
+      isVIP: updatedUser.isVIP,
+      vipExpiresAt: updatedUser.vipExpiresAt,
+      paddleSubscriptionStatus: updatedUser.paddleSubscriptionStatus
+    });
   } else if (status === 'canceled' || status === 'paused') {
     // 如果订阅被取消或暂停，保留VIP直到当前计费周期结束
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: subscriptionRecord.userId },
       data: {
         vipExpiresAt: subscription.current_billing_period?.ends_at
@@ -309,6 +339,12 @@ async function handleSubscriptionUpdated(eventData: any) {
         paddleSubscriptionStatus: status
       }
     })
+    
+    console.log(`用户VIP状态已更新(${status}):`, {
+      id: updatedUser.id,
+      vipExpiresAt: updatedUser.vipExpiresAt,
+      paddleSubscriptionStatus: updatedUser.paddleSubscriptionStatus
+    });
   }
 }
 
