@@ -213,41 +213,82 @@ async function updateWebhookEventStatus(
 // 处理订阅创建事件
 async function handleSubscriptionCreated(eventData: any) {
   const subscription = eventData.data
-  const customerId = subscription.customer_id
   const subscriptionId = subscription.id
   const status = subscription.status
-  const priceId = subscription.items[0]?.price.id
-
-  // 查找用户
-  const user = await prisma.user.findFirst({
-    where: { paddleCustomerId: customerId }
-  })
-
-  if (!user) {
-    console.error('未找到用户:', customerId)
+  const userId = subscription.custom_data?.userId
+  
+  if (!userId) {
+    console.error('缺少用户ID:', subscriptionId)
     return
   }
-
+  
+  // 检查用户是否已经有活跃订阅，如果有则将旧订阅标记为已取消
+  console.log(`检查用户 ${userId} 的订阅状态`);
+  const existingActiveSubscriptions = await prisma.subscription.findMany({
+    where: {
+      userId: userId,
+      status: {
+        in: ['active', 'trialing']
+      },
+      OR: [
+        { endedAt: null },
+        { endedAt: { gt: new Date() } }
+      ]
+    }
+  });
+  
+  if (existingActiveSubscriptions.length > 0) {
+    console.log(`用户 ${userId} 已有 ${existingActiveSubscriptions.length} 个活跃订阅，将取消这些订阅`);
+    
+    // 取消所有现有活跃订阅
+    for (const existingSub of existingActiveSubscriptions) {
+      console.log(`取消订阅: ${existingSub.paddleSubscriptionId}`);
+      
+      await prisma.subscription.update({
+        where: { id: existingSub.id },
+        data: {
+          status: 'canceled',
+          canceledAt: new Date(),
+          endedAt: new Date()
+        }
+      });
+    }
+  }
+  
+  // 获取用户信息
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
+  })
+  
+  if (!user) {
+    console.error('未找到用户:', userId)
+    return
+  }
+  
   // 创建订阅记录
   await prisma.subscription.create({
     data: {
-      userId: user.id,
+      userId: userId,
       paddleSubscriptionId: subscriptionId,
       status: status,
-      planType: 'monthly', // 根据实际情况设置
-      priceId: priceId,
-      startedAt: new Date(subscription.current_billing_period.starts_at),
-      nextBillingAt: new Date(subscription.current_billing_period.ends_at),
-      metadata: subscription
+      planType: subscription.items[0]?.price?.billing_cycle?.interval || 'unknown',
+      startedAt: subscription.started_at ? new Date(subscription.started_at) : new Date(),
+      nextBillingAt: subscription.current_billing_period?.ends_at 
+        ? new Date(subscription.current_billing_period.ends_at) 
+        : null,
+      metadata: subscription,
+      priceId: subscription.items[0]?.price?.id || ''
     }
   })
-
+  
   // 更新用户VIP状态
   await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userId },
     data: {
       isVIP: true,
-      vipExpiresAt: new Date(subscription.current_billing_period.ends_at),
+      vipExpiresAt: subscription.current_billing_period?.ends_at
+        ? new Date(subscription.current_billing_period.ends_at)
+        : null,
       paddleSubscriptionId: subscriptionId,
       paddleSubscriptionStatus: status
     }
@@ -259,6 +300,7 @@ async function handleSubscriptionUpdated(eventData: any) {
   const subscription = eventData.data
   const subscriptionId = subscription.id
   const status = subscription.status
+  const userId = subscription.custom_data?.userId
 
   // 查找订阅记录
   const subscriptionRecord = await prisma.subscription.findUnique({
@@ -268,6 +310,13 @@ async function handleSubscriptionUpdated(eventData: any) {
 
   if (!subscriptionRecord) {
     console.error('未找到订阅记录:', subscriptionId)
+    
+    // 如果找不到订阅记录但有用户ID，检查是否需要创建新记录
+    if (userId) {
+      console.log(`未找到订阅记录，但有用户ID ${userId}，尝试创建新记录`);
+      return await handleSubscriptionCreated(eventData);
+    }
+    
     return
   }
 
@@ -281,6 +330,47 @@ async function handleSubscriptionUpdated(eventData: any) {
     endedAt: subscriptionRecord.endedAt,
     nextBillingAt: subscriptionRecord.nextBillingAt
   });
+
+  // 如果订阅变为活跃状态，确保用户没有其他活跃订阅
+  if (status === 'active' && 
+      (subscriptionRecord.status !== 'active' || subscription.canceled_at === null && subscriptionRecord.canceledAt !== null)) {
+    
+    console.log(`订阅 ${subscriptionId} 变为活跃状态，检查用户是否有其他活跃订阅`);
+    
+    const otherActiveSubscriptions = await prisma.subscription.findMany({
+      where: {
+        userId: subscriptionRecord.userId,
+        status: {
+          in: ['active', 'trialing']
+        },
+        NOT: {
+          paddleSubscriptionId: subscriptionId
+        },
+        OR: [
+          { endedAt: null },
+          { endedAt: { gt: new Date() } }
+        ]
+      }
+    });
+    
+    if (otherActiveSubscriptions.length > 0) {
+      console.log(`用户有 ${otherActiveSubscriptions.length} 个其他活跃订阅，将取消这些订阅`);
+      
+      // 取消所有其他活跃订阅
+      for (const otherSub of otherActiveSubscriptions) {
+        console.log(`取消订阅: ${otherSub.paddleSubscriptionId}`);
+        
+        await prisma.subscription.update({
+          where: { id: otherSub.id },
+          data: {
+            status: 'canceled',
+            canceledAt: new Date(),
+            endedAt: new Date()
+          }
+        });
+      }
+    }
+  }
 
   // 更新订阅记录
   const updatedSubscription = await prisma.subscription.update({
