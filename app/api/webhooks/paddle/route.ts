@@ -351,7 +351,7 @@ async function handleTransactionCompleted(eventData: any) {
       amount: parseFloat(transaction.details.totals.total),
       currency: transaction.details.totals.currency_code,
       paddleSubscriptionId: transaction.subscription_id,
-      pointsAdded: getCreditAmount(items),
+      pointsAdded: transaction.subscription_id ? null : getCreditAmount(items),
       updatedAt: new Date()
     }
   })

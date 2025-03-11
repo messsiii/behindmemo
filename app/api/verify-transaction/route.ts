@@ -170,25 +170,15 @@ export async function POST(req: NextRequest) {
           amount: parseFloat(paddleTransaction.data.details.totals.total),
           currency: paddleTransaction.data.details.totals.currency_code,
           paddleSubscriptionId: subscriptionId,
-          pointsAdded: 200, // 订阅包含200点数
           updatedAt: new Date()
         }
       })
 
-      // 更新用户点数
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: {
-          credits: { increment: 200 } // 订阅包含200点数
-        }
-      })
-
-      console.log(`订阅处理完成，已添加200点数`)
+      console.log(`订阅处理完成`)
       return NextResponse.json({ 
         success: true, 
-        message: '订阅验证成功，已激活VIP并添加点数', 
+        message: '订阅验证成功，已激活VIP', 
         transaction: newTransaction,
-        creditsAdded: 200,
         subscriptionId
       })
     }

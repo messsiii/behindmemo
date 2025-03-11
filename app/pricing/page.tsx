@@ -103,7 +103,7 @@ const content: ContentType = {
           },
           {
             q: "What's the difference between Credits and Subscription?",
-            a: "Credits: Pay-as-you-go option. Perfect if you generate letters occasionally. 10 Credits = 1 premium letter.\nSubscription: $6/month (regular $12), includes 200 Credits monthly plus priority support. Best value if you generate 20+ letters monthly.",
+            a: "Credits: Pay-as-you-go option. Perfect if you generate letters occasionally. 10 Credits = 1 premium letter.\nSubscription: $6/month (regular $12), VIP users can use all templates for free and generate letters without consuming credits, plus priority support. Best value if you use the service regularly.",
           },
           {
             q: "Do Credits expire?",
@@ -150,7 +150,7 @@ const content: ContentType = {
           },
           {
             q: "Why choose the subscription over Credit packages?",
-            a: "Subscription offers:\n- Better value ($6 for 200 Credits = 20 premium letters)\n- Priority support\n- Guaranteed monthly Credits\n- 50% launch discount",
+            a: "Subscription offers:\n- Better value (generate letters without consuming credits)\n- Priority support\n- Free access to all templates\n- 50% launch discount",
           },
         ],
       },
@@ -204,11 +204,11 @@ const content: ContentType = {
           },
           {
             q: "点数和订阅有什么区别？",
-            a: "点数：按需付费选项。适合偶尔生成信件的用户。10点数 = 1封高级信件。\n订阅：每月$6（原价$12），包括每月200点数加优先支持。如果您每月生成20+封信件，这是最佳选择。",
+            a: "点数：按需付费选项。适合偶尔生成信件的用户。10点数 = 1封高级信件。\n订阅：$6/月（原价$12），VIP用户可以免费使用所有模板，无需消耗积分生成信件，以及获得优先支持。对于经常使用的用户来说最具价值。",
           },
           {
             q: "点数会过期吗？",
-            a: "购买的点数永不过期。免费的每月点数在每月底过期。",
+            a: "免费的每月点数在每月底过期。",
           },
         ],
       },
@@ -251,7 +251,7 @@ const content: ContentType = {
           },
           {
             q: "为什么选择订阅而不是点数包？",
-            a: "订阅提供：\n- 更好的价值（$6获得200点数 = 20封高级信件）\n- 优先支持\n- 保证每月点数\n- 50%的启动折扣",
+            a: "订阅提供：\n- 更好的价值（无需消耗积分生成信件）\n- 优先支持\n- 所有模板免费使用\n- 50%的启动折扣",
           },
         ],
       },
@@ -295,7 +295,7 @@ const plans = {
       description: "Unleash your creativity without limits",
       features: [
         "All basic features",
-        "200 credits per month for premium features",
+        "Generate letters without consuming credits",
         "Remove watermarks",
         "Unlock all template styles",
         "Highest image export quality",
@@ -328,7 +328,7 @@ const plans = {
       description: "无限释放你的创意",
       features: [
         "所有基础功能",
-        "每月赠送200个点数用于高级功能",
+        "生成信件无需消耗积分",
         "去除水印",
         "解锁所有模板样式",
         "最高图片导出质量",

@@ -594,7 +594,7 @@ export default function AccountPage() {
             transition={{ duration: 0.5, delay: 0.1 }}
           >
             <Tabs defaultValue="accountInfo" className="w-full">
-              <TabsList className="grid grid-cols-4 mb-8 p-1 bg-white/10 backdrop-blur-sm rounded-xl">
+              <TabsList className="grid grid-cols-2 md:grid-cols-4 mb-8 p-1 bg-white/10 backdrop-blur-sm rounded-xl">
                 <TabsTrigger value="accountInfo" className="rounded-lg data-[state=active]:bg-white/80 data-[state=active]:text-gray-800 data-[state=active]:shadow-sm">
                   {t.accountInfo}
                 </TabsTrigger>
@@ -853,10 +853,14 @@ export default function AccountPage() {
                                 <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors duration-150">
                                   <td className="p-3">{formatDate(transaction.createdAt)}</td>
                                   <td className="p-3">
-                                    {transaction.type === 'subscription' ? t.subscriptionType : t.oneTimeType}
+                                    {transaction.type === 'subscription_payment' 
+                                      ? t.subscriptionType 
+                                      : transaction.type === 'one_time_purchase' && transaction.pointsAdded
+                                        ? `${t.oneTimeType} (${transaction.pointsAdded} ${t.credits})`
+                                        : t.oneTimeType}
                                   </td>
                                   <td className="p-3">
-                                    {transaction.amount} {transaction.currency}
+                                    {(transaction.amount / 100).toFixed(2)} {transaction.currency}
                                   </td>
                                   <td className="p-3">
                                     <span className={`px-2 py-1 rounded-full text-xs ${
