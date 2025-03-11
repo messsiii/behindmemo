@@ -346,12 +346,12 @@ async function handleTransactionCompleted(eventData: any) {
     data: {
       userId: user.id,
       paddleOrderId: transactionId,
-      type: transaction.subscription_id ? 'subscription_payment' : 'one_time_purchase',
+      type: transaction.subscription_id ? 'subscription_payment' : `credits_${getCreditAmount(items)}`,
       status: status,
       amount: parseFloat(transaction.details.totals.total),
       currency: transaction.details.totals.currency_code,
       paddleSubscriptionId: transaction.subscription_id,
-      pointsAdded: getCreditAmount(items),
+      pointsAdded: transaction.subscription_id ? 0 : getCreditAmount(items),
       updatedAt: new Date()
     }
   })

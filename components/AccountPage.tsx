@@ -253,7 +253,11 @@ export default function AccountPage() {
       confirmResume: 'Confirm Resume',
       cancelled: 'Cancelled',
       letterGeneration: 'Letter Generation',
-      templateUnlock: 'Template Unlock'
+      templateUnlock: 'Template Unlock',
+      credits10: '10 Credits Pack',
+      credits100: '100 Credits Pack',
+      credits500: '500 Credits Pack',
+      credits1000: '1000 Credits Pack'
     },
     zh: {
       title: '账户管理',
@@ -317,7 +321,11 @@ export default function AccountPage() {
       confirmResume: '确认恢复自动续费',
       cancelled: '已取消',
       letterGeneration: '生成情书',
-      templateUnlock: '解锁模板'
+      templateUnlock: '解锁模板',
+      credits10: '10点数包',
+      credits100: '100点数包',
+      credits500: '500点数包',
+      credits1000: '1000点数包'
     }
   }
 
@@ -853,10 +861,21 @@ export default function AccountPage() {
                                 <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors duration-150">
                                   <td className="p-3">{formatDate(transaction.createdAt)}</td>
                                   <td className="p-3">
-                                    {transaction.type === 'subscription' ? t.subscriptionType : t.oneTimeType}
+                                    {transaction.type === 'subscription_payment' 
+                                      ? t.subscriptionType 
+                                      : transaction.type === 'credits_10'
+                                        ? t.credits10
+                                        : transaction.type === 'credits_100'
+                                          ? t.credits100
+                                          : transaction.type === 'credits_500'
+                                            ? t.credits500
+                                            : transaction.type === 'credits_1000'
+                                              ? t.credits1000
+                                              : t.oneTimeType
+                                    }
                                   </td>
                                   <td className="p-3">
-                                    {transaction.amount} {transaction.currency}
+                                    {(transaction.amount / 100).toFixed(2)} {transaction.currency}
                                   </td>
                                   <td className="p-3">
                                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -867,7 +886,7 @@ export default function AccountPage() {
                                       {transaction.status}
                                     </span>
                                   </td>
-                                  <td className="p-3">{transaction.pointsAdded || '-'}</td>
+                                  <td className="p-3">{transaction.pointsAdded && transaction.pointsAdded > 0 ? transaction.pointsAdded : '-'}</td>
                                 </tr>
                               ))}
                             </tbody>
