@@ -3,7 +3,7 @@
 import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckIcon, ChevronUp, Infinity, Lock, Sparkles } from 'lucide-react'
+import { CheckIcon, ChevronUp, EyeIcon, EyeOffIcon, Infinity, Lock, Sparkles } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
@@ -28,6 +28,8 @@ interface StyleDrawerProps {
   onToggle: () => void
   isVIP?: boolean
   unlockedTemplates?: string[]
+  hideWatermark?: boolean
+  onWatermarkToggle?: (hide: boolean) => void
 }
 
 // 积分信息接口
@@ -135,7 +137,9 @@ export function StyleDrawer({
   isShown,
   onToggle,
   isVIP = false,
-  unlockedTemplates = []
+  unlockedTemplates = [],
+  hideWatermark = false,
+  onWatermarkToggle
 }: StyleDrawerProps) {
   const { language } = useLanguage()
   const [isHovered, setIsHovered] = useState<string | null>(null)
@@ -236,7 +240,7 @@ export function StyleDrawer({
 
             {/* 标题和积分区域 */}
             <div className="max-w-6xl mx-auto relative px-4 sm:px-6 pt-3 pb-5 border-b border-white/10 mb-6">
-              {/* 标题和积分 */}
+              {/* 标题和功能区 */}
               <div className="flex items-center justify-between">
                 <motion.h3 
                   initial={initialRender ? false : { opacity: 0, y: 20 }}
@@ -247,12 +251,66 @@ export function StyleDrawer({
                   {language === 'en' ? 'Style Gallery' : '样式画廊'}
                 </motion.h3>
                 
-                {/* 自定义积分显示组件 */}
+                {/* 右侧功能区域：积分显示和水印控制 */}
                 <motion.div
                   initial={initialRender ? false : { opacity: 0, scale: 0.9 }}
                   animate={{ opacity: isShown ? 1 : 0, scale: isShown ? 1 : 0.9 }}
                   transition={{ duration: 0.4, delay: 0.2 }}
+                  className="flex items-center space-x-3"
                 >
+                  {/* 水印控制开关 - 创意版本 */}
+                  <div className="bg-black/30 rounded-lg py-1.5 px-3 flex items-center space-x-2">
+                    <div className="flex items-center mr-2">
+                      <span className="text-xs font-medium text-white">
+                        {language === 'en' ? 'Watermark' : '水印'}
+                      </span>
+                      {!isVIP && (
+                        <div className="ml-1 px-1 py-0.5 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-sm text-[10px] text-white font-medium">
+                          VIP
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 自定义水印开关 */}
+                    <div 
+                      className={`
+                        relative h-6 w-12 rounded-full transition-colors duration-200 ease-in-out
+                        ${hideWatermark 
+                          ? 'bg-red-500/30 border border-red-500/50' 
+                          : 'bg-green-500/30 border border-green-500/50'}
+                        ${isVIP ? 'cursor-pointer' : 'opacity-60 cursor-pointer'}
+                      `}
+                      onClick={() => {
+                        if (isVIP && onWatermarkToggle) {
+                          onWatermarkToggle(!hideWatermark);
+                        } else if (!isVIP && onWatermarkToggle && !hideWatermark) {
+                          onWatermarkToggle(true);
+                        }
+                      }}
+                    >
+                      <motion.div
+                        animate={{ 
+                          x: hideWatermark ? 24 : 0,
+                          backgroundColor: hideWatermark ? 'rgb(239, 68, 68)' : 'rgb(16, 185, 129)',
+                        }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        className="absolute top-[2px] left-[2px] h-5 w-5 rounded-full bg-green-500 flex items-center justify-center"
+                      >
+                        {hideWatermark ? (
+                          <EyeOffIcon className="h-3 w-3 text-white" />
+                        ) : (
+                          <EyeIcon className="h-3 w-3 text-white" />
+                        )}
+                      </motion.div>
+                      <span className="sr-only">
+                        {hideWatermark 
+                          ? (language === 'en' ? 'Watermark hidden' : '水印已隐藏') 
+                          : (language === 'en' ? 'Watermark visible' : '水印可见')}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* 积分显示组件 */}
                   <StyleDrawerCredits />
                 </motion.div>
               </div>
@@ -264,7 +322,8 @@ export function StyleDrawer({
                 initial={initialRender ? false : { opacity: 0 }}
                 animate={{ opacity: isShown ? 1 : 0 }}
                 transition={{ duration: 0.4, delay: 0.2 }}
-                className="flex flex-wrap gap-5 sm:gap-6 md:gap-8 items-start justify-center sm:justify-start"
+                className="flex flex-wrap gap-5 sm:gap-6 md:gap-8 items-start justify-center mx-auto"
+                style={{ maxWidth: '1200px' }}
               >
                 {Object.entries(templates).map(([key, template], index) => (
                   <motion.div
