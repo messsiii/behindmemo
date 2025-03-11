@@ -9,12 +9,19 @@ declare global {
 
 import PaddleScript from '@/components/PaddleScript';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription, DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { openSubscriptionCheckout } from "@/lib/paddle";
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
-import { Download, Home } from 'lucide-react';
+import { Crown, Download, EyeOff, Home, Infinity } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -193,6 +200,9 @@ export default function ResultsPage({ id }: { id: string }) {
   const [showUnlockDialog, setShowUnlockDialog] = useState(false)
   const [templateToUnlock, setTemplateToUnlock] = useState<string | null>(null)
   const [checkingVipStatus, setCheckingVipStatus] = useState(false)
+  // 添加水印控制状态
+  const [hideWatermark, setHideWatermark] = useState(false)
+  const [showVipPrompt, setShowVipPrompt] = useState(false)
 
   // 获取信件详情
   useEffect(() => {
@@ -349,19 +359,30 @@ export default function ResultsPage({ id }: { id: string }) {
   }
 
   // 处理模板变更 - 从StyleDrawer组件调用
-  const handleTemplateChangeFromDrawer = async (template: string) => {
-    const templateKey = template as keyof typeof TEMPLATES
-    const targetTemplate = TEMPLATES[templateKey]
+  const handleTemplateChange = (template: string) => {
+    const targetTemplate = TEMPLATES[template as keyof typeof TEMPLATES]
     
-    // 如果是免费模板或用户是VIP，直接切换
+    // 检查模板是否可用（免费、VIP用户或已解锁）
     if (targetTemplate.isFree || isVIP || unlockedTemplates.includes(template)) {
-      setSelectedTemplate(templateKey)
-      return
+      setSelectedTemplate(template as keyof typeof TEMPLATES)
+    } else {
+      // 设置需要解锁的模板
+      setTemplateToUnlock(template)
+      setShowUnlockDialog(true)
     }
-    
-    // 否则，需要解锁 - 弹出解锁对话框
-    setTemplateToUnlock(template)
-    setShowUnlockDialog(true)
+  }
+  
+  // 处理水印切换 - 从StyleDrawer组件调用
+  const handleWatermarkToggle = (hide: boolean) => {
+    if (isVIP) {
+      // VIP用户可以直接隐藏水印
+      setHideWatermark(hide);
+    } else {
+      // 非VIP用户点击时显示提示
+      if (hide) {
+        setShowVipPrompt(true);
+      }
+    }
   }
 
   // 处理解锁确认
@@ -593,7 +614,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `
@@ -653,7 +674,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `
@@ -742,7 +763,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `;
@@ -811,7 +832,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `;
@@ -880,7 +901,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('dark')}
             </div>
           </div>
         `;
@@ -949,7 +970,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `;
@@ -1018,7 +1039,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `;
@@ -1087,7 +1108,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('dark')}
             </div>
           </div>
         `;
@@ -1156,7 +1177,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('dark')}
             </div>
           </div>
         `;
@@ -1225,7 +1246,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `;
@@ -1294,7 +1315,7 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('light')}
             </div>
           </div>
         `;
@@ -1394,11 +1415,17 @@ export default function ResultsPage({ id }: { id: string }) {
               display: flex;
               justify-content: center;
             ">
-              <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" />
+              ${getWatermarkHTML('dark')}
             </div>
           </div>
         `
     }
+  }
+
+  // 获取水印HTML
+  const getWatermarkHTML = (type: 'light' | 'dark') => {
+    if (hideWatermark) return '';
+    return `<img src="/watermark-${type}.svg" style="height: 35px;" alt="watermark" />`;
   }
 
   // 下载图片
@@ -1895,7 +1922,9 @@ export default function ResultsPage({ id }: { id: string }) {
       <StyleDrawer
         templates={TEMPLATES}
         selectedTemplate={selectedTemplate}
-        onTemplateChange={handleTemplateChangeFromDrawer}
+        onTemplateChange={handleTemplateChange}
+        onWatermarkToggle={handleWatermarkToggle}
+        hideWatermark={hideWatermark}
         isShown={showStyleDrawer}
         onToggle={toggleStyleDrawer}
         isVIP={isVIP}
@@ -1917,6 +1946,93 @@ export default function ResultsPage({ id }: { id: string }) {
 
       {/* PaddleScript component */}
       <PaddleScript />
+
+      {/* 导入VIP提示对话框 - 样式参考模板解锁弹窗 */}
+      <Dialog open={showVipPrompt} onOpenChange={setShowVipPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Infinity className="h-5 w-5 text-amber-500" />
+              {language === 'en' ? 'VIP Feature' : 'VIP 功能'}
+            </DialogTitle>
+            <DialogDescription>
+              {language === 'en' 
+                ? 'Removing watermarks is a VIP-exclusive feature.' 
+                : '移除水印是 VIP 专属功能。'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="flex items-center justify-center p-4 mb-4 bg-gray-100 dark:bg-gray-800 rounded-md">
+              <div className="flex flex-col items-center">
+                <p className="text-lg font-medium mb-1">
+                  {language === 'en' ? 'Remove Watermark' : '去除水印'}
+                </p>
+                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400">
+                  <EyeOff className="h-4 w-4 text-amber-500" />
+                  <span>
+                    {language === 'en' 
+                      ? 'Create professional-looking letters without branding' 
+                      : '创建没有品牌标识的专业信件'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4">
+              <Button 
+                type="button" 
+                onClick={() => {
+                  setShowVipPrompt(false);
+                  
+                  try {
+                    // 检查 Paddle 是否已加载
+                    if (!window.Paddle || !window.Paddle.Checkout) {
+                      throw new Error('Payment system is not available. Please try again later.')
+                    }
+                    
+                    // 直接唤起支付页面
+                    openSubscriptionCheckout();
+                    
+                    // 触发自定义事件，通知其他组件开始检查VIP状态
+                    const event = new CustomEvent('subscription:success');
+                    window.dispatchEvent(event);
+                    
+                    // 显示提示信息
+                    toast({
+                      title: language === 'en' ? 'Processing payment' : '正在处理支付',
+                      description: language === 'en' 
+                        ? 'The page will refresh automatically once payment is completed.' 
+                        : '支付完成后页面将自动刷新。',
+                    });
+                  } catch (error) {
+                    console.error('Failed to open checkout:', error);
+                    // 显示用户友好的错误消息
+                    toast({
+                      title: language === 'en' ? 'Error' : '错误',
+                      description: language === 'en' 
+                        ? (error instanceof Error ? error.message : 'Failed to open payment window.') 
+                        : '打开支付窗口失败，请刷新页面重试。',
+                      variant: 'destructive'
+                    });
+                  }
+                }}
+                variant="outline"
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 border-yellow-200 hover:from-amber-100 hover:to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20"
+              >
+                <Crown className="h-4 w-4 text-amber-500" />
+                <span>{language === 'en' ? 'Become VIP' : '开通会员'}</span>
+                <Infinity className="h-4 w-4 text-amber-500" />
+              </Button>
+              <p className="text-xs text-center text-gray-500">
+                {language === 'en'
+                  ? 'Unlimited access to all templates and features'
+                  : '无限使用所有模板和功能'}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
