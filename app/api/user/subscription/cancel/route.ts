@@ -27,8 +27,6 @@ export async function POST() {
       );
     }
 
-    console.log(`用户 ${user.id} 请求取消订阅`);
-
     // 查询用户的活跃订阅
     const subscriptions = await prisma.subscription.findMany({
       where: {
@@ -52,7 +50,6 @@ export async function POST() {
 
     // 检查用户是否有活跃订阅
     if (subscriptions.length === 0) {
-      console.log(`用户 ${user.id} 没有找到活跃的订阅`);
       return NextResponse.json(
         { error: '没有找到活跃的订阅' },
         { status: 404 }
@@ -60,26 +57,18 @@ export async function POST() {
     }
 
     const subscription = subscriptions[0];
-    console.log(`找到用户 ${user.id} 的活跃订阅:`, {
-      subscriptionId: subscription.id,
-      paddleId: subscription.paddleSubscriptionId,
-      status: subscription.status,
-      nextBillingAt: subscription.nextBillingAt
-    });
     
     try {
       // 初始化Paddle客户端
       const paddleClient = new PaddleClient();
       
-      console.log(`尝试通过Paddle API取消订阅: ${subscription.paddleSubscriptionId}`);
       // 尝试调用Paddle API取消订阅
-      const response = await paddleClient.cancelSubscription(subscription.paddleSubscriptionId, 'next_billing_period');
-      console.log('Paddle API取消订阅响应:', JSON.stringify(response, null, 2));
+      await paddleClient.cancelSubscription(subscription.paddleSubscriptionId, 'next_billing_period');
       
       // 使用事务确保数据一致性
       await prisma.$transaction(async (tx) => {
         // 更新订阅记录 - 与webhook处理保持一致
-        const updatedSubscription = await tx.subscription.update({
+        await tx.subscription.update({
           where: { id: subscription.id },
           data: {
             canceledAt: new Date(),
@@ -89,28 +78,14 @@ export async function POST() {
           }
         });
         
-        console.log('订阅记录已更新:', {
-          id: updatedSubscription.id,
-          paddleId: updatedSubscription.paddleSubscriptionId,
-          canceledAt: updatedSubscription.canceledAt,
-          endedAt: updatedSubscription.endedAt,
-          nextBillingAt: updatedSubscription.nextBillingAt
-        });
-        
         // 更新用户 VIP 状态 - 与webhook处理保持一致
-        const updatedUser = await tx.user.update({
+        await tx.user.update({
           where: { id: user.id },
           data: {
             // 确保 VIP 到当前计费周期结束
             vipExpiresAt: subscription.nextBillingAt,
             paddleSubscriptionStatus: 'canceled'
           }
-        });
-        
-        console.log('用户VIP状态已更新:', {
-          id: updatedUser.id,
-          vipExpiresAt: updatedUser.vipExpiresAt,
-          paddleSubscriptionStatus: updatedUser.paddleSubscriptionStatus
         });
       });
       
@@ -122,12 +97,10 @@ export async function POST() {
       console.error('Paddle API调用出错:', apiError);
       
       // 由于API调用失败，但我们仍然想为用户提供服务，直接在数据库中标记为已取消
-      console.warn('使用备用方案：直接在数据库中标记订阅为已取消');
-      
       // 使用事务确保数据一致性
       await prisma.$transaction(async (tx) => {
         // 更新订阅记录
-        const updatedSubscription = await tx.subscription.update({
+        await tx.subscription.update({
           where: { id: subscription.id },
           data: {
             canceledAt: new Date(),
@@ -135,28 +108,18 @@ export async function POST() {
           }
         });
         
-        console.log('(备用方案) 订阅记录已更新:', {
-          id: updatedSubscription.id,
-          paddleId: updatedSubscription.paddleSubscriptionId,
-          canceledAt: updatedSubscription.canceledAt,
-          endedAt: updatedSubscription.endedAt
-        });
-        
         // 更新用户 VIP 状态
-        const updatedUser = await tx.user.update({
+        await tx.user.update({
           where: { id: user.id },
           data: {
             vipExpiresAt: subscription.nextBillingAt,
             paddleSubscriptionStatus: 'canceled'
           }
         });
-        
-        console.log('(备用方案) 用户VIP状态已更新:', {
-          id: updatedUser.id,
-          vipExpiresAt: updatedUser.vipExpiresAt,
-          paddleSubscriptionStatus: updatedUser.paddleSubscriptionStatus
-        });
       });
+      
+      // 记录错误，但向用户返回成功消息
+      console.warn('使用备用方案：直接在数据库中标记订阅为已取消');
       
       return NextResponse.json({ 
         success: true,

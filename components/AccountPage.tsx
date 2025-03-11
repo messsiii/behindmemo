@@ -31,7 +31,7 @@ import { motion } from 'framer-motion';
 import { Brush, Loader2, PenLine, Sparkles } from "lucide-react";
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 
 // 定义接口
@@ -253,11 +253,7 @@ export default function AccountPage() {
       confirmResume: 'Confirm Resume',
       cancelled: 'Cancelled',
       letterGeneration: 'Letter Generation',
-      templateUnlock: 'Template Unlock',
-      credits10: '10 Credits Pack',
-      credits100: '100 Credits Pack',
-      credits500: '500 Credits Pack',
-      credits1000: '1000 Credits Pack'
+      templateUnlock: 'Template Unlock'
     },
     zh: {
       title: '账户管理',
@@ -321,11 +317,7 @@ export default function AccountPage() {
       confirmResume: '确认恢复自动续费',
       cancelled: '已取消',
       letterGeneration: '生成情书',
-      templateUnlock: '解锁模板',
-      credits10: '10点数包',
-      credits100: '100点数包',
-      credits500: '500点数包',
-      credits1000: '1000点数包'
+      templateUnlock: '解锁模板'
     }
   }
 
@@ -348,36 +340,6 @@ export default function AccountPage() {
     mounted && session?.user?.id ? '/api/user/subscription' : null,
     fetcher('/api/user/subscription', language)
   )
-
-  // 定义刷新订阅数据的函数
-  const refreshSubscription = useCallback(() => {
-    if (mutateSubscription) {
-      console.log('正在刷新订阅信息...');
-      mutateSubscription();
-      
-      // 添加延迟刷新，确保数据一致性
-      setTimeout(() => {
-        console.log('再次刷新订阅信息(延迟)...');
-        mutateSubscription();
-      }, 2000);
-    }
-  }, [mutateSubscription]);
-
-  // 添加调试日志
-  useEffect(() => {
-    if (subscription) {
-      console.log('订阅信息:', {
-        id: subscription.id,
-        paddleId: subscription.paddleSubscriptionId,
-        status: subscription.status,
-        canceledAt: subscription.canceledAt,
-        nextBillingAt: subscription.nextBillingAt,
-        endedAt: subscription.endedAt,
-        hasNextBilling: !!subscription.nextBillingAt,
-        hasCanceled: !!subscription.canceledAt
-      });
-    }
-  }, [subscription]);
 
   // 获取使用记录
   const { data: usageRecords } = useSWR<UsageRecord[]>(
@@ -438,8 +400,6 @@ export default function AccountPage() {
   const handleCancelSubscription = async () => {
     try {
       setIsCancelling(true);
-      console.log('开始取消订阅...');
-      
       const response = await fetch('/api/user/subscription/cancel', {
         method: 'POST',
         headers: {
@@ -458,7 +418,12 @@ export default function AccountPage() {
         });
         
         // 刷新订阅数据
-        refreshSubscription();
+        mutateSubscription();
+        
+        // 增加一个延迟，然后再查询一次订阅数据，以确保UI更新
+        setTimeout(() => {
+          mutateSubscription();
+        }, 2000);
       } else {
         // 显示错误消息
         console.error('取消订阅失败:', data);
@@ -486,8 +451,6 @@ export default function AccountPage() {
   const handleResumeSubscription = async () => {
     try {
       setIsResuming(true);
-      console.log('开始恢复订阅...');
-      
       const response = await fetch('/api/user/subscription/resume', {
         method: 'POST',
         headers: {
@@ -506,7 +469,12 @@ export default function AccountPage() {
         });
         
         // 刷新订阅数据
-        refreshSubscription();
+        mutateSubscription();
+        
+        // 增加一个延迟，然后再查询一次订阅数据，以确保UI更新
+        setTimeout(() => {
+          mutateSubscription();
+        }, 2000);
       } else {
         // 显示错误消息
         console.error('恢复订阅失败:', data);
@@ -779,10 +747,7 @@ export default function AccountPage() {
                                 <p className="text-sm text-gray-500">{t.nextBilling}</p>
                                 <p className="font-medium">
                                   {subscription.canceledAt ? (
-                                    <>
-                                      <span className="text-amber-500">{formatDate(subscription.nextBillingAt)}</span>
-                                      <span className="ml-2 text-xs text-amber-500">({t.cancelled})</span>
-                                    </>
+                                    <span className="text-amber-500">{t.cancelled}</span>
                                   ) : (
                                     formatDate(subscription.nextBillingAt)
                                   )}
@@ -888,21 +853,10 @@ export default function AccountPage() {
                                 <tr key={transaction.id} className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors duration-150">
                                   <td className="p-3">{formatDate(transaction.createdAt)}</td>
                                   <td className="p-3">
-                                    {transaction.type === 'subscription_payment' 
-                                      ? t.subscriptionType 
-                                      : transaction.type === 'credits_10'
-                                        ? t.credits10
-                                        : transaction.type === 'credits_100'
-                                          ? t.credits100
-                                          : transaction.type === 'credits_500'
-                                            ? t.credits500
-                                            : transaction.type === 'credits_1000'
-                                              ? t.credits1000
-                                              : t.oneTimeType
-                                    }
+                                    {transaction.type === 'subscription' ? t.subscriptionType : t.oneTimeType}
                                   </td>
                                   <td className="p-3">
-                                    {(transaction.amount / 100).toFixed(2)} {transaction.currency}
+                                    {transaction.amount} {transaction.currency}
                                   </td>
                                   <td className="p-3">
                                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -913,7 +867,7 @@ export default function AccountPage() {
                                       {transaction.status}
                                     </span>
                                   </td>
-                                  <td className="p-3">{transaction.pointsAdded && transaction.pointsAdded > 0 ? transaction.pointsAdded : '-'}</td>
+                                  <td className="p-3">{transaction.pointsAdded || '-'}</td>
                                 </tr>
                               ))}
                             </tbody>

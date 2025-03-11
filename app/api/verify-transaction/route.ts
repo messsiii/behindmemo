@@ -108,162 +108,89 @@ export async function POST(req: NextRequest) {
 
     // 处理订阅
     if (isSubscription) {
-      console.log(`处理订阅交易`, paddleTransaction.data)
-      
-      // 尝试获取订阅ID，有些交易可能还没有关联订阅ID
+      console.log(`处理订阅交易`)
+      // 创建订阅记录
       const subscriptionId = paddleTransaction.data.subscription_id
-      
-      // 详细记录交易信息用于调试
-      console.log('交易详情:', JSON.stringify({
-        transactionId: paddleTransaction.data.id,
-        items: paddleTransaction.data.items,
-        hasSubscriptionId: !!subscriptionId
-      }))
-      
-      if (subscriptionId) {
-        // 正常流程 - 有订阅ID
-        console.log(`找到订阅ID: ${subscriptionId}，获取订阅详情`)
-        
-        try {
-          // 获取订阅详情
-          const subscriptionResponse = await fetch(`${paddleApiBaseUrl}/subscriptions/${subscriptionId}`, {
-            headers: {
-              'Authorization': `Bearer ${paddleApiKey}`,
-              'Content-Type': 'application/json'
-            }
-          })
-
-          if (!subscriptionResponse.ok) {
-            const errorText = await subscriptionResponse.text()
-            console.error(`获取订阅详情失败: ${errorText}`)
-            
-            // 创建交易记录但不处理订阅
-            const newTransaction = await prisma.transaction.create({
-              data: {
-                userId: session.user.id,
-                paddleOrderId: transactionId,
-                type: 'subscription_payment',
-                status: 'completed',
-                amount: parseFloat(paddleTransaction.data.details.totals.total),
-                currency: paddleTransaction.data.details.totals.currency_code,
-                paddleSubscriptionId: subscriptionId,
-                pointsAdded: 0, // 订阅不附赠点数
-                updatedAt: new Date()
-              }
-            })
-            
-            // 更新用户VIP状态，设置临时过期时间（30天）
-            await prisma.user.update({
-              where: { id: session.user.id },
-              data: {
-                isVIP: true,
-                vipExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天后
-                paddleSubscriptionId: subscriptionId
-              }
-            })
-            
-            return NextResponse.json({ 
-              success: true, 
-              message: '交易记录已创建，但无法获取订阅详情，已临时激活VIP', 
-              transaction: newTransaction,
-              subscriptionId,
-              warning: '订阅详情获取失败，已临时激活VIP'
-            })
-          }
-
-          const subscriptionData = await subscriptionResponse.json()
-          const subscription = subscriptionData.data
-          
-          // 创建订阅记录
-          await prisma.subscription.create({
-            data: {
-              userId: session.user.id,
-              paddleSubscriptionId: subscriptionId,
-              status: subscription.status,
-              planType: 'monthly', // 根据实际情况设置
-              priceId: subscription.items[0]?.price.id || '',
-              startedAt: new Date(subscription.current_billing_period.starts_at),
-              nextBillingAt: new Date(subscription.current_billing_period.ends_at),
-              metadata: subscription
-            }
-          })
-
-          // 更新用户VIP状态
-          await prisma.user.update({
-            where: { id: session.user.id },
-            data: {
-              isVIP: true,
-              vipExpiresAt: new Date(subscription.current_billing_period.ends_at),
-              paddleSubscriptionId: subscriptionId,
-              paddleSubscriptionStatus: subscription.status
-            }
-          })
-
-          // 创建交易记录
-          const newTransaction = await prisma.transaction.create({
-            data: {
-              userId: session.user.id,
-              paddleOrderId: transactionId,
-              type: 'subscription_payment',
-              status: 'completed',
-              amount: parseFloat(paddleTransaction.data.details.totals.total),
-              currency: paddleTransaction.data.details.totals.currency_code,
-              paddleSubscriptionId: subscriptionId,
-              pointsAdded: 0, // 订阅不附赠点数
-              updatedAt: new Date()
-            }
-          })
-
-          console.log(`订阅处理完成，不附赠点数`)
-          return NextResponse.json({ 
-            success: true, 
-            message: '订阅验证成功，已激活VIP', 
-            transaction: newTransaction,
-            subscriptionId
-          })
-        } catch (error: any) {
-          console.error('处理订阅错误:', error)
-          return NextResponse.json({ error: '处理订阅出错', details: error.message }, { status: 500 })
-        }
-      } else {
-        // 无订阅ID的情况 - 仍创建交易记录并更新用户VIP状态
-        console.log('未找到订阅ID，创建交易记录并临时激活VIP')
-        
-        try {
-          // 创建交易记录
-          const newTransaction = await prisma.transaction.create({
-            data: {
-              userId: session.user.id,
-              paddleOrderId: transactionId,
-              type: 'subscription_payment',
-              status: 'completed',
-              amount: parseFloat(paddleTransaction.data.details.totals.total),
-              currency: paddleTransaction.data.details.totals.currency_code,
-              pointsAdded: 0, // 订阅不附赠点数
-              updatedAt: new Date()
-            }
-          })
-          
-          // 更新用户VIP状态，设置临时过期时间（30天）
-          await prisma.user.update({
-            where: { id: session.user.id },
-            data: {
-              isVIP: true,
-              vipExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30天后
-            }
-          })
-          
-          return NextResponse.json({ 
-            success: true, 
-            message: '交易记录已创建，已临时激活VIP', 
-            transaction: newTransaction,
-            warning: '未找到订阅ID，已临时激活VIP'
-          })
-        } catch (error: any) {
-          console.error('创建交易记录错误:', error)
-          return NextResponse.json({ error: '创建交易记录出错', details: error.message }, { status: 500 })
-        }
+      if (!subscriptionId) {
+        return NextResponse.json({ error: '缺少订阅ID' }, { status: 400 })
       }
+
+      // 获取订阅详情
+      const subscriptionResponse = await fetch(`${paddleApiBaseUrl}/subscriptions/${subscriptionId}`, {
+        headers: {
+          'Authorization': `Bearer ${paddleApiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!subscriptionResponse.ok) {
+        const errorText = await subscriptionResponse.text()
+        console.error(`获取订阅详情失败: ${errorText}`)
+        return NextResponse.json({ 
+          error: '无法获取订阅详情', 
+          paddleError: errorText 
+        }, { status: 500 })
+      }
+
+      const subscriptionData = await subscriptionResponse.json()
+      const subscription = subscriptionData.data
+
+      // 创建订阅记录
+      await prisma.subscription.create({
+        data: {
+          userId: session.user.id,
+          paddleSubscriptionId: subscriptionId,
+          status: subscription.status,
+          planType: 'monthly', // 根据实际情况设置
+          priceId: subscription.items[0]?.price.id || '',
+          startedAt: new Date(subscription.current_billing_period.starts_at),
+          nextBillingAt: new Date(subscription.current_billing_period.ends_at),
+          metadata: subscription
+        }
+      })
+
+      // 更新用户VIP状态
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          isVIP: true,
+          vipExpiresAt: new Date(subscription.current_billing_period.ends_at),
+          paddleSubscriptionId: subscriptionId,
+          paddleSubscriptionStatus: subscription.status
+        }
+      })
+
+      // 创建交易记录
+      const newTransaction = await prisma.transaction.create({
+        data: {
+          userId: session.user.id,
+          paddleOrderId: transactionId,
+          type: 'subscription_payment',
+          status: 'completed',
+          amount: parseFloat(paddleTransaction.data.details.totals.total),
+          currency: paddleTransaction.data.details.totals.currency_code,
+          paddleSubscriptionId: subscriptionId,
+          pointsAdded: 200, // 订阅包含200点数
+          updatedAt: new Date()
+        }
+      })
+
+      // 更新用户点数
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          credits: { increment: 200 } // 订阅包含200点数
+        }
+      })
+
+      console.log(`订阅处理完成，已添加200点数`)
+      return NextResponse.json({ 
+        success: true, 
+        message: '订阅验证成功，已激活VIP并添加点数', 
+        transaction: newTransaction,
+        creditsAdded: 200,
+        subscriptionId
+      })
     }
     // 处理点数购买
     else if (creditAmount > 0) {
@@ -273,7 +200,7 @@ export async function POST(req: NextRequest) {
         data: {
           userId: session.user.id,
           paddleOrderId: transactionId,
-          type: `credits_${creditAmount}`,
+          type: 'one_time_purchase',
           status: 'completed',
           amount: parseFloat(paddleTransaction.data.details.totals.total),
           currency: paddleTransaction.data.details.totals.currency_code,
