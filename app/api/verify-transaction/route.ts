@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       console.log(`处理订阅交易`, paddleTransaction.data)
       
       // 尝试获取订阅ID，有些交易可能还没有关联订阅ID
-      let subscriptionId = paddleTransaction.data.subscription_id
+      const subscriptionId = paddleTransaction.data.subscription_id
       
       // 详细记录交易信息用于调试
       console.log('交易详情:', JSON.stringify({
