@@ -31,7 +31,7 @@ import { motion } from 'framer-motion';
 import { Brush, Loader2, PenLine, Sparkles } from "lucide-react";
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import useSWR from 'swr';
 
 // 定义接口
@@ -349,6 +349,36 @@ export default function AccountPage() {
     fetcher('/api/user/subscription', language)
   )
 
+  // 定义刷新订阅数据的函数
+  const refreshSubscription = useCallback(() => {
+    if (mutateSubscription) {
+      console.log('正在刷新订阅信息...');
+      mutateSubscription();
+      
+      // 添加延迟刷新，确保数据一致性
+      setTimeout(() => {
+        console.log('再次刷新订阅信息(延迟)...');
+        mutateSubscription();
+      }, 2000);
+    }
+  }, [mutateSubscription]);
+
+  // 添加调试日志
+  useEffect(() => {
+    if (subscription) {
+      console.log('订阅信息:', {
+        id: subscription.id,
+        paddleId: subscription.paddleSubscriptionId,
+        status: subscription.status,
+        canceledAt: subscription.canceledAt,
+        nextBillingAt: subscription.nextBillingAt,
+        endedAt: subscription.endedAt,
+        hasNextBilling: !!subscription.nextBillingAt,
+        hasCanceled: !!subscription.canceledAt
+      });
+    }
+  }, [subscription]);
+
   // 获取使用记录
   const { data: usageRecords } = useSWR<UsageRecord[]>(
     mounted && session?.user?.id ? '/api/user/usage' : null,
@@ -408,6 +438,8 @@ export default function AccountPage() {
   const handleCancelSubscription = async () => {
     try {
       setIsCancelling(true);
+      console.log('开始取消订阅...');
+      
       const response = await fetch('/api/user/subscription/cancel', {
         method: 'POST',
         headers: {
@@ -426,12 +458,7 @@ export default function AccountPage() {
         });
         
         // 刷新订阅数据
-        mutateSubscription();
-        
-        // 增加一个延迟，然后再查询一次订阅数据，以确保UI更新
-        setTimeout(() => {
-          mutateSubscription();
-        }, 2000);
+        refreshSubscription();
       } else {
         // 显示错误消息
         console.error('取消订阅失败:', data);
@@ -459,6 +486,8 @@ export default function AccountPage() {
   const handleResumeSubscription = async () => {
     try {
       setIsResuming(true);
+      console.log('开始恢复订阅...');
+      
       const response = await fetch('/api/user/subscription/resume', {
         method: 'POST',
         headers: {
@@ -477,12 +506,7 @@ export default function AccountPage() {
         });
         
         // 刷新订阅数据
-        mutateSubscription();
-        
-        // 增加一个延迟，然后再查询一次订阅数据，以确保UI更新
-        setTimeout(() => {
-          mutateSubscription();
-        }, 2000);
+        refreshSubscription();
       } else {
         // 显示错误消息
         console.error('恢复订阅失败:', data);
@@ -755,7 +779,10 @@ export default function AccountPage() {
                                 <p className="text-sm text-gray-500">{t.nextBilling}</p>
                                 <p className="font-medium">
                                   {subscription.canceledAt ? (
-                                    <span className="text-amber-500">{t.cancelled}</span>
+                                    <>
+                                      <span className="text-amber-500">{formatDate(subscription.nextBillingAt)}</span>
+                                      <span className="ml-2 text-xs text-amber-500">({t.cancelled})</span>
+                                    </>
                                   ) : (
                                     formatDate(subscription.nextBillingAt)
                                   )}

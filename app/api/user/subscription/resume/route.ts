@@ -27,6 +27,8 @@ export async function POST() {
       );
     }
 
+    console.log(`用户 ${user.id} 请求恢复订阅`);
+
     // 查询用户的已取消订阅
     const subscription = await prisma.subscription.findFirst({
       where: {
@@ -39,11 +41,20 @@ export async function POST() {
 
     // 检查用户是否有已取消的订阅
     if (!subscription) {
+      console.log(`用户 ${user.id} 没有找到已取消的活跃订阅`);
       return NextResponse.json(
         { error: '没有找到已取消的活跃订阅' },
         { status: 404 }
       );
     }
+
+    console.log(`找到用户 ${user.id} 的已取消订阅:`, {
+      subscriptionId: subscription.id,
+      paddleId: subscription.paddleSubscriptionId,
+      status: subscription.status,
+      canceledAt: subscription.canceledAt,
+      nextBillingAt: subscription.nextBillingAt
+    });
 
     try {
       // 初始化Paddle客户端
@@ -69,16 +80,17 @@ export async function POST() {
       
       if (!response.ok) {
         const errorData = await response.text();
+        console.error(`Paddle API错误: ${response.status}`, errorData);
         throw new Error(`Paddle API错误: ${response.status} ${errorData}`);
       }
       
       const responseData = await response.json();
-      console.log('Paddle API响应:', responseData);
+      console.log('Paddle API响应:', JSON.stringify(responseData, null, 2));
       
       // 使用事务确保数据一致性
       await prisma.$transaction(async (tx) => {
         // 更新订阅记录
-        await tx.subscription.update({
+        const updatedSubscription = await tx.subscription.update({
           where: { id: subscription.id },
           data: {
             canceledAt: null,
@@ -87,8 +99,15 @@ export async function POST() {
           }
         });
         
+        console.log('订阅记录已更新:', {
+          id: updatedSubscription.id,
+          paddleId: updatedSubscription.paddleSubscriptionId,
+          canceledAt: updatedSubscription.canceledAt,
+          nextBillingAt: updatedSubscription.nextBillingAt
+        });
+        
         // 更新用户 VIP 状态 - 与 webhook 处理保持一致
-        await tx.user.update({
+        const updatedUser = await tx.user.update({
           where: { id: user.id },
           data: {
             isVIP: true,
@@ -96,6 +115,12 @@ export async function POST() {
             vipExpiresAt: subscription.nextBillingAt,
             paddleSubscriptionStatus: 'active'
           }
+        });
+        
+        console.log('用户VIP状态已更新:', {
+          id: updatedUser.id,
+          isVIP: updatedUser.isVIP,
+          vipExpiresAt: updatedUser.vipExpiresAt
         });
       });
       
