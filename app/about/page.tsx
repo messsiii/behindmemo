@@ -1,15 +1,15 @@
 'use client'
 
-import { useLanguage } from '@/contexts/LanguageContext'
-import { Nav } from '@/components/nav'
 import { Footer } from '@/components/footer'
-import { motion } from 'framer-motion'
+import { Nav } from '@/components/nav'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
+import { motion } from 'framer-motion'
 
 const content = {
   en: {
     title: '"On Writing Letters" - A Small Matter of Great Importance',
-    author: 'behindMemory',
+    author: 'Behind Memory',
     paragraphs: [
       'It\'s rather amusing that in this age of technological advancement, writing a letter has become such a challenging task. Not that writing itself is particularly difficult. Look around - people today are incredibly smart. They\'re proficient with all sorts of tools, expert at sending emojis, skilled at editing videos. Yet when it comes to this seemingly simple task of writing a letter, everyone stumbles. This reminds me of a friend, a programmer who spends his days writing complex code. When his mother fell ill, he wanted to write her a letter but sat in front of his computer for an entire day, only to end up sending a "Take care" emoji. It sounds ridiculous, but when you think about it, it feels painfully real.',
       "Marshall McLuhan had this theory (I know, citing theories sounds pretentious, but bear with me) about how modern humans are surrounded by \"hot media.\" In plain English, this means we've become so consumed by the endless scroll of short videos and the mindless tapping of emoji responses that we're processing too much pre-packaged information. In doing so, we've somehow managed to atrophy our ability to express ourselves. What's interesting is that now we have these \"magical\" tools like ChatGPT that can compose a seemingly heartfelt letter in seconds. But dear friend, doesn't this strike you as absurd? It's like wanting to hug someone you love but sending a robot to do it instead.",
@@ -24,7 +24,7 @@ const content = {
   },
   zh: {
     title: '"写信这件小事" - 一件重要的小事',
-    author: 'behindMemory',
+    author: 'Behind Memory',
     paragraphs: [
       '在这个科技如此发达的时代，写一封信竟然成了如此具有挑战性的任务，这实在是有点好笑。并不是说写作本身有多难。看看周围——现在的人都非常聪明。他们精通各种工具，擅长发送表情包，善于剪辑视频。然而，当面对这个看似简单的写信任务时，每个人都踌躇不前。这让我想起了一个朋友，一个整天写复杂代码的程序员。当他母亲生病时，他想给她写封信，却在电脑前坐了整整一天，最后只发了个&quot;保重&quot;的表情。听起来很荒谬，但仔细想想，感觉却又如此真实。',
       '马歇尔·麦克卢汉有一个理论（我知道，引用理论听起来很装腔作势，但请耐心听我说完），说现代人被&quot;热媒体&quot;包围。用大白话说，就是我们被无休止的短视频滚动和无意识的表情回复所消耗，处理了太多预包装的信息。在这个过程中，我们不知不觉中丧失了表达自我的能力。有趣的是，现在我们有了像ChatGPT这样的&quot;神奇&quot;工具，可以在几秒钟内写出看似情真意切的信。但是亲爱的朋友，你不觉得这很荒谬吗？这就像你想拥抱你爱的人，却派了个机器人去做这件事。',
@@ -117,7 +117,7 @@ export default function About() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.5 }}
           >
-            <div className="text-right space-y-2">
+            <div className="text-left space-y-2">
               <p
                 className={cn(
                   'text-gray-600 italic',
