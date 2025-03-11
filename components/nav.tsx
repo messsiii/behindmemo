@@ -40,7 +40,7 @@ export function Nav() {
         <div className="container flex h-14 items-center">
           <div className="mr-4 hidden md:flex">
             <Link href="/" className="mr-6 flex items-center space-x-2">
-              <span className="hidden font-bold sm:inline-block">AI Love Letter</span>
+              <span className="hidden font-bold sm:inline-block">Behind Memory</span>
             </Link>
             <nav className="flex items-center space-x-6 text-sm font-medium">
               <div className="h-4 w-12 animate-pulse bg-muted rounded" />
@@ -96,7 +96,7 @@ export function Nav() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold">AI Love Letter</span>
+            <span className="font-bold">Behind Memory</span>
           </Link>
 
           {/* 桌面端导航链接 */}

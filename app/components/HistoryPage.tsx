@@ -121,12 +121,12 @@ export default function HistoryPage() {
 
   const content = {
     en: {
-      title: 'Your Love Letters',
-      empty: 'No letters yet. Start writing one!',
-      write: 'Write a Letter',
-      loading: 'Loading your letters...',
-      loadMore: 'Loading more letters...',
-      noMore: 'No more letters',
+      title: 'Your Memories',
+      empty: 'No memories yet. Start writing one!',
+      write: 'Create a Memory',
+      loading: 'Loading your memories...',
+      loadMore: 'Loading more memories...',
+      noMore: 'No more memories',
     },
     zh: {
       title: '你的情书',

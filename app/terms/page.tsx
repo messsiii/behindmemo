@@ -12,11 +12,11 @@ const content = {
     sections: [
       {
         title: '1. Acceptance of Terms',
-        content: 'By using Love Letters, you agree to these Terms of Service. If you do not agree, please do not use our service.',
+        content: 'By using Behind Memory, you agree to these Terms of Service. If you do not agree, please do not use our service.',
       },
       {
         title: '2. Description of Service',
-        content: 'Love Letters provides an AI-assisted platform for creating personalized letters. Our service uses artificial intelligence to help users express their feelings in written form.',
+        content: 'Behind Memory provides an AI-assisted platform for creating personalized letters. Our service uses artificial intelligence to help users express their feelings in written form.',
       },
       {
         title: '3. User Responsibilities',
@@ -48,7 +48,7 @@ const content = {
       },
       {
         title: '10. Limitation of Liability',
-        content: 'To the fullest extent permitted by applicable law, Love Letters shall not be liable for any indirect, incidental, special, consequential or punitive damages, or any loss of profits or revenues.',
+        content: 'To the fullest extent permitted by applicable law, Behind Memory shall not be liable for any indirect, incidental, special, consequential or punitive damages, or any loss of profits or revenues.',
       },
       {
         title: '11. Changes to Terms',
@@ -66,11 +66,11 @@ const content = {
     sections: [
       {
         title: '1. 条款接受',
-        content: '使用 Love Letters 即表示您同意这些服务条款。如果您不同意，请不要使用我们的服务。',
+        content: '使用 Behind Memory 即表示您同意这些服务条款。如果您不同意，请不要使用我们的服务。',
       },
       {
         title: '2. 服务描述',
-        content: 'Love Letters 提供一个 AI 辅助的个性化信件创作平台。我们的服务使用人工智能帮助用户以书面形式表达他们的感情。',
+        content: 'Behind Memory 提供一个 AI 辅助的个性化信件创作平台。我们的服务使用人工智能帮助用户以书面形式表达他们的感情。',
       },
       {
         title: '3. 用户责任',
@@ -102,7 +102,7 @@ const content = {
       },
       {
         title: '10. 责任限制',
-        content: '在适用法律允许的最大范围内，Love Letters 不对任何间接、偶然、特殊、后果性或惩罚性损害，或任何利润或收入损失承担责任。',
+        content: '在适用法律允许的最大范围内，Behind Memory 不对任何间接、偶然、特殊、后果性或惩罚性损害，或任何利润或收入损失承担责任。',
       },
       {
         title: '11. 条款变更',

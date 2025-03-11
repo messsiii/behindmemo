@@ -9,8 +9,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Behind Memory - AI Love Letter Generator',
-  description: 'Create meaningful love letters with AI assistance',
+  title: 'Behind Memory - AI Memory Generator',
+  description: 'Create meaningful memories with AI assistance',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

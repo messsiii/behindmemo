@@ -12,7 +12,7 @@ const content = {
     sections: [
       {
         title: '1. Introduction',
-        content: "Love Letters ('we', 'our', or 'us') is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services. Please read this privacy policy carefully. If you do not agree with the terms of this privacy policy, please do not access the site.",
+        content: "Behind Memory ('we', 'our', or 'us') is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services. Please read this privacy policy carefully. If you do not agree with the terms of this privacy policy, please do not access the site.",
       },
       {
         title: '2. Information We Collect',
@@ -20,7 +20,7 @@ const content = {
       },
       {
         title: '3. How We Use Your Information',
-        content: 'We use the information we collect to provide, maintain, and improve our services, to communicate with you, and to comply with legal obligations. This includes using your information to generate AI-assisted love letters based on your input. We do not use your personal information for automated decision-making or profiling.',
+        content: 'We use the information we collect to provide, maintain, and improve our services, to communicate with you, and to comply with legal obligations. This includes using your information to generate AI-assisted memories based on your input. We do not use your personal information for automated decision-making or profiling.',
       },
       {
         title: '4. Data Storage and Security',
@@ -58,7 +58,7 @@ const content = {
     sections: [
       {
         title: '1. 简介',
-        content: 'Love Letters（以下简称"我们"）致力于保护您的隐私。本隐私政策说明了我们在您使用我们的网站和服务时如何收集、使用、披露和保护您的信息。请仔细阅读本隐私政策。如果您不同意本隐私政策的条款，请不要访问本网站。',
+        content: 'Behind Memory（以下简称"我们"）致力于保护您的隐私。本隐私政策说明了我们在您使用我们的网站和服务时如何收集、使用、披露和保护您的信息。请仔细阅读本隐私政策。如果您不同意本隐私政策的条款，请不要访问本网站。',
       },
       {
         title: '2. 我们收集的信息',
@@ -66,7 +66,7 @@ const content = {
       },
       {
         title: '3. 我们如何使用您的信息',
-        content: '我们使用收集的信息来提供、维护和改进我们的服务，与您沟通，并遵守法律义务。这包括使用您的信息基于您的输入生成AI辅助的情书。我们不会将您的个人信息用于自动决策或分析。',
+        content: '我们使用收集的信息来提供、维护和改进我们的服务，与您沟通，并遵守法律义务。这包括使用您的信息基于您的输入生成AI辅助的记忆。我们不会将您的个人信息用于自动决策或分析。',
       },
       {
         title: '4. 数据存储和安全',

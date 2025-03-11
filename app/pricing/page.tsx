@@ -65,7 +65,7 @@ interface ContentType {
 const content: ContentType = {
   en: {
     title: "Choose Your Plan",
-    subtitle: "Find the perfect plan to create your heartfelt Love Letters",
+    subtitle: "Find the perfect plan to create your heartfelt Memories",
     cta: "Need more information?",
     contact: "Contact us",
     includedFeatures: "All plans include",
@@ -171,7 +171,7 @@ const content: ContentType = {
   },
   zh: {
     title: "选择你的计划",
-    subtitle: "找到最适合创作你的真挚Love Letters的方案",
+    subtitle: "找到最适合创作你的真挚Memories的方案",
     cta: "需要更多信息？",
     contact: "联系我们",
     includedFeatures: "所有计划都包含",

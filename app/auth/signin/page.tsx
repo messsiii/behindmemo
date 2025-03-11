@@ -47,7 +47,7 @@ export default function SignIn() {
       googleButton: 'Continue with Google',
       backButton: 'Back to Home',
       description:
-        'By signing in, you can create beautiful love letters and save them for future reference.',
+        'By signing in, you can create beautiful memories and save them for future reference.',
     },
     zh: {
       title: '欢迎使用 AI Love Letter',
