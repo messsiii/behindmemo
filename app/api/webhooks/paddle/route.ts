@@ -401,13 +401,18 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   const subscriptionId = subscription.id
   const customerId = subscription.customer_id
   const status = subscription.status
+  const canceledAt = subscription.canceled_at
+  const isCanceled = !!canceledAt
 
+  // 日志记录更多信息
   logPaddleOperation('处理订阅更新事件', { 
     subscriptionId,
     customerId,
     status,
-    hasCanceledAt: !!subscription.canceled_at,
-    nextBillingDate: subscription.current_billing_period?.ends_at || '未知'
+    isCanceled,
+    canceledAt: canceledAt || '未取消',
+    currentBillingPeriodStarts: subscription.current_billing_period?.starts_at || '未知',
+    currentBillingPeriodEnds: subscription.current_billing_period?.ends_at || '未知'
   })
 
   // 查找订阅记录
@@ -526,7 +531,7 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     oldStatus: subscriptionRecord.status, 
     newStatus: status,
     oldCanceledAt: subscriptionRecord.canceledAt ? subscriptionRecord.canceledAt.toISOString() : null,
-    newCanceledAt: subscription.canceled_at || null,
+    newCanceledAt: canceledAt || null,
     userId: subscriptionRecord.userId
   })
 
@@ -542,11 +547,41 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   }
 
   // 处理取消日期
-  if (subscription.canceled_at) {
-    subscriptionUpdateData.canceledAt = new Date(subscription.canceled_at)
+  if (canceledAt) {
+    subscriptionUpdateData.canceledAt = new Date(canceledAt)
+    
+    // 判断是否是立即取消还是下一周期结束取消
+    const currentDate = new Date()
+    const billingPeriodEndsDate = subscription.current_billing_period?.ends_at 
+      ? new Date(subscription.current_billing_period.ends_at) 
+      : null
+
+    // 如果取消日期等于或接近当前日期，且状态为"canceled"，则是立即取消
+    const isImmediateCancellation = status === 'canceled' && 
+      (!billingPeriodEndsDate || Math.abs(currentDate.getTime() - new Date(canceledAt).getTime()) < 24 * 60 * 60 * 1000)
+
+    if (isImmediateCancellation) {
+      subscriptionUpdateData.endedAt = currentDate
+      logPaddleOperation('检测到立即取消订阅', { 
+        subscriptionId,
+        userId: subscriptionRecord.userId,
+        canceledAt
+      })
+    } else {
+      // 下一周期结束取消的情况
+      if (billingPeriodEndsDate) {
+        subscriptionUpdateData.endedAt = billingPeriodEndsDate
+      }
+      logPaddleOperation('检测到下一周期取消订阅', { 
+        subscriptionId, 
+        userId: subscriptionRecord.userId,
+        billingPeriodEnds: billingPeriodEndsDate ? billingPeriodEndsDate.toISOString() : '未知'
+      })
+    }
   } else if (status === 'active' && subscriptionRecord.canceledAt) {
-    // 如果订阅重新激活，但之前有取消日期，则清除取消日期
+    // 如果订阅重新激活，但之前有取消日期，则清除取消日期和结束日期
     subscriptionUpdateData.canceledAt = null
+    subscriptionUpdateData.endedAt = null
     logPaddleOperation('订阅重新激活，清除取消日期', { subscriptionId })
   }
 
@@ -561,21 +596,50 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     paddleSubscriptionStatus: status
   }
 
-  // 更新用户VIP状态和过期日期
+  // 处理不同状态的VIP权限
   if (status === 'active') {
+    // 活跃状态 - 即使是下一周期取消，也保持VIP状态直到周期结束
     userUpdateData.isVIP = true
     if (subscription.current_billing_period?.ends_at) {
       userUpdateData.vipExpiresAt = new Date(subscription.current_billing_period.ends_at)
     }
     logPaddleOperation('订阅活跃，更新用户为VIP状态', { 
       userId: subscriptionRecord.userId,
-      expiresAt: userUpdateData.vipExpiresAt ? userUpdateData.vipExpiresAt.toISOString() : null
+      expiresAt: userUpdateData.vipExpiresAt ? userUpdateData.vipExpiresAt.toISOString() : null,
+      hasCancelScheduled: !!canceledAt
     })
-  } else if (status === 'canceled' || status === 'paused') {
-    // 如果订阅被取消或暂停，保留VIP直到当前计费周期结束
+  } else if (status === 'canceled') {
+    // 判断是否是立即取消
+    const currentDate = new Date()
+    const billingPeriodEndsDate = subscription.current_billing_period?.ends_at 
+      ? new Date(subscription.current_billing_period.ends_at) 
+      : null
+    
+    const isImmediateCancellation = 
+      (!billingPeriodEndsDate || Math.abs(currentDate.getTime() - new Date(canceledAt).getTime()) < 24 * 60 * 60 * 1000)
+
+    if (isImmediateCancellation) {
+      // 立即取消 - 立即移除VIP状态
+      userUpdateData.isVIP = false
+      userUpdateData.vipExpiresAt = null
+      logPaddleOperation('订阅已立即取消，立即移除VIP状态', { 
+        userId: subscriptionRecord.userId
+      })
+    } else {
+      // 下一周期取消 - 保留VIP直到当前计费周期结束
+      if (billingPeriodEndsDate) {
+        userUpdateData.vipExpiresAt = billingPeriodEndsDate
+        logPaddleOperation('订阅将在周期结束后取消，VIP状态保留至计费周期结束', { 
+          userId: subscriptionRecord.userId,
+          expiresAt: userUpdateData.vipExpiresAt.toISOString()
+        })
+      }
+    }
+  } else if (status === 'paused') {
+    // 暂停状态 - 通常保留VIP直到计费周期结束
     if (subscription.current_billing_period?.ends_at) {
       userUpdateData.vipExpiresAt = new Date(subscription.current_billing_period.ends_at)
-      logPaddleOperation('订阅已取消或暂停，VIP状态保留至计费周期结束', { 
+      logPaddleOperation('订阅已暂停，VIP状态保留至计费周期结束', { 
         userId: subscriptionRecord.userId,
         expiresAt: userUpdateData.vipExpiresAt.toISOString()
       })
@@ -591,7 +655,7 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   logPaddleOperation('订阅更新处理完成', { 
     userId: subscriptionRecord.userId,
     status,
-    isVIP: status === 'active',
+    isVIP: userUpdateData.isVIP !== undefined ? userUpdateData.isVIP : (status === 'active'),
     expiresAt: userUpdateData.vipExpiresAt ? userUpdateData.vipExpiresAt.toISOString() : '未设置'
   })
 }
@@ -601,10 +665,13 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
   const subscription = eventData.data
   const subscriptionId = subscription.id
   const customerId = subscription.customer_id
+  const canceledAt = subscription.canceled_at || new Date().toISOString()
 
   logPaddleOperation('处理订阅取消事件', { 
     subscriptionId,
     customerId,
+    canceledAt,
+    currentBillingPeriodStarts: subscription.current_billing_period?.starts_at || '未知',
     currentBillingPeriodEnds: subscription.current_billing_period?.ends_at || '未知'
   })
 
@@ -662,27 +729,54 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     return
   }
 
+  // 判断是否是立即取消
+  const currentDate = new Date()
+  const billingPeriodEndsDate = subscription.current_billing_period?.ends_at 
+    ? new Date(subscription.current_billing_period.ends_at) 
+    : null
+      
+  // 如果当前取消事件是立即取消，则判断如下
+  // 1. 没有计费周期结束日期
+  // 2. 取消日期接近当前日期
+  // 3. canceled_at 日期接近 current_billing_period.starts_at (同一天内取消)
+  const canceledAtDate = new Date(canceledAt)
+  const billingPeriodStartsDate = subscription.current_billing_period?.starts_at
+    ? new Date(subscription.current_billing_period.starts_at)
+    : null
+
+  const isImmediateCancellation = 
+    !billingPeriodEndsDate || 
+    Math.abs(currentDate.getTime() - canceledAtDate.getTime()) < 24 * 60 * 60 * 1000 ||
+    (billingPeriodStartsDate && Math.abs(canceledAtDate.getTime() - billingPeriodStartsDate.getTime()) < 24 * 60 * 60 * 1000);
+
   // 记录订阅取消详情
   logPaddleOperation('订阅取消详情', { 
     subscriptionId,
     userId: subscriptionRecord.userId,
-    oldStatus: subscriptionRecord.status, 
-    billingPeriodEnds: subscription.current_billing_period?.ends_at || '未知',
-    keepVipUntil: subscription.current_billing_period?.ends_at || '立即结束'
+    oldStatus: subscriptionRecord.status,
+    canceledAt,
+    isImmediateCancellation,
+    billingPeriodStarts: billingPeriodStartsDate ? billingPeriodStartsDate.toISOString() : null,
+    billingPeriodEnds: billingPeriodEndsDate ? billingPeriodEndsDate.toISOString() : null
   })
 
   // 确定订阅更新内容
   const subscriptionUpdateData: any = {
     status: 'canceled',
-    canceledAt: new Date(),
+    canceledAt: new Date(canceledAt),
     metadata: subscription
   }
   
   // 处理结束日期
-  if (subscription.current_billing_period?.ends_at) {
-    subscriptionUpdateData.endedAt = new Date(subscription.current_billing_period.ends_at)
+  if (isImmediateCancellation) {
+    // 立即取消的情况，结束日期设为当前日期
+    subscriptionUpdateData.endedAt = currentDate
+  } else if (billingPeriodEndsDate) {
+    // 周期结束取消的情况，结束日期设为计费周期结束日期
+    subscriptionUpdateData.endedAt = billingPeriodEndsDate
   } else {
-    subscriptionUpdateData.endedAt = new Date()
+    // 没有计费周期结束日期的情况，默认为当前日期
+    subscriptionUpdateData.endedAt = currentDate
   }
 
   // 更新订阅记录
@@ -696,16 +790,26 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     paddleSubscriptionStatus: 'canceled'
   }
   
-  // 设置VIP过期时间
-  if (subscription.current_billing_period?.ends_at) {
-    userUpdateData.vipExpiresAt = new Date(subscription.current_billing_period.ends_at)
-    logPaddleOperation('设置VIP过期时间', { 
+  // 设置VIP状态
+  if (isImmediateCancellation) {
+    // 立即取消 - 立即移除VIP状态
+    userUpdateData.isVIP = false
+    userUpdateData.vipExpiresAt = null
+    logPaddleOperation('立即取消订阅，立即移除VIP状态', { 
+      userId: subscriptionRecord.userId
+    })
+  } else if (billingPeriodEndsDate) {
+    // 周期结束取消 - 保留VIP直到计费周期结束
+    userUpdateData.vipExpiresAt = billingPeriodEndsDate
+    logPaddleOperation('订阅将在周期结束后取消，VIP状态保留至计费周期结束', { 
       userId: subscriptionRecord.userId,
       expiresAt: userUpdateData.vipExpiresAt.toISOString()
     })
   } else {
+    // 其他情况 - 保守起见，立即移除VIP状态
+    userUpdateData.isVIP = false
     userUpdateData.vipExpiresAt = null
-    logPaddleOperation('未找到计费周期结束时间，VIP立即过期', { 
+    logPaddleOperation('无法确定取消类型，保守移除VIP状态', { 
       userId: subscriptionRecord.userId
     })
   }
@@ -718,6 +822,8 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
   
   logPaddleOperation('订阅取消处理完成', { 
     userId: subscriptionRecord.userId,
+    isImmediateCancellation,
+    isVIP: !(isImmediateCancellation || !billingPeriodEndsDate),
     vipUntil: userUpdateData.vipExpiresAt ? userUpdateData.vipExpiresAt.toISOString() : '立即结束'
   })
 }
