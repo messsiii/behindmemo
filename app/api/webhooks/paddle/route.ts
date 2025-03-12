@@ -554,8 +554,6 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   const subscriptionUpdateData: any = {
     status: status,
     metadata: subscription,
-    // 添加标识字段，明确表示订阅状态
-    isCancellationScheduled: hasScheduledCancel
   }
 
   // 处理下一次计费日期
@@ -638,7 +636,6 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     // 如果订阅重新激活，但之前有取消日期，则清除这些字段
     subscriptionUpdateData.canceledAt = null
     subscriptionUpdateData.endedAt = null
-    subscriptionUpdateData.isCancellationScheduled = false
     logPaddleOperation('订阅重新激活，清除取消相关信息', { subscriptionId })
   }
 
@@ -651,9 +648,21 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   // 确定用户数据更新内容
   const userUpdateData: any = {
     paddleSubscriptionStatus: status,
-    // 重要：在用户模型中添加计划取消的标记
-    // 这样即使前端只查询用户信息，也能知道订阅状态
-    subscriptionCancellationScheduled: hasScheduledCancel
+  }
+
+  // 尝试在用户模型中添加计划取消的标记
+  try {
+    // 检查是否可以添加subscriptionCancellationScheduled字段
+    if (hasScheduledCancel) {
+      userUpdateData.subscriptionCancellationScheduled = true
+    } else if (status === 'active' && !canceledAt) {
+      userUpdateData.subscriptionCancellationScheduled = false
+    }
+  } catch (error) {
+    // 如果出错，忽略这个字段的设置，稍后会处理
+    logPaddleOperation('尝试添加字段时出错，忽略subscriptionCancellationScheduled字段', {
+      error: error instanceof Error ? error.message : String(error)
+    })
   }
 
   // 处理不同状态的VIP权限
@@ -683,7 +692,6 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
       // 立即取消 - 立即移除VIP状态
       userUpdateData.isVIP = false
       userUpdateData.vipExpiresAt = null
-      userUpdateData.subscriptionCancellationScheduled = false
       logPaddleOperation('订阅已立即取消，立即移除VIP状态', { 
         userId: subscriptionRecord.userId
       })
@@ -691,8 +699,6 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
       // 下一周期取消 - 保留VIP直到当前计费周期结束
       if (billingPeriodEndsDate) {
         userUpdateData.vipExpiresAt = billingPeriodEndsDate
-        // 即使状态是canceled，也标记为计划取消
-        userUpdateData.subscriptionCancellationScheduled = true
         logPaddleOperation('订阅将在周期结束后取消，VIP状态保留至计费周期结束', { 
           userId: subscriptionRecord.userId,
           expiresAt: userUpdateData.vipExpiresAt.toISOString()
@@ -720,7 +726,6 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     logPaddleOperation('用户订阅状态已更新', {
       userId: subscriptionRecord.userId,
       isVIP: userUpdateData.isVIP,
-      subscriptionCancellationScheduled: userUpdateData.subscriptionCancellationScheduled,
       paddleSubscriptionStatus: status
     })
   } catch (error) {
@@ -854,9 +859,6 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     status: 'canceled',
     canceledAt: new Date(canceledAt),
     metadata: subscription,
-    // 添加标识字段，明确表示订阅状态
-    // 对于立即取消的情况，设置为false，对于周期结束取消，视情况而定
-    isCancellationScheduled: !isImmediateCancellation && !!billingPeriodEndsDate
   }
   
   // 处理结束日期和下一次计费日期
@@ -897,8 +899,6 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
   // 确定用户更新内容
   const userUpdateData: any = {
     paddleSubscriptionStatus: 'canceled',
-    // 添加用户模型中的计划取消标记
-    subscriptionCancellationScheduled: !isImmediateCancellation && !!billingPeriodEndsDate
   }
   
   // 设置VIP状态
@@ -935,7 +935,6 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     logPaddleOperation('用户订阅状态已更新', {
       userId: subscriptionRecord.userId,
       isVIP: userUpdateData.isVIP,
-      subscriptionCancellationScheduled: userUpdateData.subscriptionCancellationScheduled,
       paddleSubscriptionStatus: 'canceled'
     })
   } catch (error) {
@@ -958,7 +957,6 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     isImmediateCancellation,
     isVIP: !isImmediateCancellation && !!billingPeriodEndsDate,
     vipUntil: userUpdateData.vipExpiresAt ? userUpdateData.vipExpiresAt.toISOString() : '立即结束',
-    isCancellationScheduled: subscriptionUpdateData.isCancellationScheduled
   })
 }
 
