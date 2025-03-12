@@ -23,27 +23,42 @@ const verifyWebhookSignature = (
     console.log('验证签名 - 原始签名头:', signatureHeader)
     console.log('签名密钥长度:', secret.length)
     
-    // 如果签名头包含时间戳格式（t=timestamp,s=signature）
-    let signature = signatureHeader
-    if (signatureHeader.includes(',s=')) {
-      const matches = signatureHeader.match(/s=([a-zA-Z0-9]+)/)
-      if (matches && matches[1]) {
-        signature = matches[1]
+    // 1. 解析 Paddle-Signature 头部，提取时间戳和签名值
+    // 格式通常是: ts=1671552777;h1=eb4d0dc8853be92b7f063b9f3ba5233eb920a09459b6e6b2c26705b4364db151
+    const parts = signatureHeader.split(';')
+    let timestamp = ''
+    let signature = ''
+    
+    for (const part of parts) {
+      if (part.startsWith('ts=')) {
+        timestamp = part.substring(3)
+      } else if (part.startsWith('h1=')) {
+        signature = part.substring(3)
       }
     }
     
+    if (!timestamp || !signature) {
+      console.error('无法从签名头中提取时间戳或签名值:', signatureHeader)
+      return false
+    }
+    
+    console.log('提取的时间戳:', timestamp)
     console.log('提取的签名值:', signature)
     
-    // 计算HMAC签名
+    // 2. 构建签名有效载荷: 时间戳 + ":" + 原始请求体
+    const signedPayload = `${timestamp}:${payload}`
+    
+    // 3. 使用HMAC-SHA256计算签名
     const hmac = crypto.createHmac('sha256', secret)
-    const calculatedSignature = hmac.update(payload).digest('hex')
+    const calculatedSignature = hmac.update(signedPayload).digest('hex')
     
     console.log('计算的签名值前10位:', calculatedSignature.substring(0, 10))
     
-    // 不区分大小写比较
+    // 4. 不区分大小写比较签名
     const isValid = signature.toLowerCase() === calculatedSignature.toLowerCase()
     
     logPaddleOperation('签名验证详情', {
+      timestamp,
       receivedSignature: signature.substring(0, 10) + '...',
       calculatedSignature: calculatedSignature.substring(0, 10) + '...',
       signatureLength: signature.length,
