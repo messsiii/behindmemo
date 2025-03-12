@@ -1,3 +1,4 @@
+import { logPaddleOperation } from '@/lib/paddle-api'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,8 +10,34 @@ const verifyWebhookSignature = (
   secret: string
 ): boolean => {
   try {
+    // 检查必要参数
+    if (!payload || !signature || !secret) {
+      console.error('缺少必要参数:', {
+        hasPayload: !!payload,
+        hasSignature: !!signature,
+        hasSecret: !!secret
+      })
+      return false
+    }
+
+    // 检查签名格式
+    if (!signature.match(/^[a-f0-9]{64}$/i)) {
+      console.error('签名格式不匹配预期的SHA-256格式')
+      return false
+    }
+
+    // 计算HMAC签名
     const hmac = crypto.createHmac('sha256', secret)
     const digest = hmac.update(payload).digest('hex')
+    
+    logPaddleOperation('签名验证详情', {
+      expectedSignature: signature.substring(0, 10) + '...',
+      calculatedSignature: digest.substring(0, 10) + '...',
+      payloadLength: payload.length,
+      secretLength: secret.length
+    })
+    
+    // 使用常量时间比较防止时间攻击
     return crypto.timingSafeEqual(
       Buffer.from(digest, 'hex'),
       Buffer.from(signature, 'hex')
@@ -21,71 +48,130 @@ const verifyWebhookSignature = (
   }
 }
 
+// 确保webhook处理是幂等的，无论处理多少次结果都一致
 export async function POST(req: NextRequest) {
+  // 获取请求体和签名
+  let payload = '';
+  let eventData: any = null;
+  let eventType = '';
+  let eventId = '';
+
   try {
-    // 获取请求体和签名
-    const payload = await req.text()
+    payload = await req.text()
     const signature = req.headers.get('Paddle-Signature') || ''
     const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET || ''
 
-    console.log('收到Paddle webhook请求:', {
-      signature: signature.substring(0, 10) + '...',
+    logPaddleOperation('收到Paddle webhook请求', {
+      url: req.url,
+      method: req.method,
+      signature: signature ? (signature.substring(0, 10) + '...') : 'missing',
       hasWebhookSecret: !!webhookSecret,
+      contentType: req.headers.get('content-type'),
+      payloadLength: payload.length,
     })
+
+    // 解析事件数据
+    try {
+      eventData = JSON.parse(payload)
+      eventType = eventData.event_type
+      eventId = eventData.event_id
+      
+      logPaddleOperation('Webhook事件信息', {
+        eventType,
+        eventId,
+        dataPreview: JSON.stringify(eventData).substring(0, 200) + '...'
+      })
+      
+      // 存储原始事件数据，无论签名是否验证成功
+      await prisma.webhookEvent.upsert({
+        where: { paddleEventId: eventId },
+        update: {
+          eventType: eventType,
+          eventData: eventData,
+          // 如果状态已经是completed，保持不变
+          status: {
+            set: await isEventStatusCompleted(eventId) ? 'completed' : 'pending'
+          }
+        },
+        create: {
+          paddleEventId: eventId,
+          eventType: eventType,
+          eventData: eventData,
+          status: 'pending',
+        }
+      })
+      
+      logPaddleOperation('存储Webhook事件', { eventId, eventType })
+    } catch (parseError) {
+      console.error('事件数据解析错误:', parseError)
+      console.log('原始载荷预览:', payload.substring(0, 200))
+      return NextResponse.json(
+        { error: 'Invalid payload format' },
+        { status: 400 }
+      )
+    }
 
     // 验证签名 - 生产环境下必须验证
     const isValidSignature = verifyWebhookSignature(payload, signature, webhookSecret)
-    console.log('签名验证结果:', isValidSignature)
+    logPaddleOperation('签名验证结果', { isValid: isValidSignature })
 
     if (!isValidSignature) {
       console.error('无效的签名')
+      
+      // 更新事件状态为签名验证失败
+      if (eventId) {
+        await updateWebhookEventStatus(
+          eventId,
+          'signature_failed',
+          new Error('签名验证失败')
+        )
+      }
+      
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
       )
     }
 
-    // 解析事件数据
-    const eventData = JSON.parse(payload)
-    const eventType = eventData.event_type
-    const eventId = eventData.event_id
-
-    // 记录事件到日志（不使用数据库）
-    console.log(`接收到Paddle事件: ${eventType}, ID: ${eventId}`)
-    console.log('事件数据:', JSON.stringify(eventData))
-
     // 检查是否已处理过该事件
     const isProcessed = await isEventProcessed(eventId)
     if (isProcessed) {
-      console.log(`事件 ${eventId} 已处理过，跳过`)
+      logPaddleOperation('事件已处理，跳过', { eventId })
       return NextResponse.json({ success: true, message: 'Event already processed' })
     }
 
     // 记录事件开始处理
-    await recordWebhookEvent(eventId, eventType, eventData, 'processing')
+    await updateWebhookEventStatus(eventId, 'processing')
 
     try {
-      // 根据事件类型处理不同的逻辑
-      switch (eventType) {
-        case 'subscription.created':
-          await handleSubscriptionCreated(eventData)
-          break
-        case 'subscription.updated':
-          await handleSubscriptionUpdated(eventData)
-          break
-        case 'subscription.canceled':
-          await handleSubscriptionCanceled(eventData)
-          break
-        case 'transaction.completed':
-          await handleTransactionCompleted(eventData)
-          break
-        case 'customer.created':
-          await handleCustomerCreated(eventData)
-          break
-        // 添加其他事件处理...
-        default:
-          console.log(`未处理的事件类型: ${eventType}`)
-      }
+      // 使用事务包装事件处理，确保原子性
+      await prisma.$transaction(async (tx) => {
+        // 根据事件类型处理不同的逻辑
+        switch (eventType) {
+          case 'subscription.created':
+            await handleSubscriptionCreated(eventData, tx)
+            break
+          case 'subscription.updated':
+            await handleSubscriptionUpdated(eventData, tx)
+            break
+          case 'subscription.canceled':
+            await handleSubscriptionCanceled(eventData, tx)
+            break
+          case 'transaction.completed':
+            await handleTransactionCompleted(eventData, tx)
+            break
+          case 'customer.created':
+            await handleCustomerCreated(eventData, tx)
+            break
+          // 添加其他事件处理...
+          default:
+            logPaddleOperation('未处理的事件类型', { eventType })
+        }
+      }, {
+        // 事务配置
+        maxWait: 5000, // 最长等待时间
+        timeout: 10000 // 事务超时时间
+      })
 
       // 更新事件状态为已完成
       await updateWebhookEventStatus(eventId, 'completed')
@@ -122,25 +208,15 @@ async function isEventProcessed(eventId: string): Promise<boolean> {
   }
 }
 
-// 记录 webhook 事件
-async function recordWebhookEvent(
-  eventId: string, 
-  eventType: string, 
-  eventData: any, 
-  status: string
-) {
+// 检查事件状态是否为completed
+async function isEventStatusCompleted(eventId: string): Promise<boolean> {
   try {
-    await prisma.webhookEvent.create({
-      data: {
-        paddleEventId: eventId,
-        eventType: eventType,
-        eventData: eventData,
-        status: status
-      }
+    const existingEvent = await prisma.webhookEvent.findUnique({
+      where: { paddleEventId: eventId }
     })
+    return !!existingEvent && existingEvent.status === 'completed'
   } catch (error) {
-    console.error('记录webhook事件错误:', error)
-    // 非致命错误，继续处理
+    return false
   }
 }
 
@@ -151,15 +227,28 @@ async function updateWebhookEventStatus(
   error?: any
 ) {
   try {
+    const data: any = { status }
+    
+    if (error) {
+      data.error = error instanceof Error ? error.message : String(error)
+      data.processedAt = new Date()
+    } else if (status === 'completed') {
+      data.processedAt = new Date()
+    }
+    
     await prisma.webhookEvent.update({
       where: { paddleEventId: eventId },
-      data: {
-        status: status,
-      }
+      data
     })
     
     if (error) {
-      console.error(`Webhook处理错误详情: ${error.message}`)
+      logPaddleOperation('Webhook处理错误', { 
+        eventId, 
+        status, 
+        error: data.error 
+      })
+    } else {
+      logPaddleOperation('Webhook状态更新', { eventId, status })
     }
   } catch (updateError) {
     console.error('更新webhook事件状态错误:', updateError)
@@ -168,26 +257,39 @@ async function updateWebhookEventStatus(
 }
 
 // 处理订阅创建事件
-async function handleSubscriptionCreated(eventData: any) {
+async function handleSubscriptionCreated(eventData: any, prismaClient: any) {
   const subscription = eventData.data
   const customerId = subscription.customer_id
   const subscriptionId = subscription.id
   const status = subscription.status
   const priceId = subscription.items[0]?.price.id
 
+  logPaddleOperation('处理订阅创建事件', { 
+    subscriptionId,
+    customerId,
+    status
+  })
+
   // 查找用户
-  const user = await prisma.user.findFirst({
+  const user = await prismaClient.user.findFirst({
     where: { paddleCustomerId: customerId }
   })
 
   if (!user) {
-    console.error('未找到用户:', customerId)
+    logPaddleOperation('未找到用户', { customerId })
     return
   }
 
-  // 创建订阅记录
-  await prisma.subscription.create({
-    data: {
+  // 创建订阅记录 - 使用upsert确保幂等性
+  await prismaClient.subscription.upsert({
+    where: { paddleSubscriptionId: subscriptionId },
+    update: {
+      status: status,
+      startedAt: new Date(subscription.current_billing_period.starts_at),
+      nextBillingAt: new Date(subscription.current_billing_period.ends_at),
+      metadata: subscription
+    },
+    create: {
       userId: user.id,
       paddleSubscriptionId: subscriptionId,
       status: status,
@@ -200,7 +302,7 @@ async function handleSubscriptionCreated(eventData: any) {
   })
 
   // 更新用户VIP状态
-  await prisma.user.update({
+  await prismaClient.user.update({
     where: { id: user.id },
     data: {
       isVIP: true,
@@ -209,27 +311,37 @@ async function handleSubscriptionCreated(eventData: any) {
       paddleSubscriptionStatus: status
     }
   })
+  
+  logPaddleOperation('订阅创建处理完成', { 
+    userId: user.id,
+    subscriptionId
+  })
 }
 
 // 处理订阅更新事件
-async function handleSubscriptionUpdated(eventData: any) {
+async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   const subscription = eventData.data
   const subscriptionId = subscription.id
   const status = subscription.status
 
+  logPaddleOperation('处理订阅更新事件', { 
+    subscriptionId,
+    status
+  })
+
   // 查找订阅记录
-  const subscriptionRecord = await prisma.subscription.findUnique({
+  const subscriptionRecord = await prismaClient.subscription.findUnique({
     where: { paddleSubscriptionId: subscriptionId },
     include: { user: true }
   })
 
   if (!subscriptionRecord) {
-    console.error('未找到订阅记录:', subscriptionId)
+    logPaddleOperation('未找到订阅记录', { subscriptionId })
     return
   }
 
   // 更新订阅记录
-  await prisma.subscription.update({
+  await prismaClient.subscription.update({
     where: { paddleSubscriptionId: subscriptionId },
     data: {
       status: status,
@@ -245,7 +357,7 @@ async function handleSubscriptionUpdated(eventData: any) {
 
   // 更新用户VIP状态
   if (status === 'active') {
-    await prisma.user.update({
+    await prismaClient.user.update({
       where: { id: subscriptionRecord.userId },
       data: {
         isVIP: true,
@@ -257,7 +369,7 @@ async function handleSubscriptionUpdated(eventData: any) {
     })
   } else if (status === 'canceled' || status === 'paused') {
     // 如果订阅被取消或暂停，保留VIP直到当前计费周期结束
-    await prisma.user.update({
+    await prismaClient.user.update({
       where: { id: subscriptionRecord.userId },
       data: {
         vipExpiresAt: subscription.current_billing_period?.ends_at
@@ -267,26 +379,33 @@ async function handleSubscriptionUpdated(eventData: any) {
       }
     })
   }
+  
+  logPaddleOperation('订阅更新处理完成', { 
+    userId: subscriptionRecord.userId,
+    status
+  })
 }
 
 // 处理订阅取消事件
-async function handleSubscriptionCanceled(eventData: any) {
+async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
   const subscription = eventData.data
   const subscriptionId = subscription.id
 
+  logPaddleOperation('处理订阅取消事件', { subscriptionId })
+
   // 查找订阅记录
-  const subscriptionRecord = await prisma.subscription.findUnique({
+  const subscriptionRecord = await prismaClient.subscription.findUnique({
     where: { paddleSubscriptionId: subscriptionId },
     include: { user: true }
   })
 
   if (!subscriptionRecord) {
-    console.error('未找到订阅记录:', subscriptionId)
+    logPaddleOperation('未找到订阅记录', { subscriptionId })
     return
   }
 
   // 更新订阅记录
-  await prisma.subscription.update({
+  await prismaClient.subscription.update({
     where: { paddleSubscriptionId: subscriptionId },
     data: {
       status: 'canceled',
@@ -299,7 +418,7 @@ async function handleSubscriptionCanceled(eventData: any) {
   })
 
   // 更新用户VIP状态（保留VIP直到当前计费周期结束）
-  await prisma.user.update({
+  await prismaClient.user.update({
     where: { id: subscriptionRecord.userId },
     data: {
       vipExpiresAt: subscription.current_billing_period?.ends_at
@@ -308,42 +427,50 @@ async function handleSubscriptionCanceled(eventData: any) {
       paddleSubscriptionStatus: 'canceled'
     }
   })
+  
+  logPaddleOperation('订阅取消处理完成', { 
+    userId: subscriptionRecord.userId
+  })
 }
 
 // 处理交易完成事件
-async function handleTransactionCompleted(eventData: any) {
+async function handleTransactionCompleted(eventData: any, prismaClient: any) {
   const transaction = eventData.data
   const customerId = transaction.customer_id
   const transactionId = transaction.id
   const status = transaction.status
   const items = transaction.items || []
   
-  console.log('处理交易完成事件:', {
+  logPaddleOperation('处理交易完成事件', {
     transactionId,
     customerId,
-    status,
-    items: JSON.stringify(items)
+    status
   })
   
   // 查找用户
-  const user = await prisma.user.findFirst({
+  const user = await prismaClient.user.findFirst({
     where: { paddleCustomerId: customerId }
   })
 
   if (!user) {
-    console.error('未找到用户:', customerId)
+    logPaddleOperation('未找到用户', { customerId })
     return
   }
 
-  console.log('找到用户:', {
+  logPaddleOperation('找到用户', {
     userId: user.id,
     email: user.email,
     currentCredits: user.credits
   })
 
-  // 创建交易记录
-  await prisma.transaction.create({
-    data: {
+  // 创建交易记录 - 使用upsert确保幂等性
+  const tx = await prismaClient.transaction.upsert({
+    where: { paddleOrderId: transactionId },
+    update: {
+      status: status,
+      updatedAt: new Date()
+    },
+    create: {
       userId: user.id,
       paddleOrderId: transactionId,
       type: transaction.subscription_id ? 'subscription_payment' : 'one_time_purchase',
@@ -356,32 +483,26 @@ async function handleTransactionCompleted(eventData: any) {
     }
   })
 
-  // 如果是点数购买，更新用户点数
-  if (!transaction.subscription_id) {
-    const creditAmount = getCreditAmount(items)
-    console.log('计算点数金额:', {
-      creditAmount,
-      items: JSON.stringify(items)
+  // 如果是点数购买，并且是新创建的交易（而非更新），更新用户点数
+  if (!transaction.subscription_id && tx.pointsAdded) {
+    const creditAmount = tx.pointsAdded
+    logPaddleOperation('更新用户点数', {
+      userId: user.id,
+      currentCredits: user.credits,
+      addingCredits: creditAmount
     })
     
-    if (creditAmount > 0) {
-      console.log('更新用户点数:', {
-        userId: user.id,
-        currentCredits: user.credits,
-        addingCredits: creditAmount
-      })
-      
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          credits: { increment: creditAmount }
-        }
-      })
-      
-      console.log('点数更新完成')
-    } else {
-      console.error('无法确定点数金额，未更新用户点数')
-    }
+    await prismaClient.user.update({
+      where: { id: user.id },
+      data: {
+        credits: { increment: creditAmount }
+      }
+    })
+    
+    logPaddleOperation('点数更新完成', {
+      userId: user.id,
+      creditAmount
+    })
   }
 }
 
@@ -389,7 +510,7 @@ async function handleTransactionCompleted(eventData: any) {
 function getCreditAmount(items: any[]): number {
   // 这里需要根据你的价格ID和点数包对应关系来实现
   // 示例实现
-  console.log('计算点数金额，价格ID:', {
+  logPaddleOperation('计算点数金额，价格ID', {
     CREDITS_10: process.env.NEXT_PUBLIC_PADDLE_CREDITS_10_PRICE_ID,
     CREDITS_100: process.env.NEXT_PUBLIC_PADDLE_CREDITS_100_PRICE_ID,
     CREDITS_500: process.env.NEXT_PUBLIC_PADDLE_CREDITS_500_PRICE_ID,
@@ -398,7 +519,6 @@ function getCreditAmount(items: any[]): number {
   
   for (const item of items) {
     const priceId = item.price.id
-    console.log('检查价格ID:', priceId)
     
     // 根据价格ID判断点数包
     if (priceId === process.env.NEXT_PUBLIC_PADDLE_CREDITS_10_PRICE_ID) {
@@ -416,48 +536,62 @@ function getCreditAmount(items: any[]): number {
 }
 
 // 处理客户创建事件
-async function handleCustomerCreated(eventData: any) {
+async function handleCustomerCreated(eventData: any, prismaClient: any) {
   const customer = eventData.data
   const customerId = customer.id
   const customerEmail = customer.email
   const customData = customer.custom_data || {}
   const userId = customData.userId
   
-  console.log(`处理客户创建事件: ${customerId}, 邮箱: ${customerEmail}, 用户ID: ${userId}`)
+  logPaddleOperation('处理客户创建事件', { 
+    customerId, 
+    customerEmail, 
+    userId 
+  })
   
   // 如果有用户ID，直接通过ID查找用户
   if (userId) {
-    const user = await prisma.user.findUnique({
+    const user = await prismaClient.user.findUnique({
       where: { id: userId }
     })
     
     if (user) {
       // 更新用户的Paddle客户ID
-      await prisma.user.update({
+      await prismaClient.user.update({
         where: { id: userId },
         data: { paddleCustomerId: customerId }
       })
-      console.log(`已将Paddle客户ID ${customerId} 关联到用户 ${userId}`)
+      logPaddleOperation('已关联Paddle客户ID到用户', { 
+        userId, 
+        customerId 
+      })
       return
     }
   }
   
   // 如果没有用户ID或找不到用户，尝试通过邮箱查找
   if (customerEmail) {
-    const user = await prisma.user.findUnique({
+    const user = await prismaClient.user.findUnique({
       where: { email: customerEmail }
     })
     
     if (user) {
       // 更新用户的Paddle客户ID
-      await prisma.user.update({
+      await prismaClient.user.update({
         where: { id: user.id },
         data: { paddleCustomerId: customerId }
       })
-      console.log(`已将Paddle客户ID ${customerId} 关联到邮箱为 ${customerEmail} 的用户`)
+      logPaddleOperation('已关联Paddle客户ID到邮箱用户', { 
+        email: customerEmail, 
+        userId: user.id, 
+        customerId 
+      })
       return
     }
   }
   
-  console.error(`无法找到与Paddle客户关联的用户: ${customerId}, 邮箱: ${customerEmail}`)
+  logPaddleOperation('无法找到与Paddle客户关联的用户', { 
+    customerId, 
+    customerEmail 
+  })
 } 

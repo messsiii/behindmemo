@@ -30,6 +30,7 @@ import { openSubscriptionCheckout } from '@/lib/paddle';
 import { motion } from 'framer-motion';
 import { Brush, Loader2, PenLine, Sparkles } from "lucide-react";
 import { useSession } from 'next-auth/react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
@@ -625,14 +626,14 @@ export default function AccountPage() {
                         <div className="space-y-6">
                           <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
                             <div className="h-24 w-24 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 ring-4 ring-white shadow-lg">
-                              {userInfo.image && (
-                                <img 
-                                  src={userInfo.image} 
-                                  alt={userInfo.name} 
-                                  className="h-full w-full object-cover" 
-                                  referrerPolicy="no-referrer"
-                                />
-                              )}
+                              <Image 
+                                src={userInfo.image} 
+                                alt={userInfo.name || 'User avatar'} 
+                                className="h-full w-full object-cover" 
+                                width={96}
+                                height={96}
+                                referrerPolicy="no-referrer"
+                              />
                             </div>
                             <div className="space-y-2 flex-1">
                               <h3 className="text-xl font-medium">{userInfo.name}</h3>

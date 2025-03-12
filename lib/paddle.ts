@@ -79,11 +79,20 @@ export async function openSubscriptionCheckout() {
   }
   
   try {
+    // 检查 Paddle SDK 是否已加载
+    if (!window.Paddle) {
+      throw new Error('Paddle SDK 尚未加载，请刷新页面重试')
+    }
+    
+    // 检查 Paddle.Checkout 是否可用
+    if (!window.Paddle.Checkout) {
+      throw new Error('Paddle Checkout 功能不可用，请刷新页面重试')
+    }
+    
     // 获取当前用户会话
     const session = await getSession()
     if (!session?.user) {
-      console.error('用户未登录')
-      return
+      throw new Error('用户未登录')
     }
 
     // 获取用户当前语言设置
@@ -116,6 +125,8 @@ export async function openSubscriptionCheckout() {
     window.Paddle.Checkout.open(checkoutConfig)
   } catch (error) {
     console.error('打开订阅结账失败:', error)
+    // 重新抛出错误，以便调用者可以处理
+    throw error
   }
 }
 
@@ -148,11 +159,20 @@ export async function openCreditsCheckout(amount: number) {
   }
   
   try {
+    // 检查 Paddle SDK 是否已加载
+    if (!window.Paddle) {
+      throw new Error('Paddle SDK 尚未加载，请刷新页面重试')
+    }
+    
+    // 检查 Paddle.Checkout 是否可用
+    if (!window.Paddle.Checkout) {
+      throw new Error('Paddle Checkout 功能不可用，请刷新页面重试')
+    }
+    
     // 获取当前用户会话
     const session = await getSession()
     if (!session?.user) {
-      console.error('用户未登录')
-      return
+      throw new Error('用户未登录')
     }
 
     // 获取用户当前语言设置
@@ -185,6 +205,8 @@ export async function openCreditsCheckout(amount: number) {
     window.Paddle.Checkout.open(checkoutConfig)
   } catch (error) {
     console.error('打开点数购买结账失败:', error)
+    // 重新抛出错误，以便调用者可以处理
+    throw error
   }
 }
 

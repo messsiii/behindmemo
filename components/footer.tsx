@@ -23,7 +23,6 @@ export function Footer() {
 
   const links = [
     { href: '/about', label: language === 'en' ? 'About' : '关于' },
-    { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
     { href: '/terms', label: language === 'en' ? 'Terms' : '服务条款' },
     { href: '/privacy', label: language === 'en' ? 'Privacy' : '隐私政策' },
   ]

@@ -2,10 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -31,6 +31,7 @@ export function Nav() {
   const links = [
     { href: status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
     ...(status === 'authenticated' ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }] : []),
+    { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
   ]
 
   // 在客户端渲染前返回一个占位内容
@@ -83,8 +84,11 @@ export function Nav() {
                   <Link
                     key={href}
                     href={href}
-                    className={`text-sm font-medium transition-colors hover:text-foreground/80 text-foreground
-                      ${pathname === href ? 'font-bold' : ''}`}
+                    className={`text-sm font-medium transition-colors hover:text-foreground/80 ${
+                      pathname === href 
+                        ? 'font-semibold bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent' 
+                        : 'text-foreground'
+                    }`}
                     onClick={() => setIsOpen(false)}
                   >
                     {label}
@@ -105,8 +109,11 @@ export function Nav() {
               <Link
                 key={href}
                 href={href}
-                className={`transition-colors hover:text-foreground/80 text-foreground relative
-                  ${pathname === href && href !== '/history' ? 'after:absolute after:bottom-[-1.5rem] after:left-0 after:right-0 after:h-[2px] after:bg-foreground' : ''}`}
+                className={`transition-colors hover:text-foreground/80 relative ${
+                  pathname === href 
+                    ? 'font-semibold bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent' 
+                    : 'text-foreground'
+                }`}
               >
                 {label}
               </Link>

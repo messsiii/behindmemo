@@ -4,6 +4,9 @@ import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
 import PaddleScript from '@/components/PaddleScript'
 import { Button } from '@/components/ui/button'
+import { ButtonLoading } from '@/components/ui/button-loading'
+import { Card } from '@/components/ui/card'
+import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { openCreditsCheckout, openSubscriptionCheckout } from '@/lib/paddle'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -414,6 +417,8 @@ export default function Pricing() {
   const { language } = useLanguage()
   const allQuestions = content[language].faqSections.reduce<Question[]>((acc, section) => [...acc, ...section.questions], [])
   const [isVIP, setIsVIP] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState<number | null>(null)
 
   // 获取用户信息，检查是否为VIP
   useEffect(() => {
@@ -436,25 +441,42 @@ export default function Pricing() {
 
   // Paddle 相关处理函数
   const handleSubscribe = async () => {
-    await openSubscriptionCheckout()
+    try {
+      setIsLoading(true)
+      await openSubscriptionCheckout()
+    } catch (error) {
+      console.error('订阅支付失败:', error)
+      // 显示友好的错误提示
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: language === 'en' 
+          ? 'Payment system is not ready. Please try again in a moment.' 
+          : '支付系统尚未准备就绪，请稍后再试。',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
+  // 积分购买处理函数
   const handleBuyCredits = async (credits: number) => {
-    switch (credits) {
-      case 10:
-        await openCreditsCheckout(10)
-        break
-      case 100:
-        await openCreditsCheckout(100)
-        break
-      case 500:
-        await openCreditsCheckout(500)
-        break
-      case 1000:
-        await openCreditsCheckout(1000)
-        break
-      default:
-        console.error('Invalid credits package')
+    try {
+      setIsCheckoutLoading(credits)
+      // 调用积分购买结账函数
+      await openCreditsCheckout(credits)
+    } catch (error) {
+      console.error('积分购买失败:', error)
+      // 显示友好的错误提示
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: language === 'en' 
+          ? 'Payment system is not ready. Please try again in a moment.' 
+          : '支付系统尚未准备就绪，请稍后再试。',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsCheckoutLoading(null)
     }
   }
 
@@ -560,11 +582,20 @@ export default function Pricing() {
                         ? "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white"
                         : "bg-gray-50 hover:bg-gray-100 text-gray-900"
                     } ${language === "en" ? "font-serif" : "font-serif-zh"}`}
-                    onClick={plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅") ? handleSubscribe : undefined}
-                    disabled={(plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅")) ? isVIP : !isVIP}
+                    onClick={plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅") ? () => handleSubscribe() : undefined}
+                    disabled={
+                      ((plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅")) && isVIP) || 
+                      isLoading || 
+                      (!(plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅")) && !isVIP)
+                    }
                   >
                     {(plan.name.toLowerCase().includes("subscription") || plan.name.toLowerCase().includes("订阅")) ? 
-                      (isVIP ? (language === "en" ? "Current Plan" : "当前方案") : plan.cta) : 
+                      (isVIP ? 
+                        (language === "en" ? "Current Plan" : "当前方案") : 
+                        (isLoading ? 
+                          (language === "en" ? "Processing..." : "处理中...") : 
+                          plan.cta)
+                      ) : 
                       (!isVIP ? (language === "en" ? "Current Plan" : "当前方案") : plan.cta)}
                   </Button>
                 </div>
@@ -578,39 +609,95 @@ export default function Pricing() {
             >
               {language === "en" ? "Credit Packages" : "点数套餐"}
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {creditPackages[language].map((pkg, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleBuyCredits(pkg.credits)}
-                  className={`${
-                    pkg.bestValue
-                      ? "bg-gradient-to-br from-[#738fbd] to-[#cc8eb1] text-white"
-                      : "bg-gray-50 text-gray-900 hover:bg-gray-100"
-                  } rounded-lg p-4 text-center transition-all duration-300 hover:shadow-lg ${
-                    pkg.bestValue ? "shadow-md" : ""
-                  } relative`}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {creditPackages[language].map((pkg) => (
+                <Card
+                  key={pkg.credits}
+                  className={`relative overflow-hidden transition-all duration-300 hover:shadow-md hover:translate-y-[-4px] ${
+                    pkg.bestValue 
+                      ? "border-amber-300 shadow-amber-200/30 bg-gradient-to-b from-white to-amber-50/40" 
+                      : "border-gray-200 hover:border-[#cc8eb1]/30 bg-white"
+                  }`}
                 >
                   {pkg.bestValue && (
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">
-                      {language === "en" ? "Best Value" : "最优惠"}
+                    <div className="absolute top-0 right-0">
+                      <div
+                        className={`text-xs font-bold px-4 py-1 rounded-bl bg-gradient-to-r from-amber-100 to-amber-200 text-amber-900 ${
+                          language === "en" ? "font-serif" : "font-serif-zh"
+                        }`}
+                      >
+                        {content[language].bestValue}
+                      </div>
                     </div>
                   )}
-                  <h3 className={`text-lg font-semibold ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
-                    {pkg.credits} {language === "en" ? "Credits" : "点数"}
-                  </h3>
-                  <div className="mt-2">
-                    <span className={`text-2xl font-bold ${pkg.bestValue ? "text-white" : "text-gray-900"}`}>
-                      ${pkg.price}
-                    </span>
-                    <span className={`text-sm ml-2 ${pkg.bestValue ? "text-gray-200" : "text-gray-500"} line-through`}>
-                      ${pkg.originalPrice}
-                    </span>
+
+                  <div className="p-5 flex flex-col h-full">
+                    <div className="mb-3">
+                      <h3 className={`text-xl font-semibold ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
+                        {pkg.credits} {language === "en" ? "Credits" : "积分"}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {language === "en" 
+                          ? `Generate ${Math.floor(pkg.credits/10)} premium letters` 
+                          : `可生成 ${Math.floor(pkg.credits/10)} 封高级信件`}
+                      </p>
+                    </div>
+
+                    <div className="flex items-baseline gap-2 mb-4">
+                      <span className={`text-3xl font-bold text-gray-900 ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
+                        ${pkg.price}
+                      </span>
+                      {pkg.originalPrice && (
+                        <span className="text-sm text-gray-500 line-through">${pkg.originalPrice}</span>
+                      )}
+                    </div>
+
+                    {pkg.originalPrice && (
+                      <div className="mb-4 text-sm px-3 py-1 rounded-full bg-gradient-to-r from-[#738fbd]/10 to-[#cc8eb1]/10 text-[#cc8eb1] font-medium inline-block">
+                        <span className="flex items-center gap-1">
+                          <span>⚡</span>
+                          <span>{Math.round(((pkg.originalPrice - pkg.price) / pkg.originalPrice) * 100)}% {content[language].off}</span>
+                        </span>
+                      </div>
+                    )}
+                    
+                    <div className="my-4 border-t border-gray-100"></div>
+                    
+                    <div className={`text-sm text-gray-700 mb-4 ${language === "en" ? "font-serif" : "font-serif-zh"}`}>
+                      {pkg.bestValue 
+                        ? (language === "en" ? "✨ Our most popular option" : "✨ 我们最受欢迎的选择") 
+                        : (language === "en" ? "✓ Never expires" : "✓ 永不过期")}
+                    </div>
+
+                    <div className="mt-auto">
+                      {isCheckoutLoading === pkg.credits ? (
+                        <ButtonLoading 
+                          size="default" 
+                          className={`w-full rounded-full ${pkg.bestValue 
+                            ? "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] text-white" 
+                            : ""}`}
+                          isLoading={true}
+                        >
+                          {language === "en" ? "Processing..." : "处理中..."}
+                        </ButtonLoading>
+                      ) : (
+                        <Button
+                          size="default"
+                          variant={pkg.bestValue ? "default" : "outline"}
+                          className={`w-full rounded-full transition-all ${
+                            pkg.bestValue 
+                              ? "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white" 
+                              : "hover:bg-gradient-to-r hover:from-[#738fbd]/10 hover:to-[#cc8eb1]/10 border-[#cc8eb1]/30"
+                          } ${language === "en" ? "font-serif" : "font-serif-zh"}`}
+                          onClick={() => handleBuyCredits(pkg.credits)}
+                          disabled={isCheckoutLoading !== null}
+                        >
+                          {language === "en" ? "Buy Now" : "立即购买"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  {pkg.bestValue && (
-                    <p className="mt-2 text-sm">{language === "en" ? "Most popular choice!" : "最受欢迎的选择！"}</p>
-                  )}
-                </button>
+                </Card>
               ))}
             </div>
           </div>
