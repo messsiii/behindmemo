@@ -297,13 +297,63 @@ async function handleSubscriptionCreated(eventData: any, prismaClient: any) {
     status
   })
 
-  // 查找用户
-  const user = await prismaClient.user.findFirst({
+  // 尝试通过客户ID查找用户
+  let user = await prismaClient.user.findFirst({
     where: { paddleCustomerId: customerId }
   })
 
+  // 如果通过客户ID找不到用户，尝试获取客户详情并通过邮箱查找
   if (!user) {
-    logPaddleOperation('未找到用户', { customerId })
+    // 记录未找到用户信息
+    logPaddleOperation('通过Paddle客户ID未找到用户，尝试获取客户信息', { customerId })
+    
+    // 尝试从订阅数据中获取客户信息
+    try {
+      let customerEmail = null
+      
+      // 尝试获取客户详情中的邮箱
+      if (subscription.customer && subscription.customer.email) {
+        customerEmail = subscription.customer.email
+      }
+      
+      if (customerEmail) {
+        logPaddleOperation('从订阅数据中获取到客户邮箱', { customerEmail })
+        
+        // 通过邮箱查找用户
+        user = await prismaClient.user.findUnique({
+          where: { email: customerEmail }
+        })
+        
+        if (user) {
+          logPaddleOperation('通过邮箱找到用户', { 
+            userId: user.id, 
+            email: customerEmail 
+          })
+          
+          // 更新用户的Paddle客户ID
+          await prismaClient.user.update({
+            where: { id: user.id },
+            data: { paddleCustomerId: customerId }
+          })
+          
+          logPaddleOperation('已更新用户的Paddle客户ID', { 
+            userId: user.id, 
+            paddleCustomerId: customerId 
+          })
+        }
+      }
+    } catch (error) {
+      logPaddleOperation('获取客户详情失败', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  }
+
+  if (!user) {
+    logPaddleOperation('未找到用户，无法处理订阅创建', { 
+      customerId,
+      subscriptionId 
+    })
     return
   }
 
@@ -349,21 +399,122 @@ async function handleSubscriptionCreated(eventData: any, prismaClient: any) {
 async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
   const subscription = eventData.data
   const subscriptionId = subscription.id
+  const customerId = subscription.customer_id
   const status = subscription.status
 
   logPaddleOperation('处理订阅更新事件', { 
     subscriptionId,
+    customerId,
     status
   })
 
   // 查找订阅记录
-  const subscriptionRecord = await prismaClient.subscription.findUnique({
+  let subscriptionRecord = await prismaClient.subscription.findUnique({
     where: { paddleSubscriptionId: subscriptionId },
     include: { user: true }
   })
 
+  // 如果找不到订阅记录但有客户ID，尝试查找用户并创建订阅记录
+  if (!subscriptionRecord && customerId) {
+    logPaddleOperation('未找到订阅记录，尝试通过客户ID查找用户', { 
+      subscriptionId, 
+      customerId 
+    })
+
+    // 尝试通过客户ID查找用户
+    let user = await prismaClient.user.findFirst({
+      where: { paddleCustomerId: customerId }
+    })
+
+    // 如果通过客户ID找不到用户，尝试通过邮箱查找
+    if (!user) {
+      try {
+        let customerEmail = null
+        
+        // 尝试获取客户详情中的邮箱
+        if (subscription.customer && subscription.customer.email) {
+          customerEmail = subscription.customer.email
+        }
+        
+        if (customerEmail) {
+          logPaddleOperation('从订阅数据中获取到客户邮箱', { customerEmail })
+          
+          // 通过邮箱查找用户
+          user = await prismaClient.user.findUnique({
+            where: { email: customerEmail }
+          })
+          
+          if (user) {
+            logPaddleOperation('通过邮箱找到用户', { 
+              userId: user.id, 
+              email: customerEmail 
+            })
+            
+            // 更新用户的Paddle客户ID
+            await prismaClient.user.update({
+              where: { id: user.id },
+              data: { paddleCustomerId: customerId }
+            })
+            
+            logPaddleOperation('已更新用户的Paddle客户ID', { 
+              userId: user.id, 
+              paddleCustomerId: customerId 
+            })
+          }
+        }
+      } catch (error) {
+        logPaddleOperation('获取客户详情失败', { 
+          error: error instanceof Error ? error.message : String(error) 
+        })
+      }
+    }
+
+    // 如果找到用户，创建新的订阅记录
+    if (user) {
+      try {
+        logPaddleOperation('找到用户，创建新的订阅记录', { 
+          userId: user.id, 
+          subscriptionId 
+        })
+        
+        // 创建新的订阅记录
+        const newSubscription = await prismaClient.subscription.create({
+          data: {
+            userId: user.id,
+            paddleSubscriptionId: subscriptionId,
+            status: status,
+            planType: 'monthly',
+            priceId: subscription.items[0]?.price.id || '',
+            startedAt: subscription.current_billing_period?.starts_at 
+              ? new Date(subscription.current_billing_period.starts_at) 
+              : new Date(),
+            nextBillingAt: subscription.current_billing_period?.ends_at
+              ? new Date(subscription.current_billing_period.ends_at)
+              : null,
+            metadata: subscription
+          },
+          include: { user: true }
+        })
+        
+        // 更新订阅记录变量，以便后续处理
+        subscriptionRecord = newSubscription
+        
+        logPaddleOperation('成功创建新的订阅记录', { 
+          subscriptionId,
+          userId: user.id
+        })
+      } catch (error) {
+        logPaddleOperation('创建订阅记录失败', { 
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+          subscriptionId
+        })
+      }
+    }
+  }
+
   if (!subscriptionRecord) {
-    logPaddleOperation('未找到订阅记录', { subscriptionId })
+    logPaddleOperation('未找到订阅记录，无法处理订阅更新', { subscriptionId })
     return
   }
 
@@ -417,17 +568,64 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
 async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
   const subscription = eventData.data
   const subscriptionId = subscription.id
+  const customerId = subscription.customer_id
 
-  logPaddleOperation('处理订阅取消事件', { subscriptionId })
+  logPaddleOperation('处理订阅取消事件', { 
+    subscriptionId,
+    customerId
+  })
 
   // 查找订阅记录
-  const subscriptionRecord = await prismaClient.subscription.findUnique({
+  let subscriptionRecord = await prismaClient.subscription.findUnique({
     where: { paddleSubscriptionId: subscriptionId },
     include: { user: true }
   })
 
+  // 如果找不到订阅记录但有客户ID，尝试查找用户
+  if (!subscriptionRecord && customerId) {
+    logPaddleOperation('未找到订阅记录，尝试通过客户ID查找用户', { 
+      subscriptionId, 
+      customerId 
+    })
+
+    // 尝试通过客户ID查找用户
+    const user = await prismaClient.user.findFirst({
+      where: { paddleCustomerId: customerId }
+    })
+
+    if (user) {
+      logPaddleOperation('通过客户ID找到用户，查找该用户的订阅记录', { 
+        userId: user.id, 
+        customerId
+      })
+
+      // 查找该用户的所有订阅记录
+      const userSubscriptions = await prismaClient.subscription.findMany({
+        where: { 
+          userId: user.id,
+          status: { in: ['active', 'past_due'] }
+        },
+        orderBy: { startedAt: 'desc' },
+        include: { user: true }
+      })
+
+      if (userSubscriptions.length > 0) {
+        logPaddleOperation('找到用户的活跃订阅', { 
+          userId: user.id, 
+          subscriptionCount: userSubscriptions.length 
+        })
+        
+        // 使用第一个（最新的）订阅记录
+        subscriptionRecord = userSubscriptions[0]
+      }
+    }
+  }
+
   if (!subscriptionRecord) {
-    logPaddleOperation('未找到订阅记录', { subscriptionId })
+    logPaddleOperation('未找到订阅记录，无法处理订阅取消', { 
+      subscriptionId,
+      customerId 
+    })
     return
   }
 
@@ -450,7 +648,7 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     data: {
       vipExpiresAt: subscription.current_billing_period?.ends_at
         ? new Date(subscription.current_billing_period.ends_at)
-        : new Date(),
+        : null,
       paddleSubscriptionStatus: 'canceled'
     }
   })
@@ -474,17 +672,69 @@ async function handleTransactionCompleted(eventData: any, prismaClient: any) {
     status
   })
   
-  // 查找用户
-  const user = await prismaClient.user.findFirst({
+  // 尝试通过客户ID查找用户
+  let user = await prismaClient.user.findFirst({
     where: { paddleCustomerId: customerId }
   })
 
+  // 如果通过客户ID找不到用户，尝试获取客户详情并通过邮箱查找
   if (!user) {
-    logPaddleOperation('未找到用户', { customerId })
+    // 记录未找到用户信息
+    logPaddleOperation('通过Paddle客户ID未找到用户，尝试获取客户详情', { customerId })
+    
+    // 尝试从交易数据中获取客户信息
+    try {
+      let customerEmail = null
+      
+      // 从交易数据中获取客户邮箱
+      if (transaction.customer && transaction.customer.email) {
+        customerEmail = transaction.customer.email
+      } else if (transaction.billing_details && transaction.billing_details.email) {
+        customerEmail = transaction.billing_details.email
+      }
+      
+      if (customerEmail) {
+        logPaddleOperation('从交易数据中获取到客户邮箱', { customerEmail })
+        
+        // 通过邮箱查找用户
+        user = await prismaClient.user.findUnique({
+          where: { email: customerEmail }
+        })
+        
+        if (user) {
+          logPaddleOperation('通过邮箱找到用户', { 
+            userId: user.id, 
+            email: customerEmail 
+          })
+          
+          // 更新用户的Paddle客户ID
+          await prismaClient.user.update({
+            where: { id: user.id },
+            data: { paddleCustomerId: customerId }
+          })
+          
+          logPaddleOperation('已更新用户的Paddle客户ID', { 
+            userId: user.id, 
+            paddleCustomerId: customerId 
+          })
+        }
+      }
+    } catch (error) {
+      logPaddleOperation('获取客户详情失败', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+    }
+  }
+
+  if (!user) {
+    logPaddleOperation('未找到用户，无法处理交易', { 
+      customerId,
+      transactionId
+    })
     return
   }
 
-  logPaddleOperation('找到用户', {
+  logPaddleOperation('找到用户，处理交易', {
     userId: user.id,
     email: user.email,
     currentCredits: user.credits
