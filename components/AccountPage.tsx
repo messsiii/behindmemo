@@ -70,6 +70,8 @@ interface Subscription {
   nextBillingAt: string | null
   canceledAt: string | null
   endedAt: string | null
+  paddleSubscriptionStatus?: string
+  metadata?: any
 }
 
 interface UsageRecord {
@@ -339,7 +341,8 @@ export default function AccountPage() {
   // 获取订阅信息
   const { data: subscription, mutate: mutateSubscription } = useSWR<Subscription | null>(
     mounted && session?.user?.id ? '/api/user/subscription' : null,
-    fetcher('/api/user/subscription', language)
+    fetcher('/api/user/subscription', language),
+    { refreshInterval: 30000 } // 每30秒自动刷新一次
   )
 
   // 获取使用记录
@@ -433,14 +436,15 @@ export default function AccountPage() {
   }
 
   // 格式化日期
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
     return date.toLocaleDateString(language === 'en' ? 'en-US' : 'zh-CN', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    })
-  }
+    });
+  };
 
   // 修改取消订阅的处理函数
   const handleCancelSubscription = async () => {
@@ -788,22 +792,23 @@ export default function AccountPage() {
                               <p className="text-sm text-gray-500">{t.startDate}</p>
                               <p className="font-medium">{formatDate(subscription.startedAt)}</p>
                             </div>
-                            {subscription.nextBillingAt && (
-                              <div className="p-4 rounded-lg border border-gray-100 bg-gray-50/60 hover:bg-white hover:shadow-sm transition-all duration-300">
-                                <p className="text-sm text-gray-500">{t.nextBilling}</p>
-                                <p className="font-medium">
-                                  {subscription.canceledAt ? (
-                                    <span className="text-amber-500">{t.cancelled}</span>
-                                  ) : (
-                                    formatDate(subscription.nextBillingAt)
-                                  )}
-                                </p>
-                              </div>
-                            )}
+                            <div className="p-4 rounded-lg border border-gray-100 bg-gray-50/60 hover:bg-white hover:shadow-sm transition-all duration-300">
+                              <p className="text-sm text-gray-500">{t.nextBilling}</p>
+                              <p className="font-medium">
+                                {subscription.canceledAt || 
+                                 (subscription.metadata?.scheduled_change && subscription.metadata.scheduled_change.action === 'cancel') ? (
+                                  <span className="text-amber-500">{t.cancelled}</span>
+                                ) : (
+                                  formatDate(subscription.nextBillingAt)
+                                )}
+                              </p>
+                            </div>
                           </div>
                           
                           {/* 修改订阅取消按钮 */}
-                          {subscription.status === 'active' && !subscription.canceledAt && (
+                          {subscription.status === 'active' && 
+                           !subscription.canceledAt && 
+                           !(subscription.metadata?.scheduled_change && subscription.metadata.scheduled_change.action === 'cancel') && (
                             <div className="mt-6 flex justify-end">
                               <Button 
                                 variant="outline" 
@@ -824,7 +829,9 @@ export default function AccountPage() {
                           )}
 
                           {/* 添加恢复订阅按钮 */}
-                          {subscription.status === 'active' && subscription.canceledAt && (
+                          {subscription.status === 'active' && 
+                           (subscription.canceledAt || 
+                            (subscription.metadata?.scheduled_change && subscription.metadata.scheduled_change.action === 'cancel')) && (
                             <div className="mt-6 flex justify-end">
                               <Button 
                                 variant="outline" 

@@ -35,6 +35,7 @@ export async function GET() {
         nextBillingAt: true,
         canceledAt: true,
         endedAt: true,
+        metadata: true
       }
     })
     
