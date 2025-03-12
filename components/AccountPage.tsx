@@ -349,8 +349,52 @@ export default function AccountPage() {
   )
 
   // 处理升级为 VIP
-  const handleUpgradeToVIP = () => {
+  const handleUpgradeToVIP = async () => {
     try {
+      // 显示加载状态
+      const loadingToast = toast({
+        title: language === 'en' ? 'Checking subscription status' : '正在检查订阅状态',
+        description: language === 'en' 
+          ? 'Please wait...' 
+          : '请稍候...',
+      })
+      
+      // 先检查是否已有订阅
+      const response = await fetch('/api/user/check-subscription-status')
+      
+      // 关闭加载提示
+      loadingToast.dismiss()
+      
+      if (!response.ok) {
+        throw new Error(language === 'en' 
+          ? 'Failed to check subscription status' 
+          : '检查订阅状态失败'
+        )
+      }
+      
+      const data = await response.json()
+      
+      if (data.hasActiveSubscription) {
+        // 用户已有订阅，显示提示
+        toast({
+          title: language === 'en' ? 'Subscription exists' : '已有订阅',
+          description: language === 'en' 
+            ? data.source === 'paddle' 
+                ? 'We found your subscription in Paddle and synced it to your account.' 
+                : 'You already have an active subscription.'
+            : data.source === 'paddle' 
+                ? '我们在 Paddle 发现了您的订阅并已同步到您的账户。' 
+                : '您已有活跃的订阅。',
+        })
+        
+        // 刷新页面显示最新状态
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+        
+        return
+      }
+      
       // 检查 Paddle 是否已加载
       if (!window.Paddle || !window.Paddle.Checkout) {
         throw new Error(language === 'en' 
@@ -359,6 +403,7 @@ export default function AccountPage() {
         )
       }
       
+      // 继续正常的订阅流程
       openSubscriptionCheckout()
       
       // 显示提示信息

@@ -10,10 +10,10 @@ declare global {
 import PaddleScript from '@/components/PaddleScript';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription, DialogHeader,
-  DialogTitle
+    Dialog,
+    DialogContent,
+    DialogDescription, DialogHeader,
+    DialogTitle
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -1982,13 +1982,57 @@ export default function ResultsPage({ id }: { id: string }) {
             <div className="grid grid-cols-1 gap-4">
               <Button 
                 type="button" 
-                onClick={() => {
+                onClick={async () => {
                   setShowVipPrompt(false);
                   
                   try {
+                    // 显示加载状态
+                    const loadingToast = toast({
+                      title: language === 'en' ? 'Checking subscription status' : '正在检查订阅状态',
+                      description: language === 'en' ? 'Please wait...' : '请稍候...',
+                    });
+                    
+                    // 先检查用户是否已有订阅
+                    const response = await fetch('/api/user/check-subscription-status');
+                    
+                    // 关闭加载提示
+                    loadingToast.dismiss();
+                    
+                    if (!response.ok) {
+                      throw new Error(language === 'en' 
+                        ? 'Failed to check subscription status' 
+                        : '检查订阅状态失败'
+                      );
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.hasActiveSubscription) {
+                      // 用户已有订阅，显示提示
+                      toast({
+                        title: language === 'en' ? 'Subscription exists' : '已有订阅',
+                        description: language === 'en' 
+                          ? data.source === 'paddle' 
+                              ? 'We found your subscription in Paddle and synced it to your account.' 
+                              : 'You already have an active subscription.'
+                          : data.source === 'paddle' 
+                              ? '我们在 Paddle 发现了您的订阅并已同步到您的账户。' 
+                              : '您已有活跃的订阅。',
+                      });
+                      
+                      // 如果是从 Paddle 同步的，刷新页面以显示更新后的状态
+                      if (data.source === 'paddle' && data.synced) {
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 2000);
+                      }
+                      
+                      return;
+                    }
+                    
                     // 检查 Paddle 是否已加载
                     if (!window.Paddle || !window.Paddle.Checkout) {
-                      throw new Error('Payment system is not available. Please try again later.')
+                      throw new Error('Payment system is not available. Please try again later.');
                     }
                     
                     // 直接唤起支付页面

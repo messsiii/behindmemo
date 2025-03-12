@@ -6,44 +6,56 @@ import { NextRequest, NextResponse } from 'next/server'
 // 验证Webhook签名
 const verifyWebhookSignature = (
   payload: string,
-  signature: string,
+  signatureHeader: string,
   secret: string
 ): boolean => {
   try {
-    // 检查必要参数
-    if (!payload || !signature || !secret) {
+    if (!payload || !signatureHeader || !secret) {
       console.error('缺少必要参数:', {
         hasPayload: !!payload,
-        hasSignature: !!signature,
+        hasSignature: !!signatureHeader,
         hasSecret: !!secret
       })
       return false
     }
-
-    // 检查签名格式
-    if (!signature.match(/^[a-f0-9]{64}$/i)) {
-      console.error('签名格式不匹配预期的SHA-256格式')
-      return false
+    
+    // 记录详细信息以便调试
+    console.log('验证签名 - 原始签名头:', signatureHeader)
+    console.log('签名密钥长度:', secret.length)
+    
+    // 如果签名头包含时间戳格式（t=timestamp,s=signature）
+    let signature = signatureHeader
+    if (signatureHeader.includes(',s=')) {
+      const matches = signatureHeader.match(/s=([a-zA-Z0-9]+)/)
+      if (matches && matches[1]) {
+        signature = matches[1]
+      }
     }
-
+    
+    console.log('提取的签名值:', signature)
+    
     // 计算HMAC签名
     const hmac = crypto.createHmac('sha256', secret)
-    const digest = hmac.update(payload).digest('hex')
+    const calculatedSignature = hmac.update(payload).digest('hex')
+    
+    console.log('计算的签名值前10位:', calculatedSignature.substring(0, 10))
+    
+    // 不区分大小写比较
+    const isValid = signature.toLowerCase() === calculatedSignature.toLowerCase()
     
     logPaddleOperation('签名验证详情', {
-      expectedSignature: signature.substring(0, 10) + '...',
-      calculatedSignature: digest.substring(0, 10) + '...',
+      receivedSignature: signature.substring(0, 10) + '...',
+      calculatedSignature: calculatedSignature.substring(0, 10) + '...',
+      signatureLength: signature.length,
+      digestLength: calculatedSignature.length,
       payloadLength: payload.length,
-      secretLength: secret.length
+      secretLength: secret.length,
+      isValid: isValid
     })
     
-    // 使用常量时间比较防止时间攻击
-    return crypto.timingSafeEqual(
-      Buffer.from(digest, 'hex'),
-      Buffer.from(signature, 'hex')
-    )
+    return isValid
   } catch (error) {
-    console.error('签名验证错误:', error)
+    console.error('签名验证过程出错:', error)
     return false
   }
 }
@@ -58,13 +70,13 @@ export async function POST(req: NextRequest) {
 
   try {
     payload = await req.text()
-    const signature = req.headers.get('Paddle-Signature') || ''
+    const signatureHeader = req.headers.get('Paddle-Signature') || ''
     const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET || ''
 
     logPaddleOperation('收到Paddle webhook请求', {
       url: req.url,
       method: req.method,
-      signature: signature ? (signature.substring(0, 10) + '...') : 'missing',
+      signature: signatureHeader ? (signatureHeader.substring(0, 10) + '...') : 'missing',
       hasWebhookSecret: !!webhookSecret,
       contentType: req.headers.get('content-type'),
       payloadLength: payload.length,
@@ -112,7 +124,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 验证签名 - 生产环境下必须验证
-    const isValidSignature = verifyWebhookSignature(payload, signature, webhookSecret)
+    const isValidSignature = verifyWebhookSignature(payload, signatureHeader, webhookSecret)
     logPaddleOperation('签名验证结果', { isValid: isValidSignature })
 
     if (!isValidSignature) {

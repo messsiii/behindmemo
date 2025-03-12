@@ -443,6 +443,52 @@ export default function Pricing() {
   const handleSubscribe = async () => {
     try {
       setIsLoading(true)
+      
+      // 显示加载状态
+      const loadingToast = toast({
+        title: language === 'en' ? 'Checking subscription status' : '正在检查订阅状态',
+        description: language === 'en' ? 'Please wait...' : '请稍候...',
+      });
+      
+      // 先检查用户是否已有订阅
+      const response = await fetch('/api/user/check-subscription-status');
+      
+      // 关闭加载提示
+      loadingToast.dismiss();
+      
+      if (!response.ok) {
+        throw new Error(language === 'en' 
+          ? 'Failed to check subscription status' 
+          : '检查订阅状态失败'
+        );
+      }
+      
+      const data = await response.json();
+      
+      if (data.hasActiveSubscription) {
+        // 用户已有订阅，显示提示
+        toast({
+          title: language === 'en' ? 'Subscription exists' : '已有订阅',
+          description: language === 'en' 
+            ? data.source === 'paddle' 
+                ? 'We found your subscription in Paddle and synced it to your account.' 
+                : 'You already have an active subscription.'
+            : data.source === 'paddle' 
+                ? '我们在 Paddle 发现了您的订阅并已同步到您的账户。' 
+                : '您已有活跃的订阅。',
+        });
+        
+        // 如果是从 Paddle 同步的，刷新页面以显示更新后的状态
+        if (data.source === 'paddle' && data.synced) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        }
+        
+        return;
+      }
+      
+      // 没有活跃订阅，继续开启订阅流程
       await openSubscriptionCheckout()
     } catch (error) {
       console.error('订阅支付失败:', error)
@@ -450,8 +496,8 @@ export default function Pricing() {
       toast({
         title: language === 'en' ? 'Error' : '错误',
         description: language === 'en' 
-          ? 'Payment system is not ready. Please try again in a moment.' 
-          : '支付系统尚未准备就绪，请稍后再试。',
+          ? (error instanceof Error ? error.message : 'Payment system is not ready. Please try again in a moment.')
+          : (error instanceof Error ? error.message : '支付系统尚未准备就绪，请稍后再试。'),
         variant: 'destructive'
       })
     } finally {

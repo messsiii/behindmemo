@@ -94,10 +94,45 @@ export function UnlockTemplateDialog({
   const currentLang = language === 'en' ? 'en' : 'zh'
   
   // 直接在页面上唤起付费窗口
-  const handleUpgradeClick = () => {
+  const handleUpgradeClick = async () => {
     setIsUpgrading(true)
     
     try {
+      // 先检查用户是否已有订阅
+      const response = await fetch('/api/user/check-subscription-status')
+      
+      if (!response.ok) {
+        throw new Error('Failed to check subscription status')
+      }
+      
+      const data = await response.json()
+      
+      if (data.hasActiveSubscription) {
+        // 用户已有订阅，显示提示
+        toast({
+          title: currentLang === 'en' ? 'Subscription exists' : '已有订阅',
+          description: currentLang === 'en' 
+            ? data.source === 'paddle' 
+                ? 'We found your subscription in Paddle and synced it to your account.' 
+                : 'You already have an active subscription.'
+            : data.source === 'paddle' 
+                ? '我们在 Paddle 发现了您的订阅并已同步到您的账户。' 
+                : '您已有活跃的订阅。',
+        })
+        
+        // 关闭对话框
+        onClose()
+        
+        // 如果是从 Paddle 同步的，触发页面刷新
+        if (data.source === 'paddle' && data.synced) {
+          setTimeout(() => {
+            window.location.reload()
+          }, 2000)
+        }
+        
+        return
+      }
+      
       // 检查 Paddle 是否已加载
       if (!window.Paddle || !window.Paddle.Checkout) {
         throw new Error('Payment system is not available. Please try again later.')
@@ -130,12 +165,9 @@ export function UnlockTemplateDialog({
           : '打开支付窗口失败，请刷新页面重试。',
         variant: 'destructive'
       })
-      setIsUpgrading(false)
     } finally {
       // 即使发生错误也停止loading状态
-      setTimeout(() => {
-        setIsUpgrading(false)
-      }, 2000)
+      setIsUpgrading(false)
     }
   }
 

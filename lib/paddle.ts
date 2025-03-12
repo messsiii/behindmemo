@@ -2,6 +2,14 @@
 import axios from 'axios';
 import { getSession } from 'next-auth/react';
 
+// 为Window添加自定义属性类型
+declare global {
+  interface Window {
+    Paddle: any;
+    pendingCheckout?: boolean;
+  }
+}
+
 // 定义价格ID类型
 export type PriceId = string;
 
@@ -75,7 +83,7 @@ export async function openSubscriptionCheckout() {
   const priceId = process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID
   if (!priceId) {
     console.error('缺少订阅价格ID')
-    return
+    throw new Error('订阅价格ID未配置，请联系管理员')
   }
   
   try {
@@ -122,7 +130,29 @@ export async function openSubscriptionCheckout() {
     }
 
     console.log('打开订阅结账:', checkoutConfig)
-    window.Paddle.Checkout.open(checkoutConfig)
+    
+    // 防止重复点击
+    if (window.pendingCheckout) {
+      console.log('已有结账流程正在进行，忽略此次请求')
+      return
+    }
+    
+    window.pendingCheckout = true
+    
+    // 设置超时，防止卡死
+    setTimeout(() => {
+      window.pendingCheckout = false
+    }, 30000) // 30秒后重置
+    
+    try {
+      await window.Paddle.Checkout.open(checkoutConfig)
+      
+      // 触发自定义事件，通知组件检查状态更新
+      const event = new CustomEvent('subscription:initiated')
+      window.dispatchEvent(event)
+    } finally {
+      window.pendingCheckout = false
+    }
   } catch (error) {
     console.error('打开订阅结账失败:', error)
     // 重新抛出错误，以便调用者可以处理
@@ -232,6 +262,35 @@ export class PaddleClient {
    */
   getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  /**
+   * 获取客户的所有订阅
+   * @param customerId Paddle客户ID
+   * @returns 包含客户订阅信息的响应
+   */
+  async getCustomerSubscriptions(customerId: string) {
+    try {
+      if (!this.apiKey) {
+        throw new Error('缺少Paddle API密钥配置，请检查环境变量');
+      }
+      
+      const url = `${this.baseUrl}/customers/${customerId}/subscriptions`;
+      console.log(`获取客户订阅信息: ${customerId}`);
+      console.log(`API URL: ${url}`);
+      
+      const headers = {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await axios.get(url, { headers });
+      console.log('Paddle API响应成功:', response.status);
+      return response.data;
+    } catch (error) {
+      console.error('获取客户订阅信息失败:', error);
+      throw error;
+    }
   }
 
   /**
