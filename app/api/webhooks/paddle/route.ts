@@ -650,27 +650,21 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     paddleSubscriptionStatus: status,
   }
 
-  // 尝试在用户模型中添加计划取消的标记
-  try {
-    // 检查是否可以添加subscriptionCancellationScheduled字段
-    if (hasScheduledCancel) {
-      userUpdateData.subscriptionCancellationScheduled = true
-    } else if (status === 'active' && !canceledAt) {
-      userUpdateData.subscriptionCancellationScheduled = false
-    }
-  } catch (error) {
-    // 如果出错，忽略这个字段的设置，稍后会处理
-    logPaddleOperation('尝试添加字段时出错，忽略subscriptionCancellationScheduled字段', {
-      error: error instanceof Error ? error.message : String(error)
-    })
-  }
-
   // 处理不同状态的VIP权限
   if (status === 'active') {
     // 活跃状态 - 即使是下一周期取消，也保持VIP状态直到周期结束
     userUpdateData.isVIP = true
     if (subscription.current_billing_period?.ends_at) {
       userUpdateData.vipExpiresAt = new Date(subscription.current_billing_period.ends_at)
+    }
+    
+    // 关键改动：使用paddleSubscriptionStatus字段存储计划取消信息
+    // 使用 "active_canceling" 状态表示活跃但已计划取消
+    if (hasScheduledCancel) {
+      userUpdateData.paddleSubscriptionStatus = "active_canceling"
+      logPaddleOperation('设置用户订阅状态为active_canceling以表示计划取消', {
+        userId: subscriptionRecord.userId
+      })
     }
     
     logPaddleOperation('订阅活跃' + (hasScheduledCancel ? '（已计划取消）' : ''), { 
@@ -699,6 +693,8 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
       // 下一周期取消 - 保留VIP直到当前计费周期结束
       if (billingPeriodEndsDate) {
         userUpdateData.vipExpiresAt = billingPeriodEndsDate
+        // 使用特殊状态表示取消但保留VIP状态直到计费周期结束
+        userUpdateData.paddleSubscriptionStatus = "canceled_end_of_term"
         logPaddleOperation('订阅将在周期结束后取消，VIP状态保留至计费周期结束', { 
           userId: subscriptionRecord.userId,
           expiresAt: userUpdateData.vipExpiresAt.toISOString()
@@ -726,20 +722,27 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     logPaddleOperation('用户订阅状态已更新', {
       userId: subscriptionRecord.userId,
       isVIP: userUpdateData.isVIP,
-      paddleSubscriptionStatus: status
+      paddleSubscriptionStatus: userUpdateData.paddleSubscriptionStatus || status
     })
   } catch (error) {
-    // 如果字段不存在，捕获错误并记录
-    logPaddleOperation('用户订阅状态更新失败 - 可能缺少subscriptionCancellationScheduled字段', {
+    logPaddleOperation('用户订阅状态更新失败', {
       error: error instanceof Error ? error.message : String(error),
       userId: subscriptionRecord.userId
     })
     
-    // 移除可能不存在的字段，重试更新
-    delete userUpdateData.subscriptionCancellationScheduled;
+    // 如果出错，确保至少更新基本的VIP信息
     await prismaClient.user.update({
       where: { id: subscriptionRecord.userId },
-      data: userUpdateData
+      data: {
+        isVIP: userUpdateData.isVIP !== undefined ? userUpdateData.isVIP : true,
+        vipExpiresAt: userUpdateData.vipExpiresAt,
+        paddleSubscriptionStatus: status // 如果自定义状态失败，回退到标准状态
+      }
+    })
+    
+    logPaddleOperation('已使用基本信息更新用户订阅状态', {
+      userId: subscriptionRecord.userId,
+      isVIP: userUpdateData.isVIP !== undefined ? userUpdateData.isVIP : true
     })
   }
   
@@ -898,7 +901,7 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
 
   // 确定用户更新内容
   const userUpdateData: any = {
-    paddleSubscriptionStatus: 'canceled',
+    paddleSubscriptionStatus: isImmediateCancellation ? 'canceled' : 'canceled_end_of_term',
   }
   
   // 设置VIP状态
@@ -935,20 +938,22 @@ async function handleSubscriptionCanceled(eventData: any, prismaClient: any) {
     logPaddleOperation('用户订阅状态已更新', {
       userId: subscriptionRecord.userId,
       isVIP: userUpdateData.isVIP,
-      paddleSubscriptionStatus: 'canceled'
+      paddleSubscriptionStatus: userUpdateData.paddleSubscriptionStatus
     })
   } catch (error) {
-    // 如果字段不存在，捕获错误并记录
-    logPaddleOperation('用户订阅状态更新失败 - 可能缺少subscriptionCancellationScheduled字段', {
+    logPaddleOperation('用户订阅状态更新失败', {
       error: error instanceof Error ? error.message : String(error),
       userId: subscriptionRecord.userId
     })
     
-    // 移除可能不存在的字段，重试更新
-    delete userUpdateData.subscriptionCancellationScheduled;
+    // 如果出错，确保至少更新基本的VIP信息
     await prismaClient.user.update({
       where: { id: subscriptionRecord.userId },
-      data: userUpdateData
+      data: {
+        isVIP: userUpdateData.isVIP,
+        vipExpiresAt: userUpdateData.vipExpiresAt,
+        paddleSubscriptionStatus: 'canceled' // 简化的状态
+      }
     })
   }
   
