@@ -10,8 +10,8 @@ import { useEffect, useState } from 'react'
 export default function SignIn() {
   const { language } = useLanguage()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/write'
-  const error = searchParams.get('error')
+  const callbackUrl = searchParams?.get('callbackUrl') || '/write'
+  const error = searchParams?.get('error')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {

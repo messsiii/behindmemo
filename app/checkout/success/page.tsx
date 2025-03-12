@@ -55,7 +55,7 @@ export default function CheckoutSuccess() {
         console.log('检查交易ID')
         
         // 检查URL参数中是否有交易ID，且尚未验证过
-        const transactionId = searchParams.get('transaction_id')
+        const transactionId = searchParams?.get('transaction_id')
         if (transactionId && !hasVerified) {
           setIsVerifying(true)
           setVerificationError('')
