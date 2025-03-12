@@ -558,9 +558,24 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
 
   // 处理下一次计费日期
   if (subscription.current_billing_period?.ends_at) {
-    subscriptionUpdateData.nextBillingAt = hasScheduledCancel ? null : 
-      (subscription.next_billed_at ? new Date(subscription.next_billed_at) : 
-      new Date(subscription.current_billing_period.ends_at))
+    // 重要变更：即使在计划取消的情况下，也保留nextBillingAt字段
+    // 这样前端可以显示"已取消"而不是完全不显示任何内容
+    if (hasScheduledCancel) {
+      // 对于计划取消的情况，我们设置nextBillingAt为计费周期结束日期
+      // 这样前端可以根据订阅metadata中的scheduled_change字段判断它是"已计划取消"
+      subscriptionUpdateData.nextBillingAt = new Date(subscription.current_billing_period.ends_at)
+      
+      logPaddleOperation('设置计划取消订阅的nextBillingAt', {
+        nextBillingAt: subscriptionUpdateData.nextBillingAt.toISOString(),
+        reason: '保留下次计费日期以便前端显示为已取消'
+      })
+    } else if (subscription.next_billed_at) {
+      // 正常的下次计费日期
+      subscriptionUpdateData.nextBillingAt = new Date(subscription.next_billed_at)
+    } else {
+      // 没有提供下次计费日期，使用当前计费周期结束日期作为备选
+      subscriptionUpdateData.nextBillingAt = new Date(subscription.current_billing_period.ends_at)
+    }
   }
 
   // 处理取消状态
@@ -580,6 +595,9 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
 
     if (isImmediateCancellation) {
       subscriptionUpdateData.endedAt = currentDate
+      // 对于立即取消的情况，我们可以将nextBillingAt设置为null
+      subscriptionUpdateData.nextBillingAt = null
+      
       logPaddleOperation('检测到立即取消订阅', { 
         subscriptionId,
         userId: subscriptionRecord.userId,
@@ -598,7 +616,6 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
     }
   } else if (hasScheduledCancel) {
     // 处理下一周期取消情况 (scheduled_change)
-    // 我们不使用scheduledCancelAt字段，因为它不存在于Prisma模型中
     // 相关信息已经存储在metadata中的scheduled_change字段里
     
     // 设置结束日期为计划取消的生效日期
@@ -612,7 +629,8 @@ async function handleSubscriptionUpdated(eventData: any, prismaClient: any) {
       subscriptionId,
       userId: subscriptionRecord.userId,
       scheduledCancelDate: scheduledCancelDate || '未知',
-      currentBillingPeriodEnds: subscription.current_billing_period?.ends_at || '未知'
+      currentBillingPeriodEnds: subscription.current_billing_period?.ends_at || '未知',
+      nextBillingAt: subscriptionUpdateData.nextBillingAt.toISOString()
     })
   } else if (status === 'active' && (subscriptionRecord.canceledAt)) {
     // 如果订阅重新激活，但之前有取消日期，则清除这些字段
