@@ -32,7 +32,15 @@ export async function POST() {
       where: {
         userId: user.id,
         status: 'active',
-        canceledAt: { not: null },
+        OR: [
+          { canceledAt: { not: null } },
+          {
+            metadata: {
+              path: ['scheduled_change', 'action'],
+              equals: 'cancel'
+            }
+          }
+        ]
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -52,7 +60,22 @@ export async function POST() {
       // 调用Paddle API恢复订阅
       console.log(`尝试恢复订阅: ${subscription.paddleSubscriptionId}`);
       
-      // 根据Paddle API文档，恢复订阅可能需要PATCH请求来更新订阅状态
+      // 检查是通过canceledAt还是scheduled_change取消的
+      const metadata = subscription.metadata as any;
+      const isScheduledCancel = !subscription.canceledAt && 
+                               metadata?.scheduled_change?.action === 'cancel';
+      
+      console.log(`订阅取消类型: ${isScheduledCancel ? '下个周期取消' : '立即取消'}`);
+      
+      // 构建请求体
+      const requestBody: any = {};
+      
+      // 如果是scheduled_change取消，则移除scheduled_change
+      if (isScheduledCancel) {
+        requestBody.scheduled_change = null;
+      }
+      
+      // 发送请求到Paddle API
       const response = await fetch(
         `${paddleClient.getBaseUrl()}/subscriptions/${subscription.paddleSubscriptionId}`, 
         {
@@ -61,14 +84,17 @@ export async function POST() {
             'Authorization': `Bearer ${process.env.PADDLE_API_KEY}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            scheduled_change: null  // 移除计划的更改
-          })
+          body: JSON.stringify(requestBody)
         }
       );
       
       if (!response.ok) {
         const errorData = await response.text();
+        console.error(`Paddle API恢复订阅错误:`, {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorData
+        });
         throw new Error(`Paddle API错误: ${response.status} ${errorData}`);
       }
       
@@ -83,7 +109,7 @@ export async function POST() {
           data: {
             canceledAt: null,
             endedAt: null,
-            // 更多字段更新可以根据 Paddle API 响应数据添加
+            metadata: responseData.data  // 使用Paddle返回的最新元数据更新本地记录
           }
         });
         
