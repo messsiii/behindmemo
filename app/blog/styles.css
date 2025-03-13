@@ -1,0 +1,136 @@
+/* 博客统一样式 */
+
+/* 主要文本样式 */
+.blog-content {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #333;
+  line-height: 1.8;
+}
+
+/* 段落样式 */
+.blog-content p {
+  margin-bottom: 1.5rem;
+  font-size: 1.125rem;
+  line-height: 1.8;
+}
+
+/* 标题样式 */
+.blog-content h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.3;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-content h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.4;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-content h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 强调文本 */
+.blog-content em {
+  font-style: italic;
+}
+
+.blog-content em.highlight {
+  font-style: normal;
+  font-weight: 600;
+  color: #3b82f6;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 列表样式 */
+.blog-content ul, .blog-content ol {
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.blog-content li {
+  margin-bottom: 0.5rem;
+  line-height: 1.7;
+}
+
+/* 链接样式 */
+.blog-content a {
+  color: #3b82f6;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-content a:hover {
+  text-decoration: underline;
+}
+
+/* 引用样式 */
+.blog-content blockquote {
+  border-left: 4px solid #3b82f6;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: #4b5563;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 图片容器 */
+.blog-content .image-container {
+  margin: 2rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* 文章元数据 */
+.blog-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 文章标题 */
+.blog-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  color: #111827;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@media (max-width: 768px) {
+  .blog-title {
+    font-size: 2rem;
+  }
+  
+  .blog-content h1 {
+    font-size: 2rem;
+  }
+  
+  .blog-content h2 {
+    font-size: 1.75rem;
+  }
+  
+  .blog-content h3 {
+    font-size: 1.5rem;
+  }
+} 
