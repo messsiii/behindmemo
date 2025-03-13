@@ -32,6 +32,7 @@ export function Nav() {
     { href: status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
     ...(status === 'authenticated' ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }] : []),
     { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
+    { href: '/blog', label: language === 'en' ? 'Blog' : '博客' },
   ]
 
   // 在客户端渲染前返回一个占位内容
@@ -44,6 +45,7 @@ export function Nav() {
               <span className="hidden font-bold sm:inline-block">Behind Memory</span>
             </Link>
             <nav className="flex items-center space-x-6 text-sm font-medium">
+              <div className="h-4 w-12 animate-pulse bg-muted rounded" />
               <div className="h-4 w-12 animate-pulse bg-muted rounded" />
               <div className="h-4 w-12 animate-pulse bg-muted rounded" />
               <div className="h-4 w-12 animate-pulse bg-muted rounded" />
