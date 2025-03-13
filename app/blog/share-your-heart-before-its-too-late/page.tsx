@@ -12,7 +12,7 @@ import { FaInstagram, FaPinterestP, FaTelegramPlane, FaTiktok, FaWhatsapp } from
 
 const articleData = {
   title: 'Share Your Heart Before It\'s Too Late: Stop Regretting, Start Expressing',
-  date: '2023-12-15',
+  date: '2025-02-14',
   readTime: '5 min',
   content: {
     en: `

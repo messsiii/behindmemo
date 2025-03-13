@@ -12,7 +12,7 @@ import { FaInstagram, FaPinterestP, FaTelegramPlane, FaTiktok, FaWhatsapp } from
 
 const articleData = {
   title: 'How to Write a Heartfelt Letter to Someone You Love (Even If You\'re Not a Writer)',
-  date: '2024-01-20',
+  date: '2025-03-12',
   readTime: '7 min',
   content: {
     en: `

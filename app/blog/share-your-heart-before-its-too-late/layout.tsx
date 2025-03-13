@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     siteName: 'Behind Memory',
     locale: 'en_US',
     authors: ['Behind Memory'],
-    publishedTime: '2023-12-15T00:00:00Z',
+    publishedTime: '2025-02-14T00:00:00Z',
   },
   twitter: {
     card: 'summary_large_image',
