@@ -2,10 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -86,14 +86,19 @@ export function Nav() {
                   <Link
                     key={href}
                     href={href}
-                    className={`text-sm font-medium transition-colors hover:text-foreground/80 ${
-                      pathname === href 
-                        ? 'font-semibold bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent' 
-                        : 'text-foreground'
-                    }`}
+                    className="text-sm font-medium relative group"
                     onClick={() => setIsOpen(false)}
                   >
-                    {label}
+                    <span className={`absolute inset-0 bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent transition-opacity duration-300 ease-in-out ${
+                      pathname === href ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}>
+                      {label}
+                    </span>
+                    <span className={`transition-opacity duration-300 ease-in-out ${
+                      pathname === href ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+                    }`}>
+                      {label}
+                    </span>
                   </Link>
                 ))}
               </nav>
@@ -111,13 +116,18 @@ export function Nav() {
               <Link
                 key={href}
                 href={href}
-                className={`transition-colors hover:text-foreground/80 relative ${
-                  pathname === href 
-                    ? 'font-semibold bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent' 
-                    : 'text-foreground'
-                }`}
+                className="relative group"
               >
-                {label}
+                <span className={`absolute inset-0 bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent transition-opacity duration-300 ease-in-out ${
+                  pathname === href ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}>
+                  {label}
+                </span>
+                <span className={`transition-opacity duration-300 ease-in-out ${
+                  pathname === href ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+                }`}>
+                  {label}
+                </span>
               </Link>
             ))}
           </nav>
