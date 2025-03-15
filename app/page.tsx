@@ -64,6 +64,12 @@ export default function Home() {
           vimeoPlayer.on('playing', () => {
             setIsPlaying(true)
             setIsLoading(false) // 实际开始播放
+            // 确保视频不是静音的
+            vimeoPlayer.getVolume().then((volume: number) => {
+              if (volume === 0) {
+                vimeoPlayer.setVolume(1.0)
+              }
+            })
           })
           
           vimeoPlayer.on('pause', () => {
@@ -95,8 +101,15 @@ export default function Home() {
         playerRef.current.pause()
       } else {
         setIsLoading(true) // 点击播放按钮时设置加载状态
-        playerRef.current.play().catch(() => {
-          setIsLoading(false) // 播放失败时重置加载状态
+        // 确保声音开启
+        playerRef.current.setVolume(1.0).then(() => {
+          playerRef.current.play().catch(() => {
+            setIsLoading(false) // 播放失败时重置加载状态
+          })
+        }).catch(() => {
+          playerRef.current.play().catch(() => {
+            setIsLoading(false)
+          })
         })
       }
     }
@@ -331,7 +344,7 @@ export default function Home() {
             >
               <div className="aspect-w-16 aspect-h-9">
                 <iframe
-                  src="https://player.vimeo.com/video/1065944553?background=1&amp;autoplay=0&amp;loop=0&amp;title=0&amp;byline=0&amp;portrait=0&amp;sidedock=0&amp;controls=0&amp;color=738fbd&amp;dnt=1&amp;transparent=0&amp;preload=1"
+                  src="https://player.vimeo.com/video/1065944553?autoplay=0&amp;loop=0&amp;title=0&amp;byline=0&amp;portrait=0&amp;sidedock=0&amp;controls=0&amp;color=738fbd&amp;dnt=1&amp;transparent=0&amp;muted=0"
                   frameBorder="0" 
                   allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
                   className="w-full h-full vimeo-player"
