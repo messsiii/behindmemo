@@ -5,7 +5,7 @@ import { Nav } from '@/components/nav'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { formatDate } from '@/lib/utils'
-import { ArrowLeft, CalendarIcon, Clock, Facebook, Linkedin, X } from 'lucide-react'
+import { ArrowLeft, CalendarIcon, Clock, Facebook, Linkedin, Share2, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -191,7 +191,7 @@ export default function ArticlePage() {
   useEffect(() => {
     setMounted(true)
     if (typeof window !== 'undefined') {
-      setPageUrl(`${window.location.origin}${pathname}`)
+      setPageUrl(window.location.href)
     }
   }, [pathname])
 
@@ -251,20 +251,14 @@ export default function ArticlePage() {
       try {
         await navigator.share({
           title: articleData.title,
-          text: "Struggling to express your feelings? Learn how to write a heartfelt letter to someone you love, even if words are hard to find. Discover tips, tools, and how to use your photos to inspire your writing.",
+          text: "Struggling to express your feelings? Learn how to write a heartfelt letter to someone you love, even if words are hard to find.",
           url: pageUrl,
-          // 注意：files属性目前仅在部分浏览器支持，可能会导致错误
-          // 如果要分享图片，需要先获取图片的Blob对象
-          // files: [imageFile] 
         })
-        console.log('内容已成功分享')
       } catch (error) {
-        console.log('分享失败:', error)
-        // 如果Web Share API失败，回退到显示更多分享选项
-        setShowMoreShareOptions(!showMoreShareOptions)
+        console.error('分享失败:', error)
       }
     } else {
-      // 如果Web Share API不可用，则显示更多分享选项
+      // 如果不支持原生分享，显示更多分享选项
       setShowMoreShareOptions(!showMoreShareOptions)
     }
   }
@@ -354,11 +348,31 @@ export default function ArticlePage() {
                 <Button variant="outline" size="icon" className="rounded-full" onClick={() => shareToSocial('telegram')}>
                   <FaTelegramPlane className="h-4 w-4" />
                 </Button>
+                {/* 原生分享按钮 */}
+                <Button variant="outline" size="icon" className="rounded-full" onClick={nativeShare}>
+                  <Share2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>
         </article>
       </main>
+      
+      {/* Instagram分享提示 */}
+      {showInstagramTip && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-4 rounded-lg shadow-lg z-50 max-w-xs text-center">
+          <p className="mb-2">链接已复制到剪贴板</p>
+          <p>请手动粘贴到Instagram应用中分享</p>
+        </div>
+      )}
+      
+      {/* TikTok分享提示 */}
+      {showTikTokTip && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-4 rounded-lg shadow-lg z-50 max-w-xs text-center">
+          <p className="mb-2">链接已复制到剪贴板</p>
+          <p>请手动粘贴到TikTok应用中分享</p>
+        </div>
+      )}
       
       <Footer />
     </div>
