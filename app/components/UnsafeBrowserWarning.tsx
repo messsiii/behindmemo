@@ -10,6 +10,7 @@ export function UnsafeBrowserWarning() {
   const [isUnsafeEnvironment, setIsUnsafeEnvironment] = useState(false)
   const [browserType, setBrowserType] = useState<'instagram' | 'facebook' | 'wechat' | 'other'>('other')
   const [mounted, setMounted] = useState(false)
+  const [closed, setClosed] = useState(false)  // 简化为仅当前浏览状态
   
   // 内容翻译
   const content = {
@@ -73,44 +74,23 @@ export function UnsafeBrowserWarning() {
     setIsUnsafeEnvironment(isUnsafeSocialBrowser)
   }
   
-  // 关闭提示
-  const [closed, setClosed] = useState(false)
+  // 简化关闭提示逻辑，仅在当前状态中保存
   const handleClose = () => {
     setClosed(true)
-    // 存储状态，避免重复显示
-    try {
-      sessionStorage.setItem('browser_warning_closed', 'true')
-    } catch (e) {
-      console.error('Failed to save to sessionStorage:', e)
-    }
   }
-  
-  // 检查是否已经关闭过
-  useEffect(() => {
-    if (mounted) {
-      try {
-        const wasClosed = sessionStorage.getItem('browser_warning_closed') === 'true'
-        if (wasClosed) {
-          setClosed(true)
-        }
-      } catch (e) {
-        console.error('Failed to read from sessionStorage:', e)
-      }
-    }
-  }, [mounted])
   
   if (!mounted || !isUnsafeEnvironment || closed) {
     return null
   }
   
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white py-3 px-4 z-50 shadow-lg animate-slideUp">
-      <div className="max-w-screen-lg mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <div className="flex-1 flex items-start gap-2">
-          <InfoIcon className="h-5 w-5 shrink-0 mt-0.5" />
+    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white py-4 px-5 z-50 shadow-lg animate-slideUp">
+      <div className="max-w-screen-lg mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex-1 flex items-start gap-3">
+          <InfoIcon className="h-6 w-6 shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium text-base">{content[language].title}</h3>
-            <p className="text-sm text-white/90">{content[language].description[browserType]}</p>
+            <h3 className="font-medium text-lg mb-1">{content[language].title}</h3>
+            <p className="text-base text-white">{content[language].description[browserType]}</p>
           </div>
         </div>
         <div className="self-end sm:self-center mt-2 sm:mt-0">
@@ -118,7 +98,7 @@ export function UnsafeBrowserWarning() {
             onClick={handleClose} 
             variant="ghost" 
             size="sm"
-            className="text-white hover:text-white hover:bg-white/10"
+            className="text-white hover:text-white hover:bg-white/10 text-base px-4 py-2"
           >
             {content[language].close}
           </Button>
