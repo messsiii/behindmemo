@@ -246,14 +246,14 @@ export default function Home() {
               >
                 {language === 'en' ? (
                   <span className="block">
-                    <span className="md:hidden text-[26px] sm:text-[32px] leading-[1.3]">
+                    <span className="md:hidden text-[18px] sm:text-[24px] leading-[1.3]">
                       <span className="block mb-1">Not just another AI writer.</span>
                       <span className="block">Your memories, your words.</span>
                     </span>
                     <span className="hidden md:block text-2xl sm:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
                   </span>
                 ) : (
-                  <span className="text-2xl sm:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
+                  <span className="text-base sm:text-xl md:text-2xl lg:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
                 )}
               </motion.p>
               <motion.p
@@ -271,7 +271,7 @@ export default function Home() {
                 className="md:text-center text-left mb-12 md:mb-0"
               >
                 <Button
-                  className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 md:px-10 py-5 md:py-6 text-lg md:text-xl"
+                  className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-10 md:px-12 py-6 md:py-7 text-xl md:text-2xl font-medium"
                   asChild
                 >
                   <Link href="/write">
