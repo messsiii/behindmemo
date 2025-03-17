@@ -248,14 +248,14 @@ export default function Home() {
               >
                 {language === 'en' ? (
                   <span className="block">
-                    <span className="md:hidden text-[30px] sm:text-[36px] leading-[1.3]">
+                    <span className="md:hidden text-[26px] sm:text-[32px] leading-[1.3]">
                       <span className="block mb-1">Not just another AI writer.</span>
                       <span className="block">Your memories, your words.</span>
                     </span>
-                    <span className="hidden md:block text-3xl sm:text-4xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
+                    <span className="hidden md:block text-2xl sm:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
                   </span>
                 ) : (
-                  <span className="text-3xl sm:text-4xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
+                  <span className="text-2xl sm:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
                 )}
               </motion.p>
               <motion.p
