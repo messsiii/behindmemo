@@ -1,5 +1,6 @@
 'use client'
 
+import { UnsafeBrowserWarning } from '@/app/components/UnsafeBrowserWarning';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { SessionProvider } from 'next-auth/react';
 import { NavigationEventsHandler } from './NavigationEventsHandler';
@@ -10,6 +11,7 @@ export function Providers({ children, session }: { children: React.ReactNode; se
       <LanguageProvider>
         <NavigationEventsHandler />
         {children}
+        <UnsafeBrowserWarning />
       </LanguageProvider>
     </SessionProvider>
   )

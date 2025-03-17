@@ -79,11 +79,16 @@ export default {
           '25%': { transform: 'translateX(-5px)' },
           '75%': { transform: 'translateX(5px)' },
         },
+        'slideUp': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' }
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        shake: 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+        'slideUp': 'slideUp 0.3s ease-out',
       },
     },
   },
