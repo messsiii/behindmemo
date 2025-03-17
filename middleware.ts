@@ -21,7 +21,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. 检查是否是公开路由
-  if (publicRoutes.includes(pathname)) {
+  if (
+    publicRoutes.includes(pathname) || 
+    pathname.startsWith('/shared/')
+  ) {
     return NextResponse.next()
   }
 

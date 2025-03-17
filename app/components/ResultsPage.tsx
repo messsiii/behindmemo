@@ -21,12 +21,13 @@ import { openSubscriptionCheckout } from "@/lib/paddle";
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
-import { Crown, Download, EyeOff, Home, Infinity } from 'lucide-react';
+import { Crown, Download, EyeOff, Home, Infinity, Send } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
+import { ShareLetterDialog } from './ShareLetterDialog';
 import { StyleDrawer } from './StyleDrawer';
 import { UnlockTemplateDialog } from './UnlockTemplateDialog';
 
@@ -203,6 +204,111 @@ export default function ResultsPage({ id }: { id: string }) {
   // 添加水印控制状态
   const [hideWatermark, setHideWatermark] = useState(false)
   const [showVipPrompt, setShowVipPrompt] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+
+  // 从API和localStorage读取保存的设置
+  useEffect(() => {
+    // 仅在客户端环境执行
+    if (typeof window !== 'undefined') {
+      const fetchTemplatePreferences = async () => {
+        try {
+          // 先从localStorage获取设置（作为快速显示和后备）
+          const savedTemplate = localStorage.getItem(`template_${id}`);
+          if (savedTemplate && Object.keys(TEMPLATES).includes(savedTemplate)) {
+            setSelectedTemplate(savedTemplate as keyof typeof TEMPLATES);
+          }
+          
+          // 然后尝试从API获取服务器存储的设置
+          const res = await fetch(`/api/letters/${id}/template-preferences`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.templateId && Object.keys(TEMPLATES).includes(data.templateId)) {
+              setSelectedTemplate(data.templateId as keyof typeof TEMPLATES);
+              // 更新localStorage以同步设置
+              localStorage.setItem(`template_${id}`, data.templateId);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching template preferences', error);
+        }
+      };
+      
+      fetchTemplatePreferences();
+    }
+  }, [id]);
+
+  // 读取水印设置 (需要在VIP状态确认后)
+  useEffect(() => {
+    if (isVIP && typeof window !== 'undefined') {
+      try {
+        // 先从localStorage获取（作为快速显示和后备）
+        const savedWatermarkSetting = localStorage.getItem(`watermark_${id}`);
+        if (savedWatermarkSetting === 'true') {
+          setHideWatermark(true);
+        }
+        
+        // 然后从API获取
+        const fetchWatermarkPreference = async () => {
+          try {
+            const res = await fetch(`/api/letters/${id}/template-preferences`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.hideWatermark !== undefined) {
+                setHideWatermark(data.hideWatermark);
+                // 更新localStorage以同步设置
+                localStorage.setItem(`watermark_${id}`, String(data.hideWatermark));
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching watermark preferences', error);
+          }
+        };
+        
+        fetchWatermarkPreference();
+      } catch (error) {
+        console.error('Error reading watermark settings', error);
+      }
+    }
+  }, [isVIP, id]);
+
+  // 保存模板和水印设置到服务器
+  const savePreferences = async (templateId: string, watermarkHidden: boolean) => {
+    if (isSavingPreferences) return;
+    
+    setIsSavingPreferences(true);
+    try {
+      const response = await fetch(`/api/letters/${id}/template-preferences`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateId,
+          hideWatermark: watermarkHidden,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response from server:', errorData);
+        return;
+      }
+      
+      // 请求成功，无需特殊处理
+    } catch (error) {
+      console.error('Error saving preferences to server', error);
+      // 即使API调用失败，依然保留localStorage作为备份
+      try {
+        localStorage.setItem(`template_${id}`, templateId);
+        localStorage.setItem(`watermark_${id}`, String(watermarkHidden));
+      } catch (localStorageError) {
+        console.error('Error saving to localStorage', localStorageError);
+      }
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
 
   // 获取信件详情
   useEffect(() => {
@@ -364,11 +470,21 @@ export default function ResultsPage({ id }: { id: string }) {
     
     // 检查模板是否可用（免费、VIP用户或已解锁）
     if (targetTemplate.isFree || isVIP || unlockedTemplates.includes(template)) {
-      setSelectedTemplate(template as keyof typeof TEMPLATES)
+      setSelectedTemplate(template as keyof typeof TEMPLATES);
+      
+      // 保存模板选择到 localStorage
+      try {
+        localStorage.setItem(`template_${id}`, template);
+      } catch (error) {
+        console.error('Error saving template to localStorage', error);
+      }
+      
+      // 同时保存到服务器
+      savePreferences(template, hideWatermark);
     } else {
       // 设置需要解锁的模板
-      setTemplateToUnlock(template)
-      setShowUnlockDialog(true)
+      setTemplateToUnlock(template);
+      setShowUnlockDialog(true);
     }
   }
   
@@ -377,6 +493,16 @@ export default function ResultsPage({ id }: { id: string }) {
     if (isVIP) {
       // VIP用户可以直接隐藏水印
       setHideWatermark(hide);
+      
+      // 保存水印设置到 localStorage
+      try {
+        localStorage.setItem(`watermark_${id}`, String(hide));
+      } catch (error) {
+        console.error('Error saving watermark setting to localStorage', error);
+      }
+      
+      // 同时保存到服务器
+      savePreferences(selectedTemplate, hide);
     } else {
       // 非VIP用户点击时显示提示
       if (hide) {
@@ -395,6 +521,17 @@ export default function ResultsPage({ id }: { id: string }) {
       const success = await unlockTemplate(templateToUnlock)
       if (success) {
         setSelectedTemplate(templateToUnlock as keyof typeof TEMPLATES)
+        
+        // 保存新解锁的模板到 localStorage
+        try {
+          localStorage.setItem(`template_${id}`, templateToUnlock);
+        } catch (error) {
+          console.error('Error saving template to localStorage', error);
+        }
+        
+        // 同时保存到服务器
+        savePreferences(templateToUnlock, hideWatermark);
+        
         setShowUnlockDialog(false)
         setTemplateToUnlock(null)
       }
@@ -1895,6 +2032,16 @@ export default function ResultsPage({ id }: { id: string }) {
                               {language === 'en' ? 'Write Another' : '再写一封'}
                             </Button>
                           </Link>
+                          <Button
+                            variant="outline"
+                            className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
+                            onClick={() => setShowShareDialog(true)}
+                          >
+                            <span className="flex items-center justify-center gap-2">
+                              <Send className="w-4 h-4" />
+                              {language === 'en' ? 'Send' : '送信'}
+                            </span>
+                          </Button>
                         </motion.div>
                       )}
                     </motion.div>
@@ -2077,6 +2224,16 @@ export default function ResultsPage({ id }: { id: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 分享对话框 */}
+      <ShareLetterDialog
+        isOpen={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        letterId={id}
+        currentTemplate={selectedTemplate}
+        isVIP={isVIP}
+        currentHideWatermark={hideWatermark}
+      />
     </>
   )
 }

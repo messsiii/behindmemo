@@ -1,7 +1,13 @@
-export default function LoadingSpinner() {
+import { cn } from '@/lib/utils'
+
+interface LoadingSpinnerProps {
+  className?: string
+}
+
+export function LoadingSpinner({ className }: LoadingSpinnerProps) {
   return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary"></div>
+    <div className={cn("flex justify-center items-center", className)}>
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
     </div>
   )
 }

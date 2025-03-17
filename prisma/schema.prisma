@@ -58,6 +58,8 @@ model User {
   Subscription             Subscription[]
   transactions             Transaction[]
   templateUnlocks          TemplateUnlock[]
+  sharedLetters            SharedLetter[]
+  templatePreferences      LetterTemplatePreference[]
 
   @@map("users")
 }
@@ -86,7 +88,10 @@ model Letter {
   metadata   Json?
   status     String   @default("pending")
   error      String?
+  videoUrl   String?
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedLetters SharedLetter[]
+  templatePreferences LetterTemplatePreference[]
 
   @@index([userId])
   @@map("letters")
@@ -174,4 +179,40 @@ model TemplateUnlock {
   @@index([userId])
   @@index([letterId])
   @@map("template_unlocks")
+}
+
+model SharedLetter {
+  id            String   @id @default(cuid())
+  letterId      String
+  letter        Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken   String   @unique
+  templateStyle String   @default("classic")
+  hideWatermark Boolean  @default(false)
+  viewCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([letterId])
+  @@index([userId])
+  @@index([accessToken])
+  @@map("shared_letters")
+}
+
+model LetterTemplatePreference {
+  id            String   @id @default(cuid())
+  userId        String
+  letterId      String
+  templateId    String   @default("classic")
+  hideWatermark Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  letter        Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, letterId])
+  @@index([userId])
+  @@index([letterId])
+  @@map("letter_template_preferences")
 }
