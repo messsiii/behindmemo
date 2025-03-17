@@ -18,6 +18,44 @@ declare global {
   }
 }
 
+// 为内容变体定义类型接口
+interface BaseHeroContent {
+  title: string;
+  subtitle: string;
+  description: string;
+  cta: string;
+}
+
+interface TypewriterHeroContent extends BaseHeroContent {
+  titlePrefix: string;
+  titleTypewriter: string[];
+  titleSuffix: string;
+}
+
+interface SectionContent {
+  title: string;
+  description: string;
+  buttonText: string;
+}
+
+interface CTAContent {
+  title: string;
+  description: string;
+  button: string;
+}
+
+interface ContentVariant {
+  hero: BaseHeroContent | TypewriterHeroContent;
+  videoCard: SectionContent;
+  cta: CTAContent;
+}
+
+// 将这个接口标记为导出，这样TypeScript会认为它被用于其他文件中
+export interface ContentLanguages {
+  en: ContentVariant;
+  zh: ContentVariant;
+}
+
 export default function Home() {
   const { language } = useLanguage()
   const searchParams = useSearchParams()
@@ -124,31 +162,8 @@ export default function Home() {
     }
   }, [mounted])
 
-  // 在客户端渲染前返回一个占位内容
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <div className="fixed inset-0 z-0 opacity-30 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
-        <Nav />
-        <div className="relative z-10 flex-1">
-          <section className="relative h-screen flex items-center justify-center">
-            <div className="container mx-auto px-4">
-              <div className="max-w-4xl mx-auto text-center space-y-8">
-                <div className="h-12 w-3/4 mx-auto bg-gray-200 animate-pulse rounded" />
-                <div className="h-8 w-1/2 mx-auto bg-gray-200 animate-pulse rounded" />
-                <div className="h-24 w-2/3 mx-auto bg-gray-200 animate-pulse rounded" />
-                <div className="h-12 w-48 mx-auto bg-gray-200 animate-pulse rounded-full" />
-              </div>
-            </div>
-          </section>
-        </div>
-        <Footer />
-      </div>
-    )
-  }
-
   // 不同变体的内容定义
-  const contentVariants = {
+  const contentVariants: Record<string, ContentLanguages> = {
     // 默认版本
     default: {
       en: {
@@ -312,6 +327,54 @@ export default function Home() {
         },
       },
     },
+
+    // 场景版本 - 带打字机效果
+    scenes: {
+      en: {
+        hero: {
+          title: 'Turn Photos into Personalized Letters',
+          titlePrefix: 'Turn a photo into a ',
+          titleTypewriter: ['love letter', 'thank you note', 'family letter', 'birthday message', 'anniversary card', 'graduation letter', 'apology note', 'congratulation'],
+          titleSuffix: '',
+          subtitle: 'Your photo + your description = a heartfelt personalized letter',
+          description:
+            'Upload a photo, add a brief description, and our AI will guide you to create a personalized letter for any relationship and occasion.',
+          cta: 'Create Your Letter',
+        },
+        videoCard: {
+          title: 'See How It Works',
+          description: 'Watch how Behind Memo helps transform your photos into meaningful personalized letters.',
+          buttonText: 'Try It Now'
+        },
+        cta: {
+          title: 'Express your feelings with ease',
+          description: '✓ Photo-inspired writing\n✓ Multiple relationships\n✓ Various occasions\n✓ Personalized guidance',
+          button: 'Start Your Letter',
+        },
+      },
+      zh: {
+        hero: {
+          title: '照片转化为个性化信件',
+          titlePrefix: '用照片写一封',
+          titleTypewriter: ['爱的情书', '感谢信', '家书', '生日祝福', '纪念日信', '毕业赠言', '道歉信', '祝贺信'],
+          titleSuffix: '',
+          subtitle: '一张照片 + 简短描述 = 一封真挚的个性化信件',
+          description:
+            '上传照片，添加简短描述，我们的AI将引导您为任何关系和场合创作个性化信件。',
+          cta: '开始创作信件',
+        },
+        videoCard: {
+          title: '了解工作原理',
+          description: '观看Behind Memo如何帮助您将照片转化为有意义的个性化信件。',
+          buttonText: '立即体验'
+        },
+        cta: {
+          title: '轻松表达您的情感',
+          description: '✓ 照片激发写作灵感\n✓ 适用多种关系\n✓ 覆盖各种场合\n✓ 个性化写作指导',
+          button: '开始您的信件',
+        },
+      },
+    },
   }
 
   // 根据 variant 参数选择对应内容，如果不存在则使用默认内容
@@ -362,6 +425,20 @@ export default function Home() {
           `,
           opacity: 0.3,
         };
+      case 'scenes':
+        return {
+          backgroundImage: `
+            linear-gradient(135deg, 
+              #6b7fd9 0%,
+              #9d9ee2 20%,
+              #cbc8ef 40%,
+              #e7e7f9 60%,
+              #b8b7e8 80%,
+              #7f81d8 100%
+            )
+          `,
+          opacity: 0.3,
+        };
       default:
         return {
           backgroundImage: `
@@ -378,6 +455,137 @@ export default function Home() {
         };
     }
   };
+
+  // 根据variant获取文字渐变样式
+  const getTextGradient = () => {
+    switch(variant) {
+      case 'love':
+        return 'from-[#d88193] via-[#e6a6b9] to-[#d5889c]';
+      case 'friendship':
+        return 'from-[#78a9d1] via-[#a3c9e3] to-[#8bade0]';
+      case 'family':
+        return 'from-[#7aad8c] via-[#a1c9af] to-[#8dc09e]';
+      case 'scenes':
+        return 'from-[#6b7fd9] via-[#9d9ee2] to-[#7f81d8]';
+      default:
+        return 'from-[#738fbd] via-[#db88a4] to-[#cc8eb1]';
+    }
+  };
+  
+  const getHighlightGradient = () => {
+    switch(variant) {
+      case 'love':
+        return 'from-[#d88193] to-[#e9bec9]';
+      case 'friendship':
+        return 'from-[#78a9d1] to-[#c1d9eb]';
+      case 'family':
+        return 'from-[#7aad8c] to-[#bfdcca]';
+      case 'scenes':
+        return 'from-[#6b7fd9] to-[#b8b7e8]';
+      default:
+        return 'from-[#5d7cad] to-[#a971a1]';
+    }
+  };
+  
+  // 打字机效果相关状态
+  const [typewriterIndex, setTypewriterIndex] = useState(0);
+  const [typewriterText, setTypewriterText] = useState('');
+  const [isTyping, setIsTyping] = useState(true);
+  const [showCursor, setShowCursor] = useState(true);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const cursorTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 打字机效果
+  useEffect(() => {
+    if (!mounted || variant !== 'scenes') return;
+    
+    const heroContent = content[language].hero as TypewriterHeroContent;
+    const words = heroContent.titleTypewriter || [];
+    if (words.length === 0) return;
+    
+    // 确保初始化时选择第一个单词
+    if (typewriterText === '' && isTyping) {
+      setTypewriterText(words[typewriterIndex].charAt(0));
+      return;
+    }
+    
+    const currentWord = words[typewriterIndex];
+    
+    const handleTyping = () => {
+      if (typewriterText.length < currentWord.length) {
+        setTypewriterText(currentWord.substring(0, typewriterText.length + 1));
+      } else {
+        // 输入完成后，暂停一段时间，然后开始删除
+        setTimeout(() => {
+          setIsTyping(false);
+        }, 1500);
+      }
+    };
+    
+    const handleDeleting = () => {
+      if (typewriterText.length > 0) {
+        setTypewriterText(typewriterText.substring(0, typewriterText.length - 1));
+      } else {
+        // 删除完成后，进入下一个单词
+        setTypewriterIndex((prev) => (prev + 1) % words.length);
+        setIsTyping(true);
+      }
+    };
+    
+    // 清除之前的定时器
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    
+    // 设置新的定时器
+    timerRef.current = setTimeout(() => {
+      if (isTyping) {
+        handleTyping();
+      } else {
+        handleDeleting();
+      }
+    }, isTyping ? 100 : 50);
+    
+    // 光标闪烁效果
+    if (!cursorTimerRef.current) {
+      cursorTimerRef.current = setInterval(() => {
+        setShowCursor(prev => !prev);
+      }, 500);
+    }
+    
+    // 清理函数
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      if (cursorTimerRef.current) {
+        clearInterval(cursorTimerRef.current);
+      }
+    };
+  }, [mounted, variant, language, typewriterText, typewriterIndex, isTyping, content]);
+
+  // 在客户端渲染前返回一个占位内容
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <div className="fixed inset-0 z-0 opacity-30 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
+        <Nav />
+        <div className="relative z-10 flex-1">
+          <section className="relative h-screen flex items-center justify-center">
+            <div className="container mx-auto px-4">
+              <div className="max-w-4xl mx-auto text-center space-y-8">
+                <div className="h-12 w-3/4 mx-auto bg-gray-200 animate-pulse rounded" />
+                <div className="h-8 w-1/2 mx-auto bg-gray-200 animate-pulse rounded" />
+                <div className="h-24 w-2/3 mx-auto bg-gray-200 animate-pulse rounded" />
+                <div className="h-12 w-48 mx-auto bg-gray-200 animate-pulse rounded-full" />
+              </div>
+            </div>
+          </section>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -404,17 +612,113 @@ export default function Home() {
                 {language === 'en' ? (
                   <span className="block">
                     <span className="md:hidden">
-                      <span className="block text-[50px] sm:text-[60px] leading-[1.1] tracking-tight">
-                        Turn <span className="inline-block bg-gradient-to-r from-[#5d7cad] to-[#a971a1] text-transparent bg-clip-text">photos</span>
-                      </span>
-                      <span className="block text-[50px] sm:text-[60px] leading-[1.1] tracking-tight">
-                        into <span className="inline-block bg-gradient-to-r from-[#a971a1] to-[#cc8eb1] text-transparent bg-clip-text">letters</span>
-                      </span>
+                      {variant === 'default' ? (
+                        <span className="block text-[45px] sm:text-[55px] leading-[1.1] tracking-tight">
+                          <span className={`bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] text-transparent bg-clip-text`}>
+                            {content[language].hero.title}
+                          </span>
+                        </span>
+                      ) : variant === 'scenes' ? (
+                        <>
+                          <div className="h-[200px] flex items-center justify-center">
+                            <span className="block text-[38px] sm:text-[46px] leading-[1.2] tracking-tight">
+                              {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                              <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[60px] px-1`}>
+                                {typewriterText}
+                                <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                              </span>
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <span className="block text-[45px] sm:text-[55px] leading-[1.1] tracking-tight">
+                          <span className={`bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                            {content[language].hero.title}
+                          </span>
+                        </span>
+                      )}
                     </span>
-                    <span className="hidden md:block text-5xl sm:text-7xl">{content[language].hero.title}</span>
+                    <span className="hidden md:block text-5xl sm:text-7xl">
+                      {variant === 'scenes' ? (
+                        <div className="min-h-[200px] flex flex-col justify-center">
+                          {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                          <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[70px] px-1`}>
+                            {typewriterText}
+                            <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                          </span>
+                          {(content[language].hero as TypewriterHeroContent).titleSuffix}
+                        </div>
+                      ) : (
+                        content[language].hero.title
+                      )}
+                    </span>
                   </span>
                 ) : (
-                  <span className="text-5xl sm:text-7xl">{content[language].hero.title}</span>
+                  <span className="text-5xl sm:text-7xl">
+                    {variant === 'scenes' ? (
+                      <>
+                        <span className="md:hidden block">
+                          <div className="h-[200px] flex items-center justify-center">
+                            <span className="block text-[35px] sm:text-[45px] leading-[1.2] tracking-tight">
+                              {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                              <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[60px] px-1`}>
+                                {typewriterText}
+                                <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                              </span>
+                            </span>
+                          </div>
+                        </span>
+                        <span className="hidden md:block">
+                          <div className="min-h-[200px] flex flex-col justify-center">
+                            {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                            <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[70px] px-1`}>
+                              {typewriterText}
+                              <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                            </span>
+                            {(content[language].hero as TypewriterHeroContent).titleSuffix}
+                          </div>
+                        </span>
+                      </>
+                    ) : variant === 'love' ? (
+                      <>
+                        <span className="md:hidden">
+                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                            将<span className="inline-block bg-gradient-to-r from-[#d88193] to-[#e9bec9] text-transparent bg-clip-text">爱情故事</span>
+                          </span>
+                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                            化为<span className="inline-block bg-gradient-to-r from-[#e9bec9] to-[#d5889c] text-transparent bg-clip-text">美丽文字</span>
+                          </span>
+                        </span>
+                        <span className="hidden md:block">{content[language].hero.title}</span>
+                      </>
+                    ) : variant === 'friendship' ? (
+                      <>
+                        <span className="md:hidden">
+                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                            将<span className="inline-block bg-gradient-to-r from-[#78a9d1] to-[#c1d9eb] text-transparent bg-clip-text">友情回忆</span>
+                          </span>
+                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                            化为<span className="inline-block bg-gradient-to-r from-[#c1d9eb] to-[#8bade0] text-transparent bg-clip-text">温暖文字</span>
+                          </span>
+                        </span>
+                        <span className="hidden md:block">{content[language].hero.title}</span>
+                      </>
+                    ) : variant === 'family' ? (
+                      <>
+                        <span className="md:hidden">
+                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                            将<span className="inline-block bg-gradient-to-r from-[#7aad8c] to-[#bfdcca] text-transparent bg-clip-text">家庭瞬间</span>
+                          </span>
+                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                            化为<span className="inline-block bg-gradient-to-r from-[#bfdcca] to-[#8dc09e] text-transparent bg-clip-text">珍贵信件</span>
+                          </span>
+                        </span>
+                        <span className="hidden md:block">{content[language].hero.title}</span>
+                      </>
+                    ) : (
+                      content[language].hero.title
+                    )}
+                  </span>
                 )}
               </motion.h1>
               <motion.p
@@ -428,13 +732,27 @@ export default function Home() {
                 {language === 'en' ? (
                   <span className="block">
                     <span className="md:hidden text-[18px] sm:text-[24px] leading-[1.3]">
-                      <span className="block mb-1">Not just another AI writer.</span>
-                      <span className="block">Your memories, your words.</span>
+                      {variant === 'default' ? (
+                        <span className={`block text-gray-700`}>
+                          {content[language].hero.subtitle}
+                        </span>
+                      ) : (
+                        <span className={`block bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                          {content[language].hero.subtitle}
+                        </span>
+                      )}
                     </span>
-                    <span className="hidden md:block text-2xl sm:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
+                    <span className={`hidden md:block text-2xl sm:text-3xl bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>{content[language].hero.subtitle}</span>
                   </span>
                 ) : (
-                  <span className="text-base sm:text-xl md:text-2xl lg:text-3xl bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] bg-clip-text text-transparent">{content[language].hero.subtitle}</span>
+                  <span className="block">
+                    <span className={`md:hidden text-[18px] sm:text-[22px] leading-[1.3] bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                      {content[language].hero.subtitle}
+                    </span>
+                    <span className={`hidden md:block text-base sm:text-xl md:text-2xl lg:text-3xl bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                      {content[language].hero.subtitle}
+                    </span>
+                  </span>
                 )}
               </motion.p>
               <motion.p
@@ -452,7 +770,7 @@ export default function Home() {
                 className="md:text-center text-left mb-12 md:mb-0"
               >
                 <Button
-                  className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-10 md:px-12 py-6 md:py-7 text-xl md:text-2xl font-medium"
+                  className={`rounded-full ${variant === 'default' ? 'bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]' : `bg-gradient-to-r ${getTextGradient()}`} hover:opacity-90 text-white px-10 md:px-12 py-6 md:py-7 text-xl md:text-2xl font-medium`}
                   asChild
                 >
                   <Link href="/write">
@@ -475,7 +793,7 @@ export default function Home() {
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-[#738fbd]"
+                className={`h-6 w-6 ${variant === 'default' ? 'text-[#738fbd]' : variant === 'love' ? 'text-[#d88193]' : variant === 'friendship' ? 'text-[#78a9d1]' : 'text-[#7aad8c]'}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -539,7 +857,7 @@ export default function Home() {
                 {/* 加载指示器 - 仅在加载时显示 */}
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center z-30 bg-black/10 backdrop-blur-sm">
-                    <div className="w-16 h-16 rounded-full border-4 border-white/30 border-t-[#738fbd] animate-spin"></div>
+                    <div className={`w-16 h-16 rounded-full border-4 border-white/30 border-t-${variant === 'default' ? '[#738fbd]' : variant === 'love' ? '[#d88193]' : variant === 'friendship' ? '[#78a9d1]' : '[#7aad8c]'} animate-spin`}></div>
                   </div>
                 )}
                 
@@ -549,14 +867,14 @@ export default function Home() {
                     onClick={togglePlayback}
                   >
                     <div className="w-20 h-20 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:bg-white/90 transition-all duration-300 shadow-lg">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-[#738fbd] ml-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-10 h-10 text-${variant === 'default' ? '[#738fbd]' : variant === 'love' ? '[#d88193]' : variant === 'friendship' ? '[#78a9d1]' : '[#7aad8c]'} ml-1`}>
                         <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
                       </svg>
                     </div>
                   </div>
                 )}
               </div>
-              <div className="absolute inset-0 bg-gradient-to-r from-[#738fbd]/20 to-[#cc8eb1]/20 pointer-events-none rounded-xl md:rounded-2xl"></div>
+              <div className={`absolute inset-0 bg-gradient-to-r ${variant === 'default' ? 'from-[#738fbd]/20 to-[#cc8eb1]/20' : variant === 'love' ? 'from-[#d88193]/20 to-[#e9bec9]/20' : variant === 'friendship' ? 'from-[#78a9d1]/20 to-[#c1d9eb]/20' : 'from-[#7aad8c]/20 to-[#bfdcca]/20'} pointer-events-none rounded-xl md:rounded-2xl`}></div>
             </motion.div>
 
             <motion.div
@@ -566,7 +884,7 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.6 }}
             >
               <Button
-                className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-6 py-3 md:px-8 md:py-4 text-base md:text-lg"
+                className={`rounded-full ${variant === 'default' ? 'bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]' : `bg-gradient-to-r ${getTextGradient()}`} hover:opacity-90 text-white px-6 py-3 md:px-8 md:py-4 text-base md:text-lg`}
                 asChild
               >
                 <Link href="/write">{language === "en" ? "Try It Now" : "立即尝试"}</Link>
@@ -599,7 +917,7 @@ export default function Home() {
               </div>
               <Button
                 size="lg"
-                className={`rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 py-6 text-lg mt-8 ${
+                className={`rounded-full ${variant === 'default' ? 'bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]' : `bg-gradient-to-r ${getTextGradient()}`} hover:opacity-90 text-white px-8 py-6 text-lg mt-8 ${
                   language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
                 asChild
