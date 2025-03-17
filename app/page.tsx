@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 // 为Vimeo Player声明类型
@@ -19,6 +20,9 @@ declare global {
 
 export default function Home() {
   const { language } = useLanguage()
+  const searchParams = useSearchParams()
+  const variant = searchParams?.get('variant') || 'default'
+  
   const [mounted, setMounted] = useState(false)
   const [_scrollY, setScrollY] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -143,54 +147,223 @@ export default function Home() {
     )
   }
 
-  const content = {
-    en: {
-      hero: {
-        title: 'Turn Photos into Letters, Memories into Words',
-        subtitle:
-          'Not just another AI writer - we help you express your true feelings to the ones you love',
-        description:
-          "Unlike traditional AI writers, we don't generate generic letters. We help you find your own words, turn your photos into inspiration, and guide you through emotional expression.",
-        cta: 'Start Writing',
+  // 不同变体的内容定义
+  const contentVariants = {
+    // 默认版本
+    default: {
+      en: {
+        hero: {
+          title: 'Turn Photos into Letters, Memories into Words',
+          subtitle:
+            'Not just another AI writer - we help you express your true feelings to the ones you love',
+          description:
+            "Unlike traditional AI writers, we don't generate generic letters. We help you find your own words, turn your photos into inspiration, and guide you through emotional expression.",
+          cta: 'Start Writing',
+        },
+        videoCard: {
+          title: 'See How It Works',
+          description: 'Watch how Behind Memo helps you create heartfelt letters from your cherished photos.',
+          buttonText: 'Try It Now'
+        },
+        cta: {
+          title: 'Ready to express your true feelings?',
+          description:
+            '✓ No generic letters\n✓ Your own words, your story\n✓ Photos as inspiration\n✓ Guided emotional expression',
+          button: 'Begin Your Journey',
+        },
       },
-      videoCard: {
-        title: 'See How It Works',
-        description: 'Watch how Behind Memo helps you create heartfelt letters from your cherished photos.',
-        buttonText: 'Try It Now'
-      },
-      cta: {
-        title: 'Ready to express your true feelings?',
-        description:
-          '✓ No generic letters\n✓ Your own words, your story\n✓ Photos as inspiration\n✓ Guided emotional expression',
-        button: 'Begin Your Journey',
+      zh: {
+        hero: {
+          title: '照片化为文字，回忆成就情书',
+          subtitle: '不只是AI写作 - 我们帮你向爱的人表达真挚情感',
+          description:
+            '不同于传统AI写作，我们不生成模板化的内容。我们帮你找到自己的语言，将照片转化为灵感，引导你表达真实情感。',
+          cta: '开始写作',
+        },
+        videoCard: {
+          title: '了解我们如何工作',
+          description: '观看Behind Memo如何帮助您从珍贵照片创建充满感情的信件。',
+          buttonText: '立即体验'
+        },
+        cta: {
+          title: '准备好表达真挚情感了吗？',
+          description: '✓ 告别模板化内容\n✓ 你的文字，你的故事\n✓ 照片化作灵感\n✓ 情感表达引导',
+          button: '开启心动之旅',
+        },
       },
     },
-    zh: {
-      hero: {
-        title: '照片化为文字，回忆成就情书',
-        subtitle: '不只是AI写作 - 我们帮你向爱的人表达真挚情感',
-        description:
-          '不同于传统AI写作，我们不生成模板化的内容。我们帮你找到自己的语言，将照片转化为灵感，引导你表达真实情感。',
-        cta: '开始写作',
+    
+    // 爱情版本
+    love: {
+      en: {
+        hero: {
+          title: 'Turn Your Love Story into Beautiful Words',
+          subtitle: 'Create heartfelt love letters inspired by your special moments together',
+          description: 'Our AI helps you express deep emotions by analyzing your photos and guiding you through creating personalized love letters that truly capture your feelings.',
+          cta: 'Write a Love Letter',
+        },
+        videoCard: {
+          title: 'See How It Works',
+          description: 'Watch how Behind Memo helps you create meaningful love letters from your cherished photos.',
+          buttonText: 'Try It Now'
+        },
+        cta: {
+          title: 'Ready to express your love?',
+          description: '✓ Personalized love letters\n✓ Photo-inspired writing\n✓ Emotional expression guide\n✓ Beautiful templates',
+          button: 'Start Your Love Letter',
+        },
       },
-      videoCard: {
-        title: '了解我们如何工作',
-        description: '观看Behind Memo如何帮助您从珍贵照片创建充满感情的信件。',
-        buttonText: '立即体验'
+      zh: {
+        hero: {
+          title: '将你们的爱情故事化为美丽文字',
+          subtitle: '基于你们的甜蜜瞬间，创造充满真情的爱情信件',
+          description: '我们的AI通过分析你的照片和引导你表达深刻情感，帮助你创作真正能够表达心意的个性化情书。',
+          cta: '写一封情书',
+        },
+        videoCard: {
+          title: '了解我们如何工作',
+          description: '观看Behind Memo如何帮助您从珍贵照片创建充满爱意的信件。',
+          buttonText: '立即体验'
+        },
+        cta: {
+          title: '准备好表达你的爱意了吗？',
+          description: '✓ 个性化情书\n✓ 照片激发灵感\n✓ 情感表达指南\n✓ 精美模板',
+          button: '开始你的情书',
+        },
       },
-      cta: {
-        title: '准备好表达真挚情感了吗？',
-        description: '✓ 告别模板化内容\n✓ 你的文字，你的故事\n✓ 照片化作灵感\n✓ 情感表达引导',
-        button: '开启心动之旅',
+    },
+    
+    // 友情版本
+    friendship: {
+      en: {
+        hero: {
+          title: 'Turn Friendship Memories into Heartfelt Words',
+          subtitle: 'Create meaningful messages for the friends who shaped your life',
+          description: 'Express your gratitude and appreciation to friends through personalized letters inspired by your shared memories and photos.',
+          cta: 'Write to a Friend',
+        },
+        videoCard: {
+          title: 'See How It Works',
+          description: 'Watch how Behind Memo helps you create meaningful messages from your friendship photos.',
+          buttonText: 'Try It Now'
+        },
+        cta: {
+          title: 'Ready to thank your friends?',
+          description: '✓ Friendship appreciation letters\n✓ Memories into words\n✓ Photo-based inspiration\n✓ Express gratitude easily',
+          button: 'Start Your Message',
+        },
+      },
+      zh: {
+        hero: {
+          title: '将友情回忆化为温暖文字',
+          subtitle: '为那些陪伴你成长的朋友创作真挚的话语',
+          description: '通过基于共同回忆和照片的个性化信件，向朋友表达你的感激和欣赏。',
+          cta: '写给朋友',
+        },
+        videoCard: {
+          title: '了解我们如何工作',
+          description: '观看Behind Memo如何帮助您从友谊照片创建有意义的信件。',
+          buttonText: '立即体验'
+        },
+        cta: {
+          title: '准备好感谢你的朋友了吗？',
+          description: '✓ 友情感谢信\n✓ 回忆变成文字\n✓ 照片激发灵感\n✓ 轻松表达感激',
+          button: '开始你的信件',
+        },
+      },
+    },
+    
+    // 家庭版本
+    family: {
+      en: {
+        hero: {
+          title: 'Turn Family Moments into Treasured Letters',
+          subtitle: 'Create meaningful messages for your loved ones based on family memories',
+          description: 'Express your love and gratitude to family members through personalized letters inspired by your shared moments and photos.',
+          cta: 'Write to Family',
+        },
+        videoCard: {
+          title: 'See How It Works',
+          description: 'Watch how Behind Memo helps you create meaningful family letters from your precious photos.',
+          buttonText: 'Try It Now'
+        },
+        cta: {
+          title: 'Ready to express family love?',
+          description: '✓ Family appreciation letters\n✓ Preserve family stories\n✓ Photo-inspired writing\n✓ Heartfelt expressions',
+          button: 'Start Your Family Letter',
+        },
+      },
+      zh: {
+        hero: {
+          title: '将家庭瞬间化为珍贵信件',
+          subtitle: '基于家庭回忆，为亲人创作有意义的信息',
+          description: '通过基于共同时刻和照片的个性化信件，向家人表达你的爱和感激。',
+          cta: '写给家人',
+        },
+        videoCard: {
+          title: '了解我们如何工作',
+          description: '观看Behind Memo如何帮助您从珍贵的家庭照片创建有意义的信件。',
+          buttonText: '立即体验'
+        },
+        cta: {
+          title: '准备好表达家庭之爱了吗？',
+          description: '✓ 家庭感谢信\n✓ 保存家庭故事\n✓ 照片激发灵感\n✓ 真挚情感表达',
+          button: '开始家庭信件',
+        },
       },
     },
   }
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <div
-        className="fixed inset-0 z-0"
-        style={{
+  // 根据 variant 参数选择对应内容，如果不存在则使用默认内容
+  const content = contentVariants[variant as keyof typeof contentVariants] || contentVariants.default
+  
+  // 页面渐变背景可以根据不同的变体使用不同的配色
+  const getBackgroundStyle = () => {
+    switch(variant) {
+      case 'love':
+        return {
+          backgroundImage: `
+            linear-gradient(135deg, 
+              #d88193 0%,
+              #e6a6b9 20%,
+              #ecc6d0 40%,
+              #f7e6e9 60%,
+              #e9bec9 80%,
+              #d5889c 100%
+            )
+          `,
+          opacity: 0.3,
+        };
+      case 'friendship':
+        return {
+          backgroundImage: `
+            linear-gradient(135deg, 
+              #78a9d1 0%,
+              #a3c9e3 20%,
+              #cce0ef 40%,
+              #e5eff7 60%,
+              #c1d9eb 80%,
+              #8bade0 100%
+            )
+          `,
+          opacity: 0.3,
+        };
+      case 'family':
+        return {
+          backgroundImage: `
+            linear-gradient(135deg, 
+              #7aad8c 0%,
+              #a1c9af 20%,
+              #cce4d5 40%,
+              #e5f4eb 60%,
+              #bfdcca 80%,
+              #8dc09e 100%
+            )
+          `,
+          opacity: 0.3,
+        };
+      default:
+        return {
           backgroundImage: `
             linear-gradient(135deg, 
               #738fbd 0%,
@@ -202,7 +375,15 @@ export default function Home() {
             )
           `,
           opacity: 0.3,
-        }}
+        };
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <div
+        className="fixed inset-0 z-0"
+        style={getBackgroundStyle()}
       />
 
       <Nav />
