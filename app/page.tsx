@@ -211,11 +211,11 @@ export default function Home() {
 
       <div className="relative z-10 flex-1">
         {/* Hero Section */}
-        <section className="relative h-screen flex items-start md:items-center justify-start md:justify-center overflow-hidden">
-          <div className="container mx-auto px-8 sm:px-4 md:pt-0 md:-mt-16 mt-32 sm:mt-40">
+        <section className="relative min-h-[90vh] md:h-screen flex items-start md:items-center justify-start md:justify-center overflow-hidden">
+          <div className="container mx-auto px-8 sm:px-4 pt-16 md:pt-0 md:-mt-16 mt-20 sm:mt-24">
             <div className="max-w-6xl mx-auto md:text-center text-left">
               <motion.h1
-                className={`font-bold mb-4 md:mb-6 text-gray-900 ${
+                className={`font-bold mb-3 md:mb-6 text-gray-900 ${
                   language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
                 initial={{ y: 20, opacity: 0 }}
@@ -225,10 +225,10 @@ export default function Home() {
                 {language === 'en' ? (
                   <span className="block">
                     <span className="md:hidden">
-                      <span className="block text-[60px] sm:text-[72px] leading-[1.1] tracking-tight">
+                      <span className="block text-[50px] sm:text-[60px] leading-[1.1] tracking-tight">
                         Turn <span className="inline-block bg-gradient-to-r from-[#5d7cad] to-[#a971a1] text-transparent bg-clip-text">photos</span>
                       </span>
-                      <span className="block text-[60px] sm:text-[72px] leading-[1.1] tracking-tight">
+                      <span className="block text-[50px] sm:text-[60px] leading-[1.1] tracking-tight">
                         into <span className="inline-block bg-gradient-to-r from-[#a971a1] to-[#cc8eb1] text-transparent bg-clip-text">letters</span>
                       </span>
                     </span>
@@ -239,7 +239,7 @@ export default function Home() {
                 )}
               </motion.h1>
               <motion.p
-                className={`mb-12 md:mb-8 text-gray-700 ${
+                className={`mb-8 md:mb-8 text-gray-700 ${
                   language === 'en' ? 'font-serif' : 'font-serif-zh'
                 }`}
                 initial={{ y: 20, opacity: 0 }}
@@ -248,7 +248,7 @@ export default function Home() {
               >
                 {language === 'en' ? (
                   <span className="block">
-                    <span className="md:hidden text-[36px] sm:text-[44px] leading-[1.3]">
+                    <span className="md:hidden text-[30px] sm:text-[36px] leading-[1.3]">
                       <span className="block mb-1">Not just another AI writer.</span>
                       <span className="block">Your memories, your words.</span>
                     </span>
@@ -259,7 +259,7 @@ export default function Home() {
                 )}
               </motion.p>
               <motion.p
-                className={`text-xl text-gray-600 mb-12 max-w-2xl mx-auto md:mx-auto ml-0 ${language === 'en' ? 'font-literary md:block hidden' : ''}`}
+                className={`text-lg text-gray-600 mb-8 max-w-2xl mx-auto md:mx-auto ml-0 ${language === 'en' ? 'font-literary md:block hidden' : ''}`}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.6 }}
@@ -270,10 +270,10 @@ export default function Home() {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.8 }}
-                className="md:text-center text-left"
+                className="md:text-center text-left mb-12 md:mb-0"
               >
                 <Button
-                  className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-10 py-6 text-xl"
+                  className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 md:px-10 py-5 md:py-6 text-lg md:text-xl"
                   asChild
                 >
                   <Link href={status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=hero'}>
@@ -283,7 +283,7 @@ export default function Home() {
               </motion.div>
             </div>
           </div>
-          <div className="absolute bottom-10 md:bottom-28 left-1/2 transform -translate-x-1/2">
+          <div className="absolute bottom-4 md:bottom-28 left-1/2 transform -translate-x-1/2">
             <motion.div
               animate={{
                 y: [0, 10, 0],
