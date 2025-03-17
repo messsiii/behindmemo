@@ -5,7 +5,6 @@ import { Nav } from '@/components/nav'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { motion } from 'framer-motion'
-import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
@@ -22,7 +21,6 @@ export default function Home() {
   const { language } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [_scrollY, setScrollY] = useState(0)
-  const { status } = useSession()
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const playerRef = useRef<any>(null)
@@ -276,7 +274,7 @@ export default function Home() {
                   className="rounded-full bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] hover:opacity-90 text-white px-8 md:px-10 py-5 md:py-6 text-lg md:text-xl"
                   asChild
                 >
-                  <Link href={status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=hero'}>
+                  <Link href="/write">
                     {content[language].hero.cta}
                   </Link>
                 </Button>
@@ -425,7 +423,7 @@ export default function Home() {
                 }`}
                 asChild
               >
-                <Link href={status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=cta'}>
+                <Link href="/write">
                   {content[language].cta.button}
                 </Link>
               </Button>

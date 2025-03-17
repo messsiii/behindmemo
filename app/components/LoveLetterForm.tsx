@@ -14,6 +14,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ImageUploadPreview } from './ImageUploadPreview'
+import { LoginDialog } from './LoginDialog'
 
 const content = {
   en: {
@@ -120,6 +121,9 @@ export default function LoveLetterForm() {
   const [isMobile, setIsMobile] = useState(false)
   const debounceRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [showLoginDialog, setShowLoginDialog] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [isRestoringAfterLogin, setIsRestoringAfterLogin] = useState(false)
 
   const currentQuestion = useMemo(() => questions[currentStep], [currentStep])
 
@@ -335,6 +339,12 @@ export default function LoveLetterForm() {
     }
   }, [])
 
+  // 修改handleSubmit函数中生成成功部分，确保生成成功后清除缓存
+  const handleSubmitSuccess = useCallback(() => {
+    // 清除临时表单数据
+    localStorage.removeItem('pendingFormData')
+  }, [])
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
@@ -346,18 +356,56 @@ export default function LoveLetterForm() {
         return
       }
 
+      // 保存表单数据到localStorage，以便登录后恢复
+      try {
+        // 创建可序列化的表单数据
+        const serializableFormData: any = {
+          name: formData.name,
+          loverName: formData.loverName,
+          story: formData.story
+        }
+        
+        // 如果有图片，将其转换为DataURL
+        if (formData.photo instanceof File) {
+          // 创建一个FileReader来将图片转换为DataURL
+          const reader = new FileReader()
+          
+          // 将图片读取操作封装为Promise
+          const readFileAsDataURL = new Promise((resolve) => {
+            reader.onload = () => resolve(reader.result)
+            reader.readAsDataURL(formData.photo as Blob)
+          })
+          
+          // 等待图片读取完成
+          const dataURL = await readFileAsDataURL as string
+          
+          // 保存图片信息
+          serializableFormData.photoInfo = {
+            dataURL,
+            name: formData.photo.name,
+            type: formData.photo.type,
+            size: formData.photo.size,
+            lastModified: formData.photo.lastModified
+          }
+        }
+        
+        // 保存到localStorage
+        localStorage.setItem('pendingFormData', JSON.stringify(serializableFormData))
+      } catch (error) {
+        console.error('Failed to save form data to localStorage:', error)
+      }
+
+      // 检查用户是否登录
       if (!session?.user?.id) {
-        console.log('No user session found')
-        toast({
-          title: content[language].unauthorized,
-          variant: 'destructive',
-        })
+        console.log('No user session found, showing login dialog')
+        setShowLoginDialog(true)
         return
       }
 
+      // 用户已登录，继续生成过程
       setIsLoading(true)
       setIsSubmitting(true)
-
+      
       try {
         // 1. 检查配额
         const creditsResponse = await fetch('/api/user/credits')
@@ -463,6 +511,9 @@ export default function LoveLetterForm() {
         // 保存状态到 localStorage
         localStorage.setItem('loveLetterData', JSON.stringify(letterData))
 
+        // 清除临时表单数据
+        handleSubmitSuccess()
+
         // 在路由跳转前停止音频
         if (audioRef.current) {
           audioRef.current.pause()
@@ -481,8 +532,165 @@ export default function LoveLetterForm() {
         })
       }
     },
-    [session?.user?.id, language, toast, router, formData, uploadPhotoAndPrepareData, triggerShake]
+    [
+      session, 
+      formData, 
+      toast, 
+      language, 
+      router, 
+      uploadPhotoAndPrepareData, 
+      triggerShake, 
+      setIsLoading, 
+      setIsSubmitting, 
+      setShowCreditsAlert,
+      setShowLoginDialog,
+      handleSubmitSuccess
+    ]
   )
+  
+  // 登录对话框关闭逻辑
+  const handleLoginDialogClose = useCallback(() => {
+    setShowLoginDialog(false)
+  }, [])
+
+  // 提取恢复表单数据的逻辑为单独函数
+  const restoreFormDataAfterLogin = useCallback(() => {
+    try {
+      // 从localStorage获取之前保存的表单数据
+      const savedFormData = localStorage.getItem('pendingFormData');
+      if (!savedFormData) {
+        console.log('No saved form data found');
+        return;
+      }
+      
+      const parsedData = JSON.parse(savedFormData);
+      if (!parsedData || (!parsedData.name && !parsedData.story)) {
+        console.log('Invalid saved form data');
+        return;
+      }
+      
+      console.log('Restoring form data after login');
+      
+      // 恢复表单数据
+      const updatedFormData = { ...formData };
+      if (parsedData.name) updatedFormData.name = parsedData.name;
+      if (parsedData.loverName) updatedFormData.loverName = parsedData.loverName;
+      if (parsedData.story) updatedFormData.story = parsedData.story;
+      
+      // 恢复图片数据（如果有）
+      if (parsedData.photoInfo && parsedData.photoInfo.dataURL) {
+        try {
+          console.log('Restoring photo from dataURL');
+          // 从Base64数据URL创建Blob
+          const dataURLParts = parsedData.photoInfo.dataURL.split(',');
+          const mime = dataURLParts[0].match(/:(.*?);/)[1];
+          const binaryString = atob(dataURLParts[1]);
+          const binaryLen = binaryString.length;
+          const bytes = new Uint8Array(binaryLen);
+          
+          for (let i = 0; i < binaryLen; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          
+          // 创建Blob
+          const blob = new Blob([bytes], { type: mime });
+          
+          // 从Blob创建File对象
+          const restoredFile = new File(
+            [blob], 
+            parsedData.photoInfo.name || 'restored-image.jpg', 
+            { 
+              type: parsedData.photoInfo.type || 'image/jpeg',
+              lastModified: parsedData.photoInfo.lastModified || Date.now()
+            }
+          );
+          
+          // 将恢复的File对象设置到表单数据中
+          updatedFormData.photo = restoredFile;
+          console.log('Photo successfully restored');
+        } catch (err) {
+          console.error('Failed to restore photo from dataURL:', err);
+        }
+      }
+      
+      // 更新表单数据
+      setFormData(updatedFormData);
+      
+      // 设置恢复标志
+      setIsRestoringAfterLogin(true);
+      
+      // 清除localStorage中的数据
+      localStorage.removeItem('pendingFormData');
+      
+      // 根据是否已恢复照片决定跳转到哪一步
+      setTimeout(() => {
+        if (updatedFormData.photo instanceof File) {
+          // 如果照片已恢复，直接跳到第四步（故事/生成按钮页面）
+          setCurrentStep(3);
+          toast({
+            title: language === 'en' ? 'Form data restored' : '表单数据已恢复',
+            description: language === 'en' 
+              ? 'Your form has been fully recovered. You can now generate your letter!' 
+              : '您的表单已完全恢复。现在可以生成您的信件了！',
+            variant: 'default',
+          });
+          
+          // 标记恢复流程完成
+          setIsRestoringAfterLogin(false);
+        } else {
+          // 如果没有恢复照片，跳到第二步（照片上传）
+          setCurrentStep(1);
+          toast({
+            title: language === 'en' ? 'Please upload your photo again' : '请重新上传照片',
+            description: language === 'en' 
+              ? 'We couldn\'t save your photo during login. Please select it again.' 
+              : '登录过程中无法保存您的照片，请重新选择。',
+            variant: 'default',
+          });
+        }
+      }, 500);
+    } catch (error) {
+      console.error('Error restoring form data:', error);
+    }
+  }, [formData, language, toast, setCurrentStep, setFormData, setIsRestoringAfterLogin]);
+  
+  // 检测用户是否从登录返回
+  useEffect(() => {
+    // 检查组件是否已挂载且用户已登录
+    if (mounted && session?.user?.id) {
+      // 检查是否需要恢复表单数据（同时检查URL参数和localStorage标记）
+      const params = new URLSearchParams(window.location.search);
+      const hasLoginParam = params.get('returnFrom') === 'login';
+      const hasPendingFlag = localStorage.getItem('hasFormDataPending') === 'true';
+      const isReturningFromLogin = hasLoginParam || hasPendingFlag;
+      
+      // 如果是从登录返回，尝试恢复数据并清理URL参数
+      if (isReturningFromLogin) {
+        console.log('User returned from login, attempting to restore data');
+        
+        // 清除标记
+        localStorage.removeItem('hasFormDataPending');
+        
+        // 如果有URL参数，清理它
+        if (hasLoginParam) {
+          // 移除URL参数，避免刷新页面时重复处理
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('returnFrom');
+          
+          // 使用history.replaceState更新URL而不刷新页面
+          window.history.replaceState({}, document.title, newUrl.toString());
+        }
+        
+        // 尝试恢复表单数据
+        restoreFormDataAfterLogin();
+      } else {
+        // 非登录返回场景，清除缓存
+        localStorage.removeItem('pendingFormData');
+        localStorage.removeItem('hasFormDataPending');
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, session]);
 
   // 初始化音频
   useEffect(() => {
@@ -561,6 +769,50 @@ export default function LoveLetterForm() {
       window.removeEventListener('keydown', handleKeyPress)
     }
   }, [handleKeyPress])
+
+  useEffect(() => {
+    setMounted(true)
+    return () => {
+      setMounted(false)
+    }
+  }, [])
+
+  // 监听照片上传状态，从登录恢复后用户上传照片时自动跳转到后续步骤
+  useEffect(() => {
+    // 只有当处于恢复模式且当前在照片上传步骤，且有照片数据时才处理
+    const hasRestoredPhoto = isRestoringAfterLogin && 
+                            currentStep === 1 && 
+                            formData.photo instanceof File
+    
+    if (hasRestoredPhoto) {
+      // 照片已上传，直接跳转到最后一步
+      toast({
+        title: language === 'en' ? 'Photo uploaded successfully!' : '照片上传成功！',
+        description: language === 'en' 
+          ? 'Taking you to the final step...' 
+          : '正在跳转到最后一步...',
+        variant: 'default',
+      })
+      
+      // 延迟跳转，让用户看到提示
+      setTimeout(() => {
+        // 直接跳到第四步（故事/生成页面）
+        setCurrentStep(3)
+        
+        // 提示用户准备生成
+        toast({
+          title: language === 'en' ? 'Ready to generate' : '准备就绪',
+          description: language === 'en' 
+            ? 'You can now generate your letter!' 
+            : '现在您可以生成您的信件了！',
+          variant: 'default',
+        })
+        
+        // 标记恢复完成
+        setIsRestoringAfterLogin(false)
+      }, 800)
+    }
+  }, [isRestoringAfterLogin, currentStep, formData.photo, language, toast])
 
   return (
     <div className="w-full max-w-2xl">
@@ -716,6 +968,11 @@ export default function LoveLetterForm() {
           console.log('CreditsAlert onOpenChange:', open)
           setShowCreditsAlert(open)
         }}
+      />
+
+      <LoginDialog
+        isOpen={showLoginDialog}
+        onClose={handleLoginDialogClose}
       />
     </div>
   )

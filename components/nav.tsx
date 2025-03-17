@@ -29,7 +29,7 @@ export function Nav() {
   }, [])
 
   const links = [
-    { href: status === 'authenticated' ? '/write' : '/auth/signin?callbackUrl=/write&source=nav', label: language === 'en' ? 'Write' : '写信' },
+    { href: '/write', label: language === 'en' ? 'Write' : '写信' },
     ...(status === 'authenticated' ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }] : []),
     { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
     { href: '/blog', label: language === 'en' ? 'Blog' : '博客' },

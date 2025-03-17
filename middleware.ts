@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 // 不需要登录的路由
-const publicRoutes = ['/', '/auth/signin', '/about', '/terms', '/privacy', '/pricing', '/checkout/success']
+const publicRoutes = ['/', '/auth/signin', '/about', '/terms', '/privacy', '/pricing', '/checkout/success', '/write']
 
 // 静态资源路径
 const staticRoutes = ['/_next/', '/images/', '/fonts/', '/favicon.ico']
