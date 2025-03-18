@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import { ImageIcon, Loader2, X } from 'lucide-react'
 import Image from 'next/image'
@@ -106,18 +107,20 @@ const SUPPORTED_FILE_TYPES = {
 const ImagePreview = memo(({ 
   src, 
   onError, 
-  onRemove 
+  onRemove,
+  language 
 }: { 
   src: string, 
   onError: () => void, 
-  onRemove: (e: React.MouseEvent) => void 
+  onRemove: (e: React.MouseEvent) => void,
+  language: string
 }) => {
   return (
     <div className="relative w-full h-[150px] rounded-lg overflow-hidden" 
       style={{ transform: 'translate3d(0,0,0)', WebkitBackfaceVisibility: 'hidden' }}>
       <Image 
         src={src} 
-        alt="预览图" 
+        alt={language === 'en' ? 'Preview' : '预览图'} 
         fill 
         className="object-contain"
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -134,7 +137,7 @@ const ImagePreview = memo(({
       </Button>
       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
         <p className="text-white text-xs bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
-          点击更换图片
+          {language === 'en' ? 'Click to change image' : '点击更换图片'}
         </p>
       </div>
     </div>
@@ -149,6 +152,7 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const { language } = useLanguage()
 
   // 初始化清理定时器
   useEffect(() => {
@@ -191,7 +195,7 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
       // 检查文件大小
       const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
       if (file.size > MAX_FILE_SIZE) {
-        throw new Error('图片大小超过10MB限制')
+        throw new Error(language === 'en' ? 'Image size exceeds 10MB limit' : '图片大小超过10MB限制')
       }
 
       // 对于非 HEIC 格式，使用 FileReader 直接创建预览
@@ -210,7 +214,7 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
           onImageSelected(file)
         }
         reader.onerror = () => {
-          setError('读取图片文件失败')
+          setError(language === 'en' ? 'Failed to read image file' : '读取图片文件失败')
           setIsLoading(false)
         }
         reader.readAsDataURL(file)
@@ -250,20 +254,20 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
           onImageSelected(convertedFile)
         }
         reader.onerror = () => {
-          setError('转换HEIC图片失败')
+          setError(language === 'en' ? 'Failed to convert HEIC image' : '转换HEIC图片失败')
           setIsLoading(false)
         }
         reader.readAsDataURL(convertedBlob)
       } catch (e) {
-        throw new Error('无法转换HEIC图片，请尝试JPG或PNG格式。')
+        throw new Error(language === 'en' ? 'Unable to convert HEIC image. Please try a JPG or PNG file instead.' : '无法转换HEIC图片，请尝试JPG或PNG格式。')
       }
     } catch (e) {
       console.error('Preview creation failed:', e)
-      setError(e instanceof Error ? e.message : '创建图片预览失败')
+      setError(e instanceof Error ? e.message : (language === 'en' ? 'Failed to create image preview' : '创建图片预览失败'))
       setPreview(null)
       setIsLoading(false)
     }
-  }, [onImageSelected])
+  }, [onImageSelected, language])
 
   // 文件验证和处理
   const handleFileSelect = useCallback(
@@ -278,19 +282,21 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
         )
 
         if (!isSupported) {
-          throw new Error('不支持的文件格式。请上传JPG、PNG或HEIC格式的图片。')
+          throw new Error(language === 'en' 
+            ? 'Unsupported file format. Please upload a JPG, PNG or HEIC image.' 
+            : '不支持的文件格式。请上传JPG、PNG或HEIC格式的图片。')
         }
 
         await createPreview(file)
         // 注意：现在我们不在这里设置selectedFile和调用onImageSelected
         // 这些操作已移至createPreview中，确保转换后的文件被使用
       } catch (e) {
-        setError(e instanceof Error ? e.message : '文件格式错误')
+        setError(e instanceof Error ? e.message : (language === 'en' ? 'File format error' : '文件格式错误'))
         setPreview(null)
         setIsLoading(false)
       }
     },
-    [createPreview]
+    [createPreview, language]
   )
 
   // 处理文件删除
@@ -316,9 +322,9 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
 
   // 图片加载错误处理
   const handleImageError = useCallback(() => {
-    setError('加载图片预览失败')
+    setError(language === 'en' ? 'Failed to load image preview' : '加载图片预览失败')
     setPreview(null)
-  }, [])
+  }, [language])
 
   // 配置 dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -327,7 +333,9 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
     onDrop: (files: File[]) => files[0] && handleFileSelect(files[0]),
     noKeyboard: true,
     onDropRejected: () => {
-      setError('不支持的文件格式。请上传JPG、PNG或HEIC格式的图片。')
+      setError(language === 'en' 
+        ? 'Unsupported file format. Please upload a JPG, PNG or HEIC image.' 
+        : '不支持的文件格式。请上传JPG、PNG或HEIC格式的图片。')
     }
   })
 
@@ -359,33 +367,42 @@ const SimpleImageUploadComponent = ({ onImageSelected, className }: SimpleImageU
           <Loader2 className="w-6 h-6 animate-spin" />
           <p className="text-xs animate-pulse">
             {selectedFile?.name.toLowerCase().endsWith('.heic')
-              ? '正在转换HEIC图片...'
-              : '正在处理图片...'}
+              ? (language === 'en' ? 'Converting HEIC image...' : '正在转换HEIC图片...')
+              : (language === 'en' ? 'Processing image...' : '正在处理图片...')}
           </p>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center gap-2 p-2 text-center h-full">
           <p className="text-xs max-w-[80%] text-destructive">{error}</p>
-          <p className="text-xs text-muted-foreground">点击或拖拽重新上传</p>
+          <p className="text-xs text-muted-foreground">
+            {language === 'en' ? 'Click or drag to try again' : '点击或拖拽重新上传'}
+          </p>
         </div>
       ) : preview ? (
         <ImagePreview 
           src={preview} 
           onError={handleImageError} 
           onRemove={handleRemove} 
+          language={language}
         />
       ) : (
         <div className="flex flex-col items-center justify-center gap-2 p-2 text-center h-full">
           {isDragActive ? (
             <>
-              <p className="text-xs">放开以上传图片</p>
+              <p className="text-xs">
+                {language === 'en' ? 'Drop to upload' : '放开以上传图片'}
+              </p>
             </>
           ) : (
             <>
               <ImageIcon className="w-5 h-5" />
-              <p className="text-xs text-muted-foreground">点击或拖拽上传</p>
+              <p className="text-xs text-muted-foreground">
+                {language === 'en' ? 'Click or drag to upload' : '点击或拖拽上传'}
+              </p>
               <div className="text-[10px] text-muted-foreground/70">
-                <p>支持JPG、PNG和HEIC格式</p>
+                <p>
+                  {language === 'en' ? 'Supports JPG, PNG and HEIC' : '支持JPG、PNG和HEIC格式'}
+                </p>
               </div>
             </>
           )}
