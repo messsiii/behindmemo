@@ -5,6 +5,21 @@ import { NextResponse } from 'next/server'
 // 不需要登录的路由
 const publicRoutes = ['/', '/auth/signin', '/about', '/terms', '/privacy', '/pricing', '/checkout/success', '/write']
 
+// 添加一个函数来检查路径是否匹配公开规则，包括前缀匹配
+const isPublicPath = (path: string) => {
+  // 直接匹配完整路径
+  if (publicRoutes.includes(path)) {
+    return true
+  }
+  
+  // 检查匿名结果页路径
+  if (path.startsWith('/anonymous/')) {
+    return true
+  }
+  
+  return false
+}
+
 // 静态资源路径
 const staticRoutes = ['/_next/', '/images/', '/fonts/', '/favicon.ico']
 
@@ -21,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. 检查是否是公开路由
-  if (publicRoutes.includes(pathname)) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next()
   }
 
@@ -32,7 +47,7 @@ export async function middleware(request: NextRequest) {
     })
 
     // 3. 处理需要认证的路由
-    if (!token && !publicRoutes.includes(pathname)) {
+    if (!token && !isPublicPath(pathname)) {
       // 保存当前路径作为回调URL
       const callbackUrl = encodeURIComponent(pathname)
       const signInUrl = new URL(`/auth/signin?callbackUrl=${callbackUrl}`, request.url)

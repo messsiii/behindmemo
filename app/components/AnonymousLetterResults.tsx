@@ -17,18 +17,18 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { openSubscriptionCheckout } from "@/lib/paddle";
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
-import { Crown, Download, EyeOff, Home, Infinity } from 'lucide-react';
+import { Download, Home, LogIn } from 'lucide-react';
+import { signIn, useSession } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
 import { StyleDrawer } from './StyleDrawer';
-import { UnlockTemplateDialog } from './UnlockTemplateDialog';
 
 interface Letter {
   id: string
@@ -40,6 +40,7 @@ interface Letter {
     loverName: string
     story: string
     orientation: number
+    isAnonymous?: boolean
   }
 }
 
@@ -179,7 +180,7 @@ const TEMPLATES = {
   }
 }
 
-export default function ResultsPage({ id }: { id: string }) {
+export default function AnonymousLetterResults({ id, isAnonymous = false }: { id: string, isAnonymous?: boolean }) {
   const router = useRouter()
   const { language } = useLanguage()
   const [letter, setLetter] = useState<Letter | null>(null)
@@ -195,27 +196,68 @@ export default function ResultsPage({ id }: { id: string }) {
   const [showStyleDrawer, setShowStyleDrawer] = useState(false)
   const [unlockedTemplates, setUnlockedTemplates] = useState<string[]>([])
   const [isVIP, setIsVIP] = useState(false)
-  const [userCredits, setUserCredits] = useState(0)
-  const [isUnlocking, setIsUnlocking] = useState(false)
-  const [showUnlockDialog, setShowUnlockDialog] = useState(false)
-  const [templateToUnlock, setTemplateToUnlock] = useState<string | null>(null)
+  const [_userCredits, setUserCredits] = useState(0) // 标记为未使用但仍然保留setter
   const [checkingVipStatus, setCheckingVipStatus] = useState(false)
   // 添加水印控制状态
   const [hideWatermark, setHideWatermark] = useState(false)
-  const [showVipPrompt, setShowVipPrompt] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
+  const { data: session, status } = useSession()
+  const [isClaimingAfterLogin, setIsClaimingAfterLogin] = useState(false)
+  const [isSavingAnonymous, setIsSavingAnonymous] = useState(false)
 
-  // 获取信件详情
+  // 设置URL搜索参数
   useEffect(() => {
-    const fetchLetter = async () => {
+    if (typeof window !== 'undefined') {
+      setSearchParams(new URLSearchParams(window.location.search));
+    }
+  }, []);
+
+  // 检查登录后回调（匿名信件认领）
+  useEffect(() => {
+    // 如果已登录且URL包含callbackParam=claimLetter，则自动认领信件
+    if (isAnonymous && status === 'authenticated' && searchParams?.get('callbackParam') === 'claimLetter') {
+      console.log('[DEBUG] 检测到登录回调，准备认领匿名信件:', id);
+      
+      // 延迟一点时间再执行保存，确保session完全加载
+      const timer = setTimeout(() => {
+        saveAnonymousLetter();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [status, searchParams, isAnonymous, id]);
+
+  // 获取信件内容
+  useEffect(() => {
+    async function fetchLetter() {
+      setIsLoading(true)
       try {
-        const res = await fetch(`/api/letters/${id}`)
+        // 根据是否为匿名信件选择不同的API端点
+        const apiUrl = isAnonymous 
+          ? `/api/anonymous/letters/${id}`
+          : `/api/letters/${id}`
+
+        console.log(`[DEBUG] 开始获取信件 (匿名: ${isAnonymous}): ${apiUrl}`)
+        const res = await fetch(apiUrl)
         const data = await res.json()
 
         if (!res.ok) {
           throw new Error(data.error || 'Failed to fetch letter')
         }
 
-        setLetter(data.letter)
+        console.log(`[DEBUG] 信件内容获取成功:`, data.letter)
+        
+        // 确保匿名信件的状态被设置为completed
+        if (isAnonymous && data.letter && data.letter.content) {
+          console.log('[DEBUG] 强制将匿名信件状态设置为completed')
+          setLetter({
+            ...data.letter,
+            status: 'completed'  // 强制匿名信件状态为completed
+          })
+        } else {
+          setLetter(data.letter)
+        }
       } catch (error) {
         console.error('[FETCH_LETTER_ERROR]', error)
         toast({
@@ -229,10 +271,67 @@ export default function ResultsPage({ id }: { id: string }) {
     }
 
     fetchLetter()
-  }, [id])
+  }, [id, isAnonymous])
+
+  // 添加轮询机制，定期检查匿名信件状态
+  useEffect(() => {
+    // 只有在匿名信件且状态为generating时才启动轮询
+    if (!isAnonymous || !letter || letter.status !== 'generating') return;
+    
+    console.log('[DEBUG] 启动匿名信件状态轮询检查');
+    
+    // 定义查询函数
+    const checkLetterStatus = async () => {
+      try {
+        const apiUrl = `/api/anonymous/letters/${id}`;
+        const res = await fetch(apiUrl);
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        console.log(`[DEBUG] 轮询获取信件状态:`, data.letter.status);
+        
+        // 如果服务端状态已更新为completed或有内容了，则更新本地状态
+        if (data.letter.status === 'completed' || data.letter.content) {
+          console.log('[DEBUG] 匿名信件已完成，更新状态');
+          setLetter({
+            ...data.letter,
+            status: 'completed'  // 强制设为completed
+          });
+        }
+      } catch (error) {
+        console.error('[POLL_LETTER_ERROR]', error);
+      }
+    };
+    
+    // 立即检查一次
+    checkLetterStatus();
+    
+    // 设置轮询间隔
+    const intervalId = setInterval(checkLetterStatus, 3000); // 每3秒检查一次
+    
+    // 清理函数
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [id, letter, isAnonymous]);
+
+  // 或者，当检测到信件有内容但状态不是completed时，强制更新状态
+  useEffect(() => {
+    if (isAnonymous && letter && letter.content && letter.status !== 'completed') {
+      console.log('[DEBUG] 匿名信件有内容但状态不是completed，强制更新状态');
+      setLetter(prev => ({
+        ...prev!,
+        status: 'completed'
+      }));
+    }
+  }, [letter, isAnonymous]);
 
   // 获取用户信息，包括积分和VIP状态
   useEffect(() => {
+    // 只有在用户已登录的情况下才获取用户信息
+    if (status !== 'authenticated') return;
+
     const fetchUserInfo = async () => {
       try {
         const res = await fetch('/api/user/credits')
@@ -296,79 +395,18 @@ export default function ResultsPage({ id }: { id: string }) {
       setCheckingVipStatus(false)
       window.removeEventListener('subscription:success', startVipCheck)
     }
-  }, [id, checkingVipStatus])
-
-  // 解锁模板
-  const unlockTemplate = async (templateId: string) => {
-    if (isUnlocking) return
-    
-    try {
-      setIsUnlocking(true)
-      
-      const res = await fetch('/api/user/unlock-template', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          templateId,
-          letterId: id,
-        }),
-      })
-      
-      const data = await res.json()
-      
-      if (!res.ok) {
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: data.error || (language === 'en' ? 'Failed to unlock template' : '解锁模板失败'),
-          variant: 'destructive',
-        })
-        return false
-      }
-      
-      // 更新积分
-      if (data.creditsRemaining !== undefined) {
-        setUserCredits(data.creditsRemaining)
-        
-        // 触发自定义事件，通知其他组件刷新积分数据
-        const event = new CustomEvent('credits:update')
-        window.dispatchEvent(event)
-      }
-      
-      // 更新已解锁模板列表
-      setUnlockedTemplates(prev => [...prev, templateId])
-      
-      toast({
-        title: language === 'en' ? 'Success' : '成功',
-        description: language === 'en' ? 'Template unlocked successfully' : '模板解锁成功',
-      })
-      
-      return true
-    } catch (error) {
-      console.error('[UNLOCK_TEMPLATE_ERROR]', error)
-      toast({
-        title: language === 'en' ? 'Error' : '错误',
-        description: language === 'en' ? 'Failed to unlock template' : '解锁模板失败',
-        variant: 'destructive',
-      })
-      return false
-    } finally {
-      setIsUnlocking(false)
-    }
-  }
+  }, [id, checkingVipStatus, status])
 
   // 处理模板变更 - 从StyleDrawer组件调用
   const handleTemplateChange = (template: string) => {
     const targetTemplate = TEMPLATES[template as keyof typeof TEMPLATES]
     
-    // 检查模板是否可用（免费、VIP用户或已解锁）
-    if (targetTemplate.isFree || isVIP || unlockedTemplates.includes(template)) {
+    // 检查模板是否可用（免费模板可直接使用，非免费则引导登录）
+    if (targetTemplate.isFree) {
       setSelectedTemplate(template as keyof typeof TEMPLATES)
     } else {
-      // 设置需要解锁的模板
-      setTemplateToUnlock(template)
-      setShowUnlockDialog(true)
+      // 匿名模式下引导用户登录
+      setShowLoginPrompt(true);
     }
   }
   
@@ -377,36 +415,10 @@ export default function ResultsPage({ id }: { id: string }) {
     if (isVIP) {
       // VIP用户可以直接隐藏水印
       setHideWatermark(hide);
-    } else {
-      // 非VIP用户点击时显示提示
-      if (hide) {
-        setShowVipPrompt(true);
-      }
+    } else if (hide) {
+      // 非VIP用户点击时显示登录引导
+      setShowLoginPrompt(true);
     }
-  }
-
-  // 处理解锁确认
-  const handleUnlockConfirm = async () => {
-    if (!templateToUnlock || isUnlocking) return
-    
-    try {
-      setIsUnlocking(true)
-      
-      const success = await unlockTemplate(templateToUnlock)
-      if (success) {
-        setSelectedTemplate(templateToUnlock as keyof typeof TEMPLATES)
-        setShowUnlockDialog(false)
-        setTemplateToUnlock(null)
-      }
-    } finally {
-      setIsUnlocking(false)
-    }
-  }
-  
-  // 处理解锁取消
-  const handleUnlockCancel = () => {
-    setShowUnlockDialog(false)
-    setTemplateToUnlock(null)
   }
 
   // 切换抽屉显示状态
@@ -418,6 +430,8 @@ export default function ResultsPage({ id }: { id: string }) {
   useEffect(() => {
     if (!letter) return
     if (letter.status === 'completed' && letter.content) return
+    // 匿名信件不需要生成内容，它已经有内容了
+    if (isAnonymous) return
 
     const generateContent = async () => {
       try {
@@ -457,7 +471,7 @@ export default function ResultsPage({ id }: { id: string }) {
     }
 
     generateContent()
-  }, [letter])
+  }, [letter, isAnonymous])
 
   // 修改saveAsImage函数 - 直接使用当前选中的模板
   const saveAsImage = async () => {
@@ -1443,6 +1457,129 @@ export default function ResultsPage({ id }: { id: string }) {
     })
   }
 
+  // 保存匿名信件到用户账户
+  const saveAnonymousLetter = async () => {
+    if (!session) {
+      // 保存信件ID到localStorage，以便登录后使用
+      try {
+        localStorage.setItem('anonymous_letter_to_claim', id);
+        console.log('[DEBUG] 将匿名信件ID保存到localStorage:', id);
+      } catch (err) {
+        console.error('[DEBUG] 无法保存信件ID到localStorage:', err);
+      }
+      
+      // 简单地使用标准登录流程，不使用复杂的callbackUrl参数
+      console.log('[DEBUG] 使用标准登录流程，登录后会处理信件认领');
+      signIn('google');  // 使用默认回调URL，登录后会回到当前页面
+      return;
+    }
+
+    // 显示保存状态
+    setIsSavingAnonymous(true);
+    console.log('[DEBUG] 开始保存匿名信件到用户账户:', id);
+    
+    try {
+      // 将匿名信件认领到用户账户
+      const res = await fetch('/api/anonymous/claim-letter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ letterId: id }),
+      });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[API_ERROR]', res.status, errorText);
+        throw new Error(`Failed to save letter: ${res.status} ${errorText}`);
+      }
+      
+      const data = await res.json();
+      console.log('[DEBUG] 匿名信件保存成功，获取到新ID:', data.newLetterId);
+      
+      // 显示成功提示
+      toast({
+        title: language === 'en' ? 'Successfully saved' : '保存成功',
+        description: language === 'en' 
+          ? 'Letter has been saved to your account and is no longer anonymous' 
+          : '信件已保存到您的账户，不再是匿名信件',
+      });
+      
+      // 保存成功后重定向到常规结果页（使用新的letterId）
+      if (data.newLetterId) {
+        console.log(`[DEBUG] 匿名信件认领成功，跳转到常规结果页: /result/${data.newLetterId}`);
+        // 使用replace而不是push，防止浏览器回退到匿名页面
+        router.replace(`/result/${data.newLetterId}`);
+      }
+    } catch (error) {
+      console.error('[SAVE_ANONYMOUS_LETTER_ERROR]', error);
+      toast({
+        title: language === 'en' ? 'Save failed' : '保存失败',
+        description: language === 'en' ? 'Failed to save letter to your account, please try again' : '无法将信件保存到您的账户，请重试',
+        variant: 'destructive',
+      });
+      
+      // 隐藏全屏加载
+      setIsClaimingAfterLogin(false);
+    } finally {
+      setIsSavingAnonymous(false);
+    }
+  };
+
+  // 检查登录状态变化，处理自动认领
+  useEffect(() => {
+    // 仅当用户登录后执行
+    if (status === 'authenticated' && session?.user) {
+      console.log('[DEBUG] 用户已登录，检查是否需要认领匿名信件');
+      
+      // 检查是否有待认领的信件
+      try {
+        const letterIdToClaim = localStorage.getItem('anonymous_letter_to_claim');
+        
+        // 确保有信件ID且与当前信件匹配
+        if (letterIdToClaim && letterIdToClaim === id) {
+          console.log('[DEBUG] 发现待认领的匿名信件:', letterIdToClaim);
+          
+          // 移除存储的信件ID
+          localStorage.removeItem('anonymous_letter_to_claim');
+          
+          // 显示全屏加载
+          setIsClaimingAfterLogin(true);
+          
+          // 执行认领流程
+          saveAnonymousLetter();
+        }
+      } catch (err) {
+        console.error('[DEBUG] 检查待认领信件时出错:', err);
+      }
+    }
+  }, [status, session, id]);
+
+  // 渲染全屏加载
+  const renderFullscreenLoading = () => {
+    if (!isSavingAnonymous && !isClaimingAfterLogin) return null;
+    
+    // 使用Portal确保加载提示显示在最顶层
+    return typeof window !== 'undefined' 
+      ? createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900/80 p-8 rounded-lg shadow-xl border border-gray-700 max-w-md w-full text-center">
+              <div className="w-16 h-16 border-4 border-t-blue-500 border-blue-500/30 rounded-full animate-spin mx-auto mb-6"></div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {language === 'en' ? 'Saving your letter...' : '正在保存您的信件...'}
+              </h2>
+              <p className="text-gray-300 text-sm">
+                {language === 'en' 
+                  ? 'Please wait while we save your letter. This may take a few moments.' 
+                  : '正在将您的信件保存到账户，请稍候...'}
+              </p>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black overflow-x-hidden">
@@ -1482,11 +1619,15 @@ export default function ResultsPage({ id }: { id: string }) {
 
   const paragraphs = letter.content ? letter.content.split('\n').filter(p => p.trim()) : []
 
+  // 添加调试输出
+  console.log(`[DEBUG] 当前信件状态: ${letter.status}, 是否匿名: ${isAnonymous}, 是否有内容: ${Boolean(letter.content)}, 是否显示已完成: ${letter.status === 'completed'}`)
+
   return (
     <>
+      {renderFullscreenLoading()}
       <div className={cn(
-        "min-h-screen overflow-x-hidden relative",
-        selectedTemplate === 'artisan' 
+         "min-h-screen overflow-x-hidden relative",
+         selectedTemplate === 'artisan' 
           ? "before:bg-[url('/images/artisan-red-bg.jpg')] before:safari-fixed" 
           : selectedTemplate === 'natural'
             ? "before:bg-[url('/images/natural-bg.jpg')] before:safari-fixed"
@@ -1511,410 +1652,482 @@ export default function ResultsPage({ id }: { id: string }) {
           TEMPLATES[selectedTemplate].style.background.match(/url\((.*?)\)/)?.[1] : ''})`
       } as React.CSSProperties}
       >
-        {/* 返回首页按钮 */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="fixed top-[14px] left-4 z-50"
-        >
-          <Link href="/">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 p-0 text-white/70 hover:text-white hover:bg-transparent"
-            >
-              <Home className="h-[18px] w-[18px]" />
-            </Button>
-          </Link>
-        </motion.div>
+         {/* 返回首页按钮 */}
+         <motion.div
+           initial={{ opacity: 0, x: -20 }}
+           animate={{ opacity: 1, x: 0 }}
+           transition={{ duration: 0.5 }}
+           className="fixed top-[14px] left-4 z-50"
+         >
+           <Link href="/">
+             <Button
+               variant="ghost"
+               size="icon"
+               className="h-6 w-6 p-0 text-white/70 hover:text-white hover:bg-transparent"
+             >
+               <Home className="h-[18px] w-[18px]" />
+             </Button>
+           </Link>
+         </motion.div>
 
-        <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
-          <div className="relative min-h-screen">
-            {/* 背景效果 */}
-            <div className={cn(
-              "fixed inset-0",
-              // 对带背景图的模板隐藏或减少蒙版不透明度
-              TEMPLATES[selectedTemplate].style.background.includes('url')
-                ? "opacity-0" // 带背景图模板不需要额外的蒙版
-                : "opacity-20" // 其他模板保持原有蒙版效果
-            )}>
-              <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
-              {letter.imageUrl && (
-                <Image
-                  src={imageError ? '/placeholder.svg' : letter.imageUrl}
-                  alt="Background"
-                  fill
-                  className="filter blur-2xl scale-110 object-cover mix-blend-overlay"
-                  priority
-                  unoptimized
-                />
-              )}
-            </div>
+         <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
+           <div className="relative min-h-screen">
+             {/* 背景效果 */}
+             <div className={cn(
+               "fixed inset-0",
+               // 对带背景图的模板隐藏或减少蒙版不透明度
+               TEMPLATES[selectedTemplate].style.background.includes('url')
+                 ? "opacity-0" // 带背景图模板不需要额外的蒙版
+                 : "opacity-20" // 其他模板保持原有蒙版效果
+             )}>
+               <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
+               {letter.imageUrl && (
+                 <Image
+                   src={imageError ? '/placeholder.svg' : letter.imageUrl}
+                   alt="Background"
+                   fill
+                   className="filter blur-2xl scale-110 object-cover mix-blend-overlay"
+                   priority
+                   unoptimized
+                 />
+               )}
+             </div>
 
-            {/* 内容部分 */}
-            <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-10">
-              <div className="w-full max-w-4xl">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    ref={contentRef}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
-                    className="space-y-12"
-                  >
-                    {/* 标题 */}
-                    <motion.h1
-                      initial={{ opacity: 0, y: -20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3, duration: 0.8 }}
-                      className={cn(
-                        "text-5xl md:text-6xl font-bold text-center font-display tracking-wide",
-                        TEMPLATES[selectedTemplate].style.background.includes('url')
-                          ? selectedTemplate === 'artisan'
-                            ? "text-[#B00702] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
-                            : selectedTemplate === 'natural'
-                              ? "text-[#5E4027] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
-                              : selectedTemplate === 'darkWine'
-                                ? "text-[#F4F4F4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
-                                : selectedTemplate === 'paperMemo'
-                                  ? "text-[#151212] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
-                                  : selectedTemplate === 'oceanBreeze'
-                                    ? "text-[#0B5A6B] drop-shadow-[0_1px_2px_rgba(173,216,230,0.5)]"
-                                    : selectedTemplate === 'darkCrimson'
-                                      ? "text-[#FF1100] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
-                                      : selectedTemplate === 'purpleDream'
-                                        ? "text-[#E83DEE] drop-shadow-[0_0_12px_rgba(255,105,244,0.6)]"
-                                        : selectedTemplate === 'elegantPaper'
-                                          ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
-                                          : selectedTemplate === 'roseParchment'
-                                            ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-                                            : "text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]"
-                          : "bg-clip-text text-transparent bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1]"
-                      )}
-                    >
-                      Your Love Letter
-                    </motion.h1>
-                    <motion.div
-                      className={cn(
-                        "mt-8 w-20 h-1 mx-auto", 
-                        TEMPLATES[selectedTemplate].style.background.includes('url')
-                          ? selectedTemplate === 'artisan'
-                            ? "bg-[#B00702]"
-                            : selectedTemplate === 'natural'
-                              ? "bg-[#5E4027]"
-                              : selectedTemplate === 'darkWine'
-                                ? "bg-[#F4F4F4]"
-                                : selectedTemplate === 'paperMemo'
-                                  ? "bg-[#151212]"
-                                  : selectedTemplate === 'oceanBreeze'
-                                    ? "bg-[#0B5A6B]"
-                                    : selectedTemplate === 'darkCrimson'
-                                      ? "bg-[#FF1100]"
-                                      : selectedTemplate === 'purpleDream'
-                                        ? "bg-[#E83DEE]"
-                                        : selectedTemplate === 'elegantPaper'
-                                          ? "bg-[#E75C31]"
-                                          : selectedTemplate === 'roseParchment'
-                                            ? "bg-[#E358A2]"
-                                            : "bg-white/80 shadow-md"
-                          : "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]"
-                      )}
-                      initial={{ width: 0 }}
-                      animate={{ width: 80 }}
-                      transition={{ duration: 0.8, delay: 0.5 }}
-                    />
+             {/* 内容部分 */}
+             <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-10">
+               <div className="w-full max-w-4xl">
+                 <AnimatePresence mode="wait">
+                   <motion.div
+                     ref={contentRef}
+                     initial={{ opacity: 0, y: 20 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     transition={{ duration: 0.8, ease: 'easeOut' }}
+                     className="space-y-12"
+                   >
+                     {/* 标题 */}
+                     <motion.h1
+                       initial={{ opacity: 0, y: -20 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       transition={{ delay: 0.3, duration: 0.8 }}
+                       className={cn(
+                         "text-5xl md:text-6xl font-bold text-center font-display tracking-wide",
+                         TEMPLATES[selectedTemplate].style.background.includes('url')
+                           ? selectedTemplate === 'artisan'
+                             ? "text-[#B00702] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
+                             : selectedTemplate === 'natural'
+                               ? "text-[#5E4027] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
+                               : selectedTemplate === 'darkWine'
+                                 ? "text-[#F4F4F4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
+                                 : selectedTemplate === 'paperMemo'
+                                   ? "text-[#151212] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
+                                   : selectedTemplate === 'oceanBreeze'
+                                     ? "text-[#0B5A6B] drop-shadow-[0_1px_2px_rgba(173,216,230,0.5)]"
+                                     : selectedTemplate === 'darkCrimson'
+                                       ? "text-[#FF1100] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
+                                       : selectedTemplate === 'purpleDream'
+                                         ? "text-[#E83DEE] drop-shadow-[0_0_12px_rgba(255,105,244,0.6)]"
+                                         : selectedTemplate === 'elegantPaper'
+                                           ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
+                                           : selectedTemplate === 'roseParchment'
+                                             ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+                                             : "text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]"
+                           : "bg-clip-text text-transparent bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1]"
+                       )}
+                     >
+                       {language === 'en' ? 'Your Letter' : '您的信件'}
+                     </motion.h1>
+                     <motion.div
+                       className={cn(
+                         "mt-8 w-20 h-1 mx-auto", 
+                         TEMPLATES[selectedTemplate].style.background.includes('url')
+                           ? selectedTemplate === 'artisan'
+                             ? "bg-[#B00702]"
+                             : selectedTemplate === 'natural'
+                               ? "bg-[#5E4027]"
+                               : selectedTemplate === 'darkWine'
+                                 ? "bg-[#F4F4F4]"
+                                 : selectedTemplate === 'paperMemo'
+                                   ? "bg-[#151212]"
+                                   : selectedTemplate === 'oceanBreeze'
+                                     ? "bg-[#0B5A6B]"
+                                     : selectedTemplate === 'darkCrimson'
+                                       ? "bg-[#FF1100]"
+                                       : selectedTemplate === 'purpleDream'
+                                         ? "bg-[#E83DEE]"
+                                         : selectedTemplate === 'elegantPaper'
+                                           ? "bg-[#E75C31]"
+                                           : selectedTemplate === 'roseParchment'
+                                             ? "bg-[#E358A2]"
+                                             : "bg-white/80 shadow-md"
+                           : "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]"
+                       )}
+                       initial={{ width: 0 }}
+                       animate={{ width: 80 }}
+                       transition={{ duration: 0.8, delay: 0.5 }}
+                     />
 
-                    {/* 图片容器 */}
-                    {letter.imageUrl && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.4, duration: 0.8 }}
-                      >
-                        <div className="relative w-full rounded-xl bg-black/40 overflow-hidden">
-                          <div
-                            className={cn(
-                              'relative w-full pt-[56.25%]', // 16:9 默认比例
-                              'max-h-[80vh]', // 最大高度限制
-                              'transition-opacity duration-500',
-                              imageLoaded ? 'opacity-100' : 'opacity-0'
-                            )}
-                          >
-                            <Image
-                              src={imageError ? '/placeholder.svg' : letter.imageUrl}
-                              alt="Your special moment"
-                              fill
-                              className={cn(
-                                'absolute top-0 left-0 w-full h-full object-contain',
-                                letter.metadata?.orientation === 6 && 'rotate-90',
-                                letter.metadata?.orientation === 3 && 'rotate-180',
-                                letter.metadata?.orientation === 8 && '-rotate-90'
-                              )}
-                              onError={() => setImageError(true)}
-                              onLoad={(e) => {
-                                // 获取图片实际尺寸
-                                const img = e.target as HTMLImageElement
-                                const container = img.parentElement
-                                if (container) {
-                                  // 计算宽高比
-                                  const ratio = img.naturalHeight / img.naturalWidth
-                                  // 如果图片高度超过宽度的1.5倍（3:2），则限制高度
-                                  if (ratio > 1.5) {
-                                    container.style.paddingTop = '150%'
-                                  } else {
-                                    // 否则使用实际比例
-                                    container.style.paddingTop = `${ratio * 100}%`
-                                  }
-                                }
-                                setImageLoaded(true)
-                              }}
-                              priority
-                              unoptimized
-                              sizes="(max-width: 768px) 100vw, (max-width: 1600px) 80vw, 1280px"
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
+                     {/* 图片容器 */}
+                     {letter.imageUrl && (
+                       <motion.div
+                         initial={{ opacity: 0, scale: 0.95 }}
+                         animate={{ opacity: 1, scale: 1 }}
+                         transition={{ delay: 0.4, duration: 0.8 }}
+                       >
+                         <div className="relative w-full rounded-xl bg-black/40 overflow-hidden">
+                           <div
+                             className={cn(
+                               'relative w-full pt-[56.25%]', // 16:9 默认比例
+                               'max-h-[80vh]', // 最大高度限制
+                               'transition-opacity duration-500',
+                               imageLoaded ? 'opacity-100' : 'opacity-0'
+                             )}
+                           >
+                             <Image
+                               src={imageError ? '/placeholder.svg' : letter.imageUrl}
+                               alt="Your special moment"
+                               fill
+                               className={cn(
+                                 'absolute top-0 left-0 w-full h-full object-contain',
+                                 letter.metadata?.orientation === 6 && 'rotate-90',
+                                 letter.metadata?.orientation === 3 && 'rotate-180',
+                                 letter.metadata?.orientation === 8 && '-rotate-90'
+                               )}
+                               onError={() => setImageError(true)}
+                               onLoad={(e) => {
+                                 // 获取图片实际尺寸
+                                 const img = e.target as HTMLImageElement
+                                 const container = img.parentElement
+                                 if (container) {
+                                   // 计算宽高比
+                                   const ratio = img.naturalHeight / img.naturalWidth
+                                   // 如果图片高度超过宽度的1.5倍（3:2），则限制高度
+                                   if (ratio > 1.5) {
+                                     container.style.paddingTop = '150%'
+                                   } else {
+                                     // 否则使用实际比例
+                                     container.style.paddingTop = `${ratio * 100}%`
+                                   }
+                                 }
+                                 setImageLoaded(true)
+                               }}
+                               priority
+                               unoptimized
+                               sizes="(max-width: 768px) 100vw, (max-width: 1600px) 80vw, 1280px"
+                             />
+                           </div>
+                         </div>
+                       </motion.div>
+                     )}
 
-                    {/* 信件内容 - 根据选中的模板应用不同样式 */}
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.6, duration: 0.8 }}
-                      className={cn(
-                        "backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border transition-all duration-500",
-                        selectedTemplate === 'classic' 
-                          ? "bg-black/40 border-white/10" 
-                          : selectedTemplate === 'postcard'
-                            ? "bg-[#f9f7f7]/90 border-black/5"
-                            : selectedTemplate === 'artisan'
-                              ? "bg-[#CFCFCC] border-[#B00702]/10 relative"
-                              : selectedTemplate === 'natural'
-                                ? "bg-[#FFFFF2] border-[#5E4027]/10 relative"
-                                : selectedTemplate === 'darkWine'
-                                  ? "bg-[#430311] border-[#F4F4F4]/10 relative"
-                                  : selectedTemplate === 'paperMemo'
-                                    ? "bg-[#C9C9C9] border-[#151212]/10 relative"
-                                    : selectedTemplate === 'oceanBreeze'
-                                      ? "bg-[#F5F5EF] border-[#4A90A2]/10 relative"
-                                      : selectedTemplate === 'darkCrimson'
-                                        ? "bg-[#000000] border-[#FF1100]/20 relative"
-                                        : selectedTemplate === 'purpleDream'
-                                          ? "bg-[#E7F5F9] border-[#E83DEE]/20 relative"
-                                          : selectedTemplate === 'elegantPaper'
-                                            ? "bg-[#EFE9DB] border-[#E75C31]/20 relative"
-                                            : "bg-white/90 border-black/5" // magazine样式
-                      )}
-                    >
-                      <motion.div 
-                        layout
-                        transition={{ duration: 0.5, type: "spring", damping: 20 }}
-                        className={cn(
-                          "prose prose-lg max-w-none transition-all duration-300",
-                          selectedTemplate === 'classic' || selectedTemplate === 'darkWine'
-                            ? "prose-invert" 
-                            : selectedTemplate === 'artisan' || selectedTemplate === 'natural'
-                              ? "prose-slate"
-                              : "prose-slate",
-                          // 杂志模板添加双列布局
-                          selectedTemplate === 'magazine' && "sm:columns-2 sm:gap-8"
-                        )}
-                      >
-                        {/* 内容区域的 loading 状态 */}
-                        {letter?.status === 'pending' && (
-                          <div className="flex items-center justify-center space-x-3 py-8">
-                            <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                            <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                            <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce" />
-                          </div>
-                        )}
+                     {/* 信件内容 */}
+                     <motion.div
+                       initial={{ opacity: 0 }}
+                       animate={{ opacity: 1 }}
+                       transition={{ delay: 0.6, duration: 0.8 }}
+                       className={cn(
+                         "backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border transition-all duration-500",
+                         selectedTemplate === 'classic' 
+                           ? "bg-black/40 border-white/10" 
+                           : selectedTemplate === 'postcard'
+                             ? "bg-[#f9f7f7]/90 border-black/5"
+                             : selectedTemplate === 'artisan'
+                               ? "bg-[#CFCFCC] border-[#B00702]/10 relative"
+                               : selectedTemplate === 'natural'
+                                 ? "bg-[#FFFFF2] border-[#5E4027]/10 relative"
+                                 : selectedTemplate === 'darkWine'
+                                   ? "bg-[#430311] border-[#F4F4F4]/10 relative"
+                                   : selectedTemplate === 'paperMemo'
+                                     ? "bg-[#C9C9C9] border-[#151212]/10 relative"
+                                     : selectedTemplate === 'oceanBreeze'
+                                       ? "bg-[#F5F5EF] border-[#4A90A2]/10 relative"
+                                       : selectedTemplate === 'darkCrimson'
+                                         ? "bg-[#000000] border-[#FF1100]/20 relative"
+                                         : selectedTemplate === 'purpleDream'
+                                           ? "bg-[#E7F5F9] border-[#E83DEE]/20 relative"
+                                           : selectedTemplate === 'elegantPaper'
+                                             ? "bg-[#EFE9DB] border-[#E75C31]/20 relative"
+                                             : "bg-white/90 border-black/5" // magazine样式
+                       )}
+                     >
+                       <motion.div 
+                         layout
+                         transition={{ duration: 0.5, type: "spring", damping: 20 }}
+                         className={cn(
+                           "prose prose-lg max-w-none transition-all duration-300",
+                           selectedTemplate === 'classic' || selectedTemplate === 'darkWine' || selectedTemplate === 'darkCrimson'
+                             ? "prose-invert" 
+                             : selectedTemplate === 'artisan' || selectedTemplate === 'natural'
+                               ? "prose-slate"
+                               : "prose-slate",
+                           // 杂志模板添加双列布局
+                           selectedTemplate === 'magazine' && "sm:columns-2 sm:gap-8"
+                         )}
+                       >
+                         {/* 内容区域的 loading 状态 */}
+                         {letter?.status === 'pending' && (
+                           <div className="flex items-center justify-center space-x-3 py-8">
+                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce" />
+                           </div>
+                         )}
 
-                        {letter?.status === 'generating' && (
-                          <div className="flex items-center justify-center space-x-3 py-8">
-                            <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                            <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                            <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce" />
-                          </div>
-                        )}
+                         {letter?.status === 'generating' && (
+                           <div className="flex items-center justify-center space-x-3 py-8">
+                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                             <div className="w-3 h-3 bg-white/60 rounded-full animate-bounce" />
+                           </div>
+                         )}
 
-                        {letter?.status === 'completed' && (
-                          <div className={cn(
-                            "transition-all duration-500",
-                          )}>
-                            {paragraphs.map((paragraph, index) => (
-                              <motion.p
-                                key={index}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: index * 0.1 }}
-                                className={cn(
-                                  "font-serif italic leading-relaxed text-lg md:text-xl transition-colors duration-300",
-                                  selectedTemplate === 'classic' 
-                                    ? "text-gray-100"
-                                    : selectedTemplate === 'magazine'
-                                      ? "text-gray-900"
-                                      : selectedTemplate === 'artisan'
-                                        ? "text-[#B00702]"
-                                        : selectedTemplate === 'natural'
-                                          ? "text-[#5E4027]"
-                                          : selectedTemplate === 'darkWine'
-                                            ? "text-[#F4F4F4]"
-                                            : selectedTemplate === 'paperMemo'
-                                              ? "text-[#151212]"
-                                              : selectedTemplate === 'oceanBreeze'
-                                                ? "text-[#0B5A6B]"
-                                                : selectedTemplate === 'darkCrimson'
-                                                  ? "text-[#FF1100]"
-                                                  : selectedTemplate === 'purpleDream'
-                                                    ? "text-[#E83DEE]"
-                                                    : selectedTemplate === 'elegantPaper'
-                                                      ? "text-[#E75C31]"
-                                                      : selectedTemplate === 'roseParchment'
-                                                        ? "text-[#E358A2]"
-                                                        : "text-gray-800"
-                                )}
-                                style={{ 
-                                  fontFamily: language === 'zh' 
-                                    ? `${TEMPLATES[selectedTemplate].style.contentFont}, "Noto Serif SC", serif`
-                                    : TEMPLATES[selectedTemplate].style.contentFont
-                                }}
-                              >
-                                {paragraph.trim()}
-                              </motion.p>
-                            ))}
-                          </div>
-                        )}
-                      </motion.div>
-                    </motion.div>
+                         {letter?.status === 'completed' && (
+                           <div className={cn(
+                             "transition-all duration-500",
+                           )}>
+                             {paragraphs.map((paragraph, index) => (
+                               <motion.p
+                                 key={index}
+                                 initial={{ opacity: 0, y: 10 }}
+                                 animate={{ opacity: 1, y: 0 }}
+                                 transition={{ duration: 0.5, delay: index * 0.1 }}
+                                 className={cn(
+                                   "font-serif italic leading-relaxed text-lg md:text-xl transition-colors duration-300",
+                                   selectedTemplate === 'classic' 
+                                     ? "text-gray-100"
+                                     : selectedTemplate === 'magazine'
+                                       ? "text-gray-900"
+                                       : selectedTemplate === 'artisan'
+                                         ? "text-[#B00702]"
+                                         : selectedTemplate === 'natural'
+                                           ? "text-[#5E4027]"
+                                           : selectedTemplate === 'darkWine'
+                                             ? "text-[#F4F4F4]"
+                                             : selectedTemplate === 'paperMemo'
+                                               ? "text-[#151212]"
+                                               : selectedTemplate === 'oceanBreeze'
+                                                 ? "text-[#0B5A6B]"
+                                                 : selectedTemplate === 'darkCrimson'
+                                                   ? "text-[#FF1100]"
+                                                   : selectedTemplate === 'purpleDream'
+                                                     ? "text-[#E83DEE]"
+                                                     : selectedTemplate === 'elegantPaper'
+                                                       ? "text-[#E75C31]"
+                                                       : selectedTemplate === 'roseParchment'
+                                                         ? "text-[#E358A2]"
+                                                         : "text-gray-800"
+                                 )}
+                                 style={{ 
+                                   fontFamily: language === 'zh' 
+                                     ? `${TEMPLATES[selectedTemplate].style.contentFont}, "Noto Serif SC", serif`
+                                     : TEMPLATES[selectedTemplate].style.contentFont
+                                 }}
+                               >
+                                 {paragraph.trim()}
+                               </motion.p>
+                             ))}
+                           </div>
+                         )}
+                       </motion.div>
+                     </motion.div>
 
-                    {/* 底部状态和按钮 */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.8, duration: 0.8 }}
-                      className="text-center space-y-6"
-                    >
-                      {/* 底部状态指示器 */}
-                      <motion.div
-                        className="flex items-center justify-center"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        {letter.status === 'pending' && (
-                          <motion.div
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20"
-                            initial={{ scale: 0.9 }}
-                            animate={{ scale: 1 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse" />
-                            <span className="text-white/80 text-sm">
-                              {language === 'en' ? 'Creating your letter...' : '正在创建信件...'}
-                            </span>
-                          </motion.div>
-                        )}
+                     {/* 底部状态和按钮 */}
+                     <motion.div
+                       initial={{ opacity: 0, y: 20 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       transition={{ delay: 0.8, duration: 0.8 }}
+                       className="text-center space-y-6"
+                     >
+                       {/* 底部状态指示器 */}
+                       <motion.div
+                         className="flex items-center justify-center"
+                         initial={{ opacity: 0 }}
+                         animate={{ opacity: 1 }}
+                         transition={{ duration: 0.5 }}
+                       >
+                         {letter.status === 'pending' && (
+                           <motion.div
+                             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20"
+                             initial={{ scale: 0.9 }}
+                             animate={{ scale: 1 }}
+                             transition={{ duration: 0.2 }}
+                           >
+                             <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse" />
+                             <span className="text-white/80 text-sm">
+                               {language === 'en' ? 'Creating your letter...' : '正在创建信件...'}
+                             </span>
+                           </motion.div>
+                         )}
 
-                        {letter.status === 'generating' && (
-                          <motion.div
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20"
-                            initial={{ scale: 0.9 }}
-                            animate={{ scale: 1 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse" />
-                            <span className="text-white/80 text-sm">
-                              {language === 'en' ? 'Generating your letter...' : '正在生成信件...'}
-                            </span>
-                          </motion.div>
-                        )}
+                         {letter.status === 'generating' && (
+                           <motion.div
+                             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20"
+                             initial={{ scale: 0.9 }}
+                             animate={{ scale: 1 }}
+                             transition={{ duration: 0.2 }}
+                           >
+                             <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse" />
+                             <span className="text-white/80 text-sm">
+                               {language === 'en' ? 'Generating your letter...' : '正在生成信件...'}
+                             </span>
+                           </motion.div>
+                         )}
 
-                        {letter.status === 'completed' && (
-                          <motion.div
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-[#00FF66]/20"
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.3, type: 'spring' }}
-                          >
-                            <div className="w-2 h-2 bg-[#00FF66] rounded-full" />
-                            <span className="text-[#00FF66] text-sm">
-                              {language === 'en' ? 'Letter completed' : '信件已完成'}
-                            </span>
-                          </motion.div>
-                        )}
-                      </motion.div>
+                         {letter.status === 'completed' && (
+                           <motion.div
+                             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black/40 backdrop-blur-sm border border-[#00FF66]/20"
+                             initial={{ scale: 0.9, opacity: 0 }}
+                             animate={{ scale: 1, opacity: 1 }}
+                             transition={{ duration: 0.3, type: 'spring' }}
+                           >
+                             <div className="w-2 h-2 bg-[#00FF66] rounded-full" />
+                             <span className="text-[#00FF66] text-sm">
+                               {language === 'en' ? 'Letter completed' : '信件已完成'}
+                             </span>
+                           </motion.div>
+                         )}
+                       </motion.div>
 
-                      {/* 按钮 - 只在文本完全渲染后显示 */}
-                      {letter.status === 'completed' && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{
-                            duration: 0.5,
-                            delay: 0.2,
-                            type: 'spring',
-                            bounce: 0.3,
-                          }}
-                          className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full px-4 sm:px-0"
-                        >
-                          <Button
-                            variant="outline"
-                            className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
-                            onClick={() => saveAsImage()}
-                            disabled={isSaving}
-                          >
-                            <span className="flex items-center justify-center gap-2">
-                              {isSaving ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  {language === 'en' ? 'Generating...' : '生成中...'}
-                                </>
-                              ) : (
-                                <>
-                                  <Download className="w-4 h-4" />
-                                  {language === 'en' ? 'Save as Image' : '保存为图片'}
-                                </>
-                              )}
-                            </span>
-                          </Button>
-                          <Link href="/history" className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full"
-                            >
-                              {language === 'en' ? 'View History' : '查看历史'}
-                            </Button>
-                          </Link>
-                          <Link href="/write" className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full"
-                            >
-                              {language === 'en' ? 'Write Another' : '再写一封'}
-                            </Button>
-                          </Link>
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  </motion.div>
-                </AnimatePresence>
+                       {/* 按钮组 */}
+                       {letter.status === 'completed' && (
+                         <motion.div
+                           initial={{ opacity: 0, y: 10 }}
+                           animate={{ opacity: 1, y: 0 }}
+                           transition={{
+                             duration: 0.5,
+                             delay: 0.2,
+                             type: 'spring',
+                             bounce: 0.3,
+                           }}
+                           className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full px-4 sm:px-0"
+                         >
+                           <Button
+                             variant="outline"
+                             className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
+                             onClick={() => saveAsImage()}
+                             disabled={isSaving}
+                           >
+                             <span className="flex items-center justify-center gap-2">
+                               {isSaving ? (
+                                 <>
+                                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                   {language === 'en' ? 'Generating...' : '生成中...'}
+                                 </>
+                               ) : (
+                                 <>
+                                   <Download className="w-4 h-4" />
+                                   {language === 'en' ? 'Save as Image' : '保存为图片'}
+                                 </>
+                               )}
+                             </span>
+                           </Button>
+                           
+                           {isAnonymous ? (
+                             <Button
+                               variant="outline"
+                               className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
+                               onClick={saveAnonymousLetter}
+                               disabled={isSavingAnonymous}
+                             >
+                               <span className="flex items-center justify-center gap-2">
+                                 {isSavingAnonymous ? (
+                                   <>
+                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                     {language === 'en' ? 'Saving to Account...' : '正在保存到账户...'}
+                                   </>
+                                 ) : (
+                                   <>
+                                     <LogIn className="w-4 h-4" />
+                                     {language === 'en' ? 'Save Forever' : '永久保存'}
+                                   </>
+                                 )}
+                               </span>
+                             </Button>
+                           ) : (
+                             <Link href="/history" className="w-full sm:w-auto">
+                               <Button
+                                 variant="outline"
+                                 className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full"
+                               >
+                                 {language === 'en' ? 'View History' : '查看历史'}
+                               </Button>
+                             </Link>
+                           )}
+                           
+                           <Link href="/write" className="w-full sm:w-auto">
+                             <Button
+                               variant="outline"
+                               className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full"
+                             >
+                               {language === 'en' ? 'Write Another' : '再写一封'}
+                             </Button>
+                           </Link>
+                         </motion.div>
+                       )}
+                     </motion.div>
+                   </motion.div>
+                 </AnimatePresence>
+               </div>
+             </div>
+           </div>
+         </div>
+       </div>
+
+      {/* 匿名信件登录提示对话框 */}
+      <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+        <DialogContent className="sm:max-w-md bg-gray-900/90 backdrop-blur-md border border-white/10 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <LogIn className="h-5 w-5 text-blue-400" />
+              {language === 'en' ? 'Save Your Letter Permanently' : '永久保存您的信件'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              {language === 'en' 
+                ? `Anonymous letters expire in 24 hours. Login to save this letter to your account and access all premium features.` 
+                : `匿名信件将在24小时后过期。登录后可永久保存此信件到您的账户并解锁所有高级功能。`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex items-center justify-center p-5 mb-2 bg-black/40 backdrop-blur-sm border border-white/5 rounded-lg">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="grid grid-cols-3 gap-2">
+                  {/* 显示3个模板缩略图 */}
+                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-red-400/80 to-red-700/80 border border-white/10"></div>
+                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-blue-400/80 to-blue-700/80 border border-white/10"></div>
+                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-purple-400/80 to-purple-700/80 border border-white/10"></div>
+                </div>
+                <p className="text-center text-sm font-medium text-gray-200">
+                  {language === 'en' ? 'Premium Templates & Features' : '高级模板和功能'}
+                </p>
+                <p className="text-center text-xs text-gray-400 max-w-xs">
+                  {language === 'en' 
+                    ? 'Your letter will be saved to your account, never expire, and you can access 10+ premium templates, remove watermarks, and manage all your letters.' 
+                    : '您的信件将永久保存到账户中，并可使用10+种高级模板，移除水印，管理所有信件。'}
+                </p>
               </div>
             </div>
+            <div className="flex justify-center">
+              <Button 
+                onClick={saveAnonymousLetter}
+                className="rounded-full px-10 py-6 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-700/20 border-none w-full sm:w-auto"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                {language === 'en' ? 'Login & Save Forever' : '登录并永久保存'}
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
-      {/* Preview Dialog - 不再支持模板切换 */}
+      {/* Preview Dialog - 恢复模板切换功能 */}
       <ImagePreviewDialog
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
         imageUrl={previewImage || ''}
         onDownload={downloadImage}
-        templates={{[selectedTemplate]: TEMPLATES[selectedTemplate]}} // 只提供当前选中模板
+        templates={TEMPLATES} // 提供所有模板
         selectedTemplate={selectedTemplate}
-        onTemplateChange={() => {}} // 空函数，不再支持切换
+        onTemplateChange={handleTemplateChange} // 使用真实的模板切换函数
         isGenerating={isGenerating}
       />
 
@@ -1931,152 +2144,8 @@ export default function ResultsPage({ id }: { id: string }) {
         unlockedTemplates={unlockedTemplates}
       />
 
-      {/* 解锁模板对话框 */}
-      {templateToUnlock && (
-        <UnlockTemplateDialog
-          isOpen={showUnlockDialog}
-          onClose={handleUnlockCancel}
-          onConfirm={handleUnlockConfirm}
-          templateName={TEMPLATES[templateToUnlock as keyof typeof TEMPLATES].name}
-          credits={userCredits}
-          language={language}
-          isLoading={isUnlocking}
-        />
-      )}
-
       {/* PaddleScript component */}
       <PaddleScript />
-
-      {/* 导入VIP提示对话框 - 样式参考模板解锁弹窗 */}
-      <Dialog open={showVipPrompt} onOpenChange={setShowVipPrompt}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Infinity className="h-5 w-5 text-amber-500" />
-              {language === 'en' ? 'VIP Feature' : 'VIP 功能'}
-            </DialogTitle>
-            <DialogDescription>
-              {language === 'en' 
-                ? 'Removing watermarks is a VIP-exclusive feature.' 
-                : '移除水印是 VIP 专属功能。'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <div className="flex items-center justify-center p-4 mb-4 bg-gray-100 dark:bg-gray-800 rounded-md">
-              <div className="flex flex-col items-center">
-                <p className="text-lg font-medium mb-1">
-                  {language === 'en' ? 'Remove Watermark' : '去除水印'}
-                </p>
-                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400">
-                  <EyeOff className="h-4 w-4 text-amber-500" />
-                  <span>
-                    {language === 'en' 
-                      ? 'Create professional-looking letters without branding' 
-                      : '创建没有品牌标识的专业信件'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-              <Button 
-                type="button" 
-                onClick={async () => {
-                  setShowVipPrompt(false);
-                  
-                  try {
-                    // 显示加载状态
-                    const loadingToast = toast({
-                      title: language === 'en' ? 'Checking subscription status' : '正在检查订阅状态',
-                      description: language === 'en' ? 'Please wait...' : '请稍候...',
-                    });
-                    
-                    // 先检查用户是否已有订阅
-                    const response = await fetch('/api/user/check-subscription-status');
-                    
-                    // 关闭加载提示
-                    loadingToast.dismiss();
-                    
-                    if (!response.ok) {
-                      throw new Error(language === 'en' 
-                        ? 'Failed to check subscription status' 
-                        : '检查订阅状态失败'
-                      );
-                    }
-                    
-                    const data = await response.json();
-                    
-                    if (data.hasActiveSubscription) {
-                      // 用户已有订阅，显示提示
-                      toast({
-                        title: language === 'en' ? 'Subscription exists' : '已有订阅',
-                        description: language === 'en' 
-                          ? data.source === 'paddle' 
-                              ? 'We found your subscription in Paddle and synced it to your account.' 
-                              : 'You already have an active subscription.'
-                          : data.source === 'paddle' 
-                              ? '我们在 Paddle 发现了您的订阅并已同步到您的账户。' 
-                              : '您已有活跃的订阅。',
-                      });
-                      
-                      // 如果是从 Paddle 同步的，刷新页面以显示更新后的状态
-                      if (data.source === 'paddle' && data.synced) {
-                        setTimeout(() => {
-                          window.location.reload();
-                        }, 2000);
-                      }
-                      
-                      return;
-                    }
-                    
-                    // 检查 Paddle 是否已加载
-                    if (!window.Paddle || !window.Paddle.Checkout) {
-                      throw new Error('Payment system is not available. Please try again later.');
-                    }
-                    
-                    // 直接唤起支付页面
-                    openSubscriptionCheckout();
-                    
-                    // 触发自定义事件，通知其他组件开始检查VIP状态
-                    const event = new CustomEvent('subscription:success');
-                    window.dispatchEvent(event);
-                    
-                    // 显示提示信息
-                    toast({
-                      title: language === 'en' ? 'Processing payment' : '正在处理支付',
-                      description: language === 'en' 
-                        ? 'The page will refresh automatically once payment is completed.' 
-                        : '支付完成后页面将自动刷新。',
-                    });
-                  } catch (error) {
-                    console.error('Failed to open checkout:', error);
-                    // 显示用户友好的错误消息
-                    toast({
-                      title: language === 'en' ? 'Error' : '错误',
-                      description: language === 'en' 
-                        ? (error instanceof Error ? error.message : 'Failed to open payment window.') 
-                        : '打开支付窗口失败，请刷新页面重试。',
-                      variant: 'destructive'
-                    });
-                  }
-                }}
-                variant="outline"
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 border-yellow-200 hover:from-amber-100 hover:to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20"
-              >
-                <Crown className="h-4 w-4 text-amber-500" />
-                <span>{language === 'en' ? 'Become VIP' : '开通会员'}</span>
-                <Infinity className="h-4 w-4 text-amber-500" />
-              </Button>
-              <p className="text-xs text-center text-gray-500">
-                {language === 'en'
-                  ? 'Unlimited access to all templates and features'
-                  : '无限使用所有模板和功能'}
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

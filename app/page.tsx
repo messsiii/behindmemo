@@ -2,12 +2,18 @@
 
 import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
+import { SimpleImageUpload } from '@/components/SimpleImageUpload'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // 为Vimeo Player声明类型
 declare global {
@@ -58,6 +64,7 @@ export interface ContentLanguages {
 
 export default function Home() {
   const { language } = useLanguage()
+  const { status: sessionStatus } = useSession()
   const searchParams = useSearchParams()
   const variant = searchParams?.get('variant') || 'default'
   
@@ -66,6 +73,313 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const playerRef = useRef<any>(null)
+
+  // 为表单添加新状态
+  const [formData, setFormData] = useState({
+    name: '',
+    loverName: '',
+    story: '',
+    photo: null as File | null
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState<string>('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({
+    name: false,
+    loverName: false,
+    story: false,
+    photo: false
+  })
+
+  const router = useRouter()
+
+  // 表单处理函数
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    
+    // 更新表单数据
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+    
+    // 如果该字段有错误且现在有值了，清除错误状态
+    if (fieldErrors[name as keyof typeof fieldErrors] && value) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [name]: false
+      }))
+    }
+  }
+
+  // 处理图片选择，同时清除错误状态
+  const handleImageSelected = useCallback((file: File) => {
+    setFormData(prev => ({ ...prev, photo: file }));
+    
+    // 清除图片字段的错误状态
+    if (fieldErrors.photo) {
+      setFieldErrors(prev => ({
+        ...prev,
+        photo: false
+      }))
+    }
+  }, [fieldErrors.photo]);
+
+  // 表单验证函数
+  const validateForm = () => {
+    const errors: Record<string, boolean> = {
+      name: !formData.name,
+      loverName: !formData.loverName,
+      story: !formData.story,
+      photo: !formData.photo
+    }
+    
+    setFieldErrors(errors)
+    
+    // 返回表单是否有效
+    const isValid = !Object.values(errors).some(error => error)
+    
+    // 如果表单无效，使用震动动画
+    if (!isValid) {
+      // 获取所有需要震动的输入元素
+      const errorFields = Object.entries(errors)
+        .filter(([_, hasError]) => hasError)
+        .map(([fieldName]) => {
+          if (fieldName === 'photo') {
+            return document.querySelector('.simple-image-upload') // 确保图片上传组件有这个类名
+          } else {
+            return document.querySelector(`[name="${fieldName}"]`)
+          }
+        })
+        .filter(el => el !== null) // 过滤掉可能找不到的元素
+      
+      // 为所有错误字段添加震动动画
+      errorFields.forEach(field => {
+        if (field) {
+          field.classList.add('animate-shake')
+          setTimeout(() => {
+            field.classList.remove('animate-shake')
+          }, 500)
+        }
+      })
+    }
+    
+    return isValid
+  }
+
+  // 更新提交处理函数
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSubmitting) return
+    
+    // 表单验证
+    if (!validateForm()) {
+      return
+    }
+    
+    setIsSubmitting(true)
+    setSubmitStatus(language === 'en' ? 'Preparing submission...' : '准备提交...')
+    
+    try {
+      // 第一步：上传照片
+      setSubmitStatus(language === 'en' ? 'Uploading photo...' : '上传照片中...')
+      const uploadFormData = new FormData()
+      if (formData.photo) {
+        uploadFormData.append('file', formData.photo)
+      }
+      
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData
+      })
+      
+      if (!uploadResponse.ok) {
+        // 获取详细的错误信息
+        let errorMessage
+        try {
+          const errorData = await uploadResponse.json()
+          errorMessage = errorData.error || 'Photo upload failed'
+        } catch (e) {
+          // 如果无法解析JSON，使用HTTP状态和状态文本
+          errorMessage = `Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
+        }
+        
+        // 根据状态码提供更具体的错误信息
+        if (uploadResponse.status === 413) {
+          throw new Error(language === 'en' 
+            ? 'Image file size is too large' 
+            : '图片文件大小超出限制')
+        } else if (uploadResponse.status === 415) {
+          throw new Error(language === 'en' 
+            ? 'Unsupported image format. Please try JPG or PNG' 
+            : '不支持的图片格式，请使用JPG或PNG格式')
+        } else {
+          throw new Error(errorMessage)
+        }
+      }
+      
+      const uploadData = await uploadResponse.json()
+      const { url: imageUrl, metadata: imageMetadata } = uploadData
+      
+      if (!imageUrl) {
+        throw new Error(language === 'en' 
+          ? 'Failed to process image' 
+          : '图片处理失败')
+      }
+      
+      // 区分已登录用户和未登录用户
+      let generateEndpoint = '/api/anonymous/generate-letter'
+      let generateData
+      
+      // 生成请求ID - 对标准API是必需的
+      const requestId = `req_${Math.random().toString(36).substring(2, 15)}`
+      
+      // 使用会话状态检查用户是否已登录
+      if (sessionStatus === 'authenticated') {
+        // 已登录用户走标准信件生成流程
+        console.log('使用标准信件生成API (已登录用户)')
+        generateEndpoint = '/api/generate-letter'
+        setSubmitStatus(language === 'en' ? 'Creating letter...' : '创建信件中...')
+        
+        // 发送生成请求（不等待内容生成完成）
+        const generateResponse = await fetch(generateEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-Id': requestId
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            loverName: formData.loverName,
+            story: formData.story,
+            blobUrl: imageUrl,
+            metadata: {
+              ...imageMetadata,
+              name: formData.name,
+              loverName: formData.loverName,
+              language: language
+            }
+          })
+        })
+        
+        // 处理可能的错误
+        if (!generateResponse.ok) {
+          await handleErrorResponse(generateResponse)
+          return
+        }
+        
+        // 获取信件ID并跳转到结果页
+        generateData = await generateResponse.json()
+        
+        if (generateData.success && generateData.letterId) {
+          console.log('Letter created successfully, redirecting to result page...')
+          setSubmitStatus(language === 'en' ? 'Success! Redirecting...' : '成功！正在跳转...')
+          router.push(`/result/${generateData.letterId}`)
+        } else {
+          throw new Error(language === 'en' ? 'Invalid response data' : '服务器返回异常数据')
+        }
+      } else {
+        // 未登录用户走匿名信件生成流程
+        console.log('使用匿名信件生成API (未登录用户)')
+        setSubmitStatus(language === 'en' ? 'Creating letter...' : '创建信件中...')
+        
+        // 发送生成请求（不等待内容生成完成）
+        const generateResponse = await fetch(generateEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            loverName: formData.loverName,
+            story: formData.story,
+            blobUrl: imageUrl,
+            metadata: {
+              ...imageMetadata,
+              name: formData.name,
+              loverName: formData.loverName,
+              language: language
+            }
+          })
+        })
+        
+        // 立即检查状态码，处理常见错误
+        if (generateResponse.status === 429) {
+          console.warn('Rate limit exceeded, showing user notification')
+          toast({
+            title: language === 'en' ? 'Rate limit exceeded' : '请求次数已达上限',
+            description: language === 'en' 
+              ? 'You have reached the maximum number of requests for today. Please try again tomorrow or log in to continue.' 
+              : '您今天的请求次数已达上限，请明天再试或登录账号继续使用。',
+            variant: 'destructive',
+            duration: 10000,
+          })
+          setIsSubmitting(false)
+          return
+        }
+        
+        // 处理其他可能的错误
+        if (!generateResponse.ok) {
+          await handleErrorResponse(generateResponse)
+          return
+        }
+        
+        // 获取信件ID并跳转到匿名结果页
+        generateData = await generateResponse.json()
+        
+        if (generateData.success && generateData.letterId) {
+          console.log('Letter created successfully, redirecting to result page...')
+          setSubmitStatus(language === 'en' ? 'Success! Redirecting...' : '成功！正在跳转...')
+          router.push(`/anonymous/${generateData.letterId}`)
+        } else {
+          throw new Error(language === 'en' ? 'Invalid response data' : '服务器返回异常数据')
+        }
+      }
+    } catch (error) {
+      console.error('Error creating letter:', error)
+      setSubmitStatus('')
+      toast({
+        title: language === 'en' ? 'Generation failed' : '生成失败',
+        description: error instanceof Error 
+          ? error.message 
+          : language === 'en' 
+            ? 'Failed to generate your letter. Please try again later.' 
+            : '信件生成失败，请稍后重试。',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // 辅助函数：处理API错误响应
+  const handleErrorResponse = async (response: Response) => {
+    let errorData
+    try {
+      errorData = await response.json()
+      // 显示服务器返回的错误信息
+      const errorMessage = errorData.message || errorData.error || (language === 'en' 
+        ? 'Failed to create letter' 
+        : '创建信件失败')
+      
+      console.error('API error:', errorData)
+      toast({
+        title: language === 'en' ? 'Process failed' : '处理失败',
+        description: errorMessage,
+        variant: 'destructive',
+      })
+    } catch (e) {
+      // 无法解析JSON时使用状态码信息
+      console.error('Error parsing API response:', e, 'Status:', response.status)
+      toast({
+        title: language === 'en' ? 'Process failed' : '处理失败',
+        description: language === 'en' 
+          ? `Server error: ${response.status}` 
+          : `服务器错误: ${response.status}`,
+        variant: 'destructive',
+      })
+    }
+    setIsSubmitting(false)
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -599,188 +913,325 @@ export default function Home() {
       <div className="relative z-10 flex-1">
         {/* Hero Section */}
         <section className="relative min-h-[90vh] md:h-screen flex items-start md:items-center justify-start md:justify-center overflow-hidden">
-          <div className="container mx-auto px-8 sm:px-4 pt-16 md:pt-0 md:-mt-16 mt-20 sm:mt-24">
+          <div className="container mx-auto px-8 sm:px-4 pt-16 md:pt-0 md:-mt-16 mt-0 sm:mt-2">
             <div className="max-w-6xl mx-auto md:text-center text-left">
-              <motion.h1
-                className={`font-bold mb-3 md:mb-6 text-gray-900 ${
-                  language === 'en' ? 'font-serif' : 'font-serif-zh'
-                }`}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                {language === 'en' ? (
-                  <span className="block">
-                    <span className="md:hidden">
-                      {variant === 'default' ? (
-                        <span className="block text-[45px] sm:text-[55px] leading-[1.1] tracking-tight">
-                          <span className={`bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] text-transparent bg-clip-text`}>
-                            {content[language].hero.title}
-                          </span>
-                        </span>
-                      ) : variant === 'scenes' ? (
-                        <>
-                          <div className="h-[200px] flex items-center justify-center">
-                            <span className="block text-[38px] sm:text-[46px] leading-[1.2] tracking-tight">
-                              {(content[language].hero as TypewriterHeroContent).titlePrefix}
-                              <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[60px] px-1`}>
-                                {typewriterText}
-                                <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
-                              </span>
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <span className="block text-[45px] sm:text-[55px] leading-[1.1] tracking-tight">
-                          <span className={`bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
-                            {content[language].hero.title}
-                          </span>
-                        </span>
-                      )}
-                    </span>
-                    <span className="hidden md:block text-5xl sm:text-7xl">
-                      {variant === 'scenes' ? (
-                        <div className="min-h-[200px] flex flex-col justify-center">
+              {variant === 'scenes' ? (
+                // 为scenes变体特别设计的紧凑型标题和内联表单
+                <div className="flex flex-col md:flex-row gap-8 items-center">
+                  {/* 左侧：缩小的标题和副标题 */}
+                  <div className="w-full md:w-2/5 space-y-4">
+                    <motion.h1
+                      className={`font-bold text-3xl md:text-4xl ${
+                        language === 'en' ? 'font-serif' : 'font-serif-zh'
+                      }`}
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.8, delay: 0.2 }}
+                    >
+                      {language === 'en' ? (
+                        <div className="md:text-left min-h-[100px]">
                           {(content[language].hero as TypewriterHeroContent).titlePrefix}
-                          <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[70px] px-1`}>
+                          <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed px-1`}>
                             {typewriterText}
                             <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
                           </span>
-                          {(content[language].hero as TypewriterHeroContent).titleSuffix}
                         </div>
                       ) : (
-                        content[language].hero.title
+                        <div className="md:text-left min-h-[100px]">
+                          {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                          <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed px-1`}>
+                            {typewriterText}
+                            <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                          </span>
+                        </div>
                       )}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-5xl sm:text-7xl">
-                    {variant === 'scenes' ? (
-                      <>
-                        <span className="md:hidden block">
-                          <div className="h-[200px] flex items-center justify-center">
-                            <span className="block text-[35px] sm:text-[45px] leading-[1.2] tracking-tight">
+                    </motion.h1>
+                    <motion.p
+                      className={`text-base md:text-sm text-gray-700 ${
+                        language === 'en' ? 'font-serif' : 'font-serif-zh'
+                      }`}
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.8, delay: 0.4 }}
+                    >
+                      {content[language].hero.subtitle}
+                    </motion.p>
+                  </div>
+                  
+                  {/* 右侧：表单组件 */}
+                  <motion.div 
+                    className="w-full md:w-3/5 bg-white/90 backdrop-blur-sm p-6 rounded-xl shadow-lg"
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.3 }}
+                  >
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <div className="flex items-center gap-2 w-full">
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 block mb-1 text-left">
+                            {language === 'en' ? 'From' : '从'}
+                          </label>
+                          <Input 
+                            name="name"
+                            value={formData.name}
+                            onChange={handleInputChange}
+                            placeholder={language === 'en' ? 'Your name' : '发信人'} 
+                            className="w-full"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm font-medium text-gray-700 block mb-1 text-left">
+                            {language === 'en' ? 'To' : '给'}
+                          </label>
+                          <Input 
+                            name="loverName"
+                            value={formData.loverName}
+                            onChange={handleInputChange}
+                            placeholder={language === 'en' ? 'Their name' : '收信人'} 
+                            className="w-full"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-1 text-left">
+                          {language === 'en' ? 'Upload a Photo' : '上传照片'}
+                        </label>
+                        <SimpleImageUpload 
+                          onImageSelected={handleImageSelected}
+                          className={`w-full simple-image-upload ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`} 
+                          key="photo-upload"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-1 text-left">
+                          {language === 'en' ? 'Your Story' : '你们的故事'}
+                        </label>
+                        <Textarea 
+                          name="story"
+                          value={formData.story}
+                          onChange={handleInputChange}
+                          placeholder={language === 'en' ? 'Tell us about your story...' : '分享你们的故事...'} 
+                          className="w-full h-24"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      
+                      <Button
+                        className={cn(
+                          "w-full",
+                          variant === 'scenes' ? 'text-base' : ''
+                        )}
+                        size={variant === 'scenes' ? 'lg' : 'default'}
+                        type="submit"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="h-5 w-5 border-2 border-t-transparent border-white animate-spin rounded-full mr-2"></div>
+                            <span>{submitStatus}</span>
+                          </>
+                        ) : (
+                          language === 'en' ? 'Generate Letter' : '生成信件'
+                        )}
+                      </Button>
+                      
+                      <p className="text-xs text-center text-gray-500">
+                        {language === 'en' 
+                          ? 'Free to use. Limited to 5 letters per day.' 
+                          : '免费使用。每天限制生成5封信件。'}
+                      </p>
+                    </form>
+                  </motion.div>
+                </div>
+              ) : (
+                <>
+                  <motion.h1
+                    className={`font-bold mb-3 md:mb-6 text-gray-900 ${
+                      language === 'en' ? 'font-serif' : 'font-serif-zh'
+                    }`}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                  >
+                    {language === 'en' ? (
+                      <span className="block">
+                        <span className="md:hidden">
+                          {variant === 'default' ? (
+                            <span className="block text-[45px] sm:text-[55px] leading-[1.1] tracking-tight">
+                              <span className={`bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1] text-transparent bg-clip-text`}>
+                                {content[language].hero.title}
+                              </span>
+                            </span>
+                          ) : variant === 'scenes' ? (
+                            <>
+                              <div className="h-[200px] flex items-center justify-center">
+                                <span className="block text-[38px] sm:text-[46px] leading-[1.2] tracking-tight">
+                                  {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                                  <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[60px] px-1`}>
+                                    {typewriterText}
+                                    <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                                  </span>
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <span className="block text-[45px] sm:text-[55px] leading-[1.1] tracking-tight">
+                              <span className={`bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                                {content[language].hero.title}
+                              </span>
+                            </span>
+                          )}
+                        </span>
+                        <span className="hidden md:block text-5xl sm:text-7xl">
+                          {variant === 'scenes' ? (
+                            <div className="min-h-[200px] flex flex-col justify-center">
                               {(content[language].hero as TypewriterHeroContent).titlePrefix}
-                              <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[60px] px-1`}>
+                              <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[70px] px-1`}>
                                 {typewriterText}
                                 <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
                               </span>
-                            </span>
-                          </div>
+                            </div>
+                          ) : (
+                            content[language].hero.title
+                          )}
                         </span>
-                        <span className="hidden md:block">
-                          <div className="min-h-[200px] flex flex-col justify-center">
-                            {(content[language].hero as TypewriterHeroContent).titlePrefix}
-                            <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[70px] px-1`}>
-                              {typewriterText}
-                              <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
-                            </span>
-                            {(content[language].hero as TypewriterHeroContent).titleSuffix}
-                          </div>
-                        </span>
-                      </>
-                    ) : variant === 'love' ? (
-                      <>
-                        <span className="md:hidden">
-                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
-                            将<span className="inline-block bg-gradient-to-r from-[#d88193] to-[#e9bec9] text-transparent bg-clip-text">爱情故事</span>
-                          </span>
-                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
-                            化为<span className="inline-block bg-gradient-to-r from-[#e9bec9] to-[#d5889c] text-transparent bg-clip-text">美丽文字</span>
-                          </span>
-                        </span>
-                        <span className="hidden md:block">{content[language].hero.title}</span>
-                      </>
-                    ) : variant === 'friendship' ? (
-                      <>
-                        <span className="md:hidden">
-                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
-                            将<span className="inline-block bg-gradient-to-r from-[#78a9d1] to-[#c1d9eb] text-transparent bg-clip-text">友情回忆</span>
-                          </span>
-                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
-                            化为<span className="inline-block bg-gradient-to-r from-[#c1d9eb] to-[#8bade0] text-transparent bg-clip-text">温暖文字</span>
-                          </span>
-                        </span>
-                        <span className="hidden md:block">{content[language].hero.title}</span>
-                      </>
-                    ) : variant === 'family' ? (
-                      <>
-                        <span className="md:hidden">
-                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
-                            将<span className="inline-block bg-gradient-to-r from-[#7aad8c] to-[#bfdcca] text-transparent bg-clip-text">家庭瞬间</span>
-                          </span>
-                          <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
-                            化为<span className="inline-block bg-gradient-to-r from-[#bfdcca] to-[#8dc09e] text-transparent bg-clip-text">珍贵信件</span>
-                          </span>
-                        </span>
-                        <span className="hidden md:block">{content[language].hero.title}</span>
-                      </>
+                      </span>
                     ) : (
-                      content[language].hero.title
+                      <span className="text-5xl sm:text-7xl">
+                        {variant === 'scenes' ? (
+                          <>
+                            <span className="md:hidden block">
+                              <div className="h-[200px] flex items-center justify-center">
+                                <span className="block text-[35px] sm:text-[45px] leading-[1.2] tracking-tight">
+                                  {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                                  <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[60px] px-1`}>
+                                    {typewriterText}
+                                    <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                                  </span>
+                                </span>
+                              </div>
+                            </span>
+                            <span className="hidden md:block">
+                              <div className="min-h-[200px] flex flex-col justify-center">
+                                {(content[language].hero as TypewriterHeroContent).titlePrefix}
+                                <span className={`inline-block bg-gradient-to-r ${getHighlightGradient()} text-transparent bg-clip-text leading-relaxed py-2 min-h-[70px] px-1`}>
+                                  {typewriterText}
+                                  <span className={`${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}>|</span>
+                                </span>
+                                {(content[language].hero as TypewriterHeroContent).titleSuffix}
+                              </div>
+                            </span>
+                          </>
+                        ) : variant === 'love' ? (
+                          <>
+                            <span className="md:hidden">
+                              <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                                将<span className="inline-block bg-gradient-to-r from-[#d88193] to-[#e9bec9] text-transparent bg-clip-text">爱情故事</span>
+                              </span>
+                              <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                                化为<span className="inline-block bg-gradient-to-r from-[#e9bec9] to-[#d5889c] text-transparent bg-clip-text">美丽文字</span>
+                              </span>
+                            </span>
+                            <span className="hidden md:block">{content[language].hero.title}</span>
+                          </>
+                        ) : variant === 'friendship' ? (
+                          <>
+                            <span className="md:hidden">
+                              <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                                将<span className="inline-block bg-gradient-to-r from-[#78a9d1] to-[#c1d9eb] text-transparent bg-clip-text">友情回忆</span>
+                              </span>
+                              <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                                化为<span className="inline-block bg-gradient-to-r from-[#c1d9eb] to-[#8bade0] text-transparent bg-clip-text">温暖文字</span>
+                              </span>
+                            </span>
+                            <span className="hidden md:block">{content[language].hero.title}</span>
+                          </>
+                        ) : variant === 'family' ? (
+                          <>
+                            <span className="md:hidden">
+                              <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                                将<span className="inline-block bg-gradient-to-r from-[#7aad8c] to-[#bfdcca] text-transparent bg-clip-text">家庭瞬间</span>
+                              </span>
+                              <span className="block text-[40px] sm:text-[50px] leading-[1.1] tracking-tight">
+                                化为<span className="inline-block bg-gradient-to-r from-[#bfdcca] to-[#8dc09e] text-transparent bg-clip-text">珍贵信件</span>
+                              </span>
+                            </span>
+                            <span className="hidden md:block">{content[language].hero.title}</span>
+                          </>
+                        ) : (
+                          content[language].hero.title
+                        )}
+                      </span>
                     )}
-                  </span>
-                )}
-              </motion.h1>
-              <motion.p
-                className={`mb-8 md:mb-8 text-gray-700 ${
-                  language === 'en' ? 'font-serif' : 'font-serif-zh'
-                }`}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-              >
-                {language === 'en' ? (
-                  <span className="block">
-                    <span className="md:hidden text-[18px] sm:text-[24px] leading-[1.3]">
-                      {variant === 'default' ? (
-                        <span className={`block text-gray-700`}>
+                  </motion.h1>
+                  <motion.p
+                    className={`mb-8 md:mb-8 text-gray-700 ${
+                      language === 'en' ? 'font-serif' : 'font-serif-zh'
+                    }`}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.4 }}
+                  >
+                    {language === 'en' ? (
+                      <span className="block">
+                        <span className="md:hidden text-[18px] sm:text-[24px] leading-[1.3]">
+                          {variant === 'default' ? (
+                            <span className={`block text-gray-700`}>
+                              {content[language].hero.subtitle}
+                            </span>
+                          ) : (
+                            <span className={`block bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                              {content[language].hero.subtitle}
+                            </span>
+                          )}
+                        </span>
+                        <span className={`hidden md:block text-2xl sm:text-3xl bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>{content[language].hero.subtitle}</span>
+                      </span>
+                    ) : (
+                      <span className="block">
+                        <span className={`md:hidden text-[18px] sm:text-[22px] leading-[1.3] bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
                           {content[language].hero.subtitle}
                         </span>
-                      ) : (
-                        <span className={`block bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
+                        <span className={`hidden md:block text-base sm:text-xl md:text-2xl lg:text-3xl bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
                           {content[language].hero.subtitle}
                         </span>
-                      )}
-                    </span>
-                    <span className={`hidden md:block text-2xl sm:text-3xl bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>{content[language].hero.subtitle}</span>
-                  </span>
-                ) : (
-                  <span className="block">
-                    <span className={`md:hidden text-[18px] sm:text-[22px] leading-[1.3] bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
-                      {content[language].hero.subtitle}
-                    </span>
-                    <span className={`hidden md:block text-base sm:text-xl md:text-2xl lg:text-3xl bg-gradient-to-r ${getTextGradient()} text-transparent bg-clip-text`}>
-                      {content[language].hero.subtitle}
-                    </span>
-                  </span>
-                )}
-              </motion.p>
-              <motion.p
-                className={`text-lg text-gray-600 mb-8 max-w-2xl mx-auto md:mx-auto ml-0 ${language === 'en' ? 'font-literary md:block hidden' : ''}`}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.6 }}
-              >
-                {content[language].hero.description}
-              </motion.p>
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.8 }}
-                className="md:text-center text-left mb-12 md:mb-0"
-              >
-                <Button
-                  className={`rounded-full ${variant === 'default' ? 'bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]' : `bg-gradient-to-r ${getTextGradient()}`} hover:opacity-90 text-white px-10 md:px-12 py-6 md:py-7 text-xl md:text-2xl font-medium`}
-                  asChild
-                >
-                  <Link href="/write">
-                    {content[language].hero.cta}
-                  </Link>
-                </Button>
-              </motion.div>
+                      </span>
+                    )}
+                  </motion.p>
+                  <motion.p
+                    className={`text-lg text-gray-600 mb-8 max-w-2xl mx-auto md:mx-auto ml-0 ${language === 'en' ? 'font-literary md:block hidden' : ''}`}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.6 }}
+                  >
+                    {content[language].hero.description}
+                  </motion.p>
+                  {variant !== 'scenes' && (
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ duration: 0.8, delay: 0.8 }}
+                      className="md:text-center text-left mb-12 md:mb-0"
+                    >
+                      <Button
+                        className={`rounded-full ${variant === 'default' ? 'bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]' : `bg-gradient-to-r ${getTextGradient()}`} hover:opacity-90 text-white px-10 md:px-12 py-6 md:py-7 text-xl md:text-2xl font-medium`}
+                        asChild
+                      >
+                        <Link href="/write">
+                          {content[language].hero.cta}
+                        </Link>
+                      </Button>
+                    </motion.div>
+                  )}
+                </>
+              )}
             </div>
           </div>
-          <div className="absolute bottom-4 md:bottom-28 left-1/2 transform -translate-x-1/2">
+          <div className="absolute md:bottom-16 bottom-1 left-1/2 transform -translate-x-1/2 z-50">
             <motion.div
               animate={{
                 y: [0, 10, 0],

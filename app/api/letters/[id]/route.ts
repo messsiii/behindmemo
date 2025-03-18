@@ -21,8 +21,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Letter not found' }, { status: 404 })
     }
 
-    // 验证权限
-    if (letter.userId !== session.user.id) {
+    // 验证权限 - 允许查看自己的信件或匿名信件
+    const isAnonymous = letter.metadata && (letter.metadata as any).isAnonymous === true
+    if (letter.userId !== session.user.id && !isAnonymous) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

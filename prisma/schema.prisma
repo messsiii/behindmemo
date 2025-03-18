@@ -175,3 +175,15 @@ model TemplateUnlock {
   @@index([letterId])
   @@map("template_unlocks")
 }
+
+// 匿名请求记录表，用于限制IP频率
+model AnonymousRequest {
+  id          String   @id @default(cuid())
+  ipAddress   String
+  requestType String    // 请求类型，例如 LETTER_GENERATE, TEMPLATE_UNLOCK
+  createdAt   DateTime @default(now())
+  metadata    Json?     // 可选元数据，存储额外信息
+
+  @@index([ipAddress, createdAt])
+  @@map("anonymous_requests")
+}
