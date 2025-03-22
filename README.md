@@ -66,24 +66,189 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 - VIP 用户同样需要消耗点数
 - 可通过订阅或购买点数包获取更多点数
 
-## 数据库结构
+## 数据模型
 
-### 用户 (User)
-- 基本信息：ID、名称、邮箱、头像
-- 点数系统：剩余点数、使用次数
-- VIP 状态：是否是 VIP、过期时间
-- 时间记录：创建时间、最后登录时间
+### User 用户模型
+```typescript
+{
+  id: string            // 用户唯一标识符
+  name: string?        // 用户名称
+  email: string?       // 邮箱地址（唯一）
+  emailVerified: Date? // 邮箱验证时间
+  image: string?       // 用户头像 URL
+  totalUsage: number   // 总使用次数
+  lastLoginAt: Date    // 最后登录时间
+  createdAt: Date      // 创建时间
+  updatedAt: Date      // 更新时间
+  isVIP: boolean       // 是否是 VIP
+  vipExpiresAt: Date?  // VIP 过期时间
+  credits: number      // 剩余点数
+  paddleCustomerId: string?       // Paddle客户ID
+  paddleSubscriptionId: string?   // Paddle订阅ID
+  paddleSubscriptionStatus: string? // 订阅状态
+  accounts: Account[]  // 关联的第三方账号
+  sessions: Session[]  // 用户会话记录
+  letters: Letter[]    // 用户生成的信件
+  subscriptions: Subscription[] // 订阅记录
+  transactions: Transaction[]   // 交易记录
+  templateUnlocks: TemplateUnlock[] // 模板解锁记录
+}
+```
 
-### 信件 (Letter)
-- 基本信息：ID、内容、关联图片
-- 生成状态：pending/generating/completed/failed
-- 元数据：提示词、语言、错误信息
-- 社交属性：是否公开、点赞数、分享数
+### Letter 信件模型
+```typescript
+{
+  id: string          // 信件唯一标识符
+  createdAt: Date     // 创建时间
+  updatedAt: Date     // 更新时间
+  content: string     // 信件内容
+  imageUrl: string?   // 关联图片 URL
+  userId: string      // 创建用户的 ID
+  prompt: string      // 用于生成的提示词
+  isPublic: boolean   // 是否公开
+  likeCount: number   // 点赞数
+  shareCount: number  // 分享数
+  language: string    // 生成语言(zh/en)
+  status: string      // 生成状态(pending/generating/completed/failed)
+  error: string?      // 错误信息
+  metadata: {         // 元数据
+    name: string      // 写信人名字
+    loverName: string // 收信人名字
+    story: string     // 故事背景
+    location: string? // 地理位置
+    time: string?     // 拍摄时间
+    orientation: number? // 图片方向
+  }
+}
+```
 
-### 认证相关
-- Account: OAuth 账户信息
-- Session: 用户会话
-- VerificationToken: 邮箱验证
+### Subscription 订阅模型
+```typescript
+{
+  id: string               // 订阅唯一标识符
+  userId: string           // 关联的用户 ID
+  paddleSubscriptionId: string // Paddle订阅ID
+  status: string          // 订阅状态
+  planType: string        // 计划类型
+  priceId: string         // 价格ID
+  startedAt: Date         // 开始时间
+  nextBillingAt: Date?    // 下次计费时间
+  canceledAt: Date?       // 取消时间
+  endedAt: Date?          // 结束时间
+  createdAt: Date         // 创建时间
+  updatedAt: Date         // 更新时间
+  metadata: object?       // 元数据
+}
+```
+
+### Transaction 交易模型
+```typescript
+{
+  id: string               // 交易唯一标识符
+  createdAt: Date          // 创建时间
+  updatedAt: Date          // 更新时间
+  userId: string           // 关联的用户 ID
+  amount: number           // 交易金额
+  currency: string         // 货币 (默认USD)
+  status: string           // 交易状态
+  type: string             // 交易类型
+  paddleOrderId: string?   // Paddle订单ID
+  paddleSubscriptionId: string? // Paddle订阅ID
+  pointsAdded: number?     // 添加的点数
+}
+```
+
+### TemplateUnlock 模板解锁模型
+```typescript
+{
+  id: string               // 唯一标识符
+  userId: string           // 关联的用户 ID
+  letterId: string         // 关联的信件 ID
+  templateId: string       // 模板ID
+  createdAt: Date          // 创建时间
+  updatedAt: Date          // 更新时间
+}
+```
+
+### Account 账号模型（OAuth）
+```typescript
+{
+  id: string               // 账号唯一标识符
+  userId: string           // 关联的用户 ID
+  type: string            // 账号类型
+  provider: string        // 提供商（如 Google）
+  providerAccountId: string // 提供商的账号 ID
+  refresh_token: string?   // 刷新令牌
+  access_token: string?    // 访问令牌
+  expires_at: number?      // 令牌过期时间
+  token_type: string?     // 令牌类型
+  scope: string?          // 权限范围
+  id_token: string?       // ID 令牌
+  session_state: string?  // 会话状态
+}
+```
+
+### Session 会话模型
+```typescript
+{
+  id: string        // 会话唯一标识符
+  sessionToken: string // 会话令牌（唯一）
+  userId: string    // 关联的用户 ID
+  expires: Date     // 过期时间
+}
+```
+
+### VerificationToken 验证令牌模型
+```typescript
+{
+  identifier: string // 标识符
+  token: string     // 验证令牌（唯一）
+  expires: Date     // 过期时间
+}
+```
+
+### WebhookEvent Webhook事件模型
+```typescript
+{
+  id: string           // 唯一标识符  
+  paddleEventId: string // Paddle事件ID
+  eventType: string     // 事件类型
+  eventData: object     // 事件数据
+  processedAt: Date?    // 处理时间
+  status: string        // 状态
+  error: string?        // 错误信息
+  createdAt: Date       // 创建时间
+}
+```
+
+### Price 价格模型
+```typescript
+{
+  id: string          // 价格ID
+  type: string        // 类型
+  name: string        // 名称
+  description: string? // 描述
+  unitAmount: string   // 单价金额
+  currency: string     // 货币
+  interval: string?    // 周期
+  creditAmount: number? // 点数数量
+  isActive: boolean    // 是否激活
+  createdAt: Date      // 创建时间
+  updatedAt: Date      // 更新时间
+  metadata: object?    // 元数据
+}
+```
+
+### AnonymousRequest 匿名请求模型
+```typescript
+{
+  id: string         // 唯一标识符
+  ipAddress: string  // IP地址
+  requestType: string // 请求类型
+  createdAt: Date    // 创建时间
+  metadata: object?  // 元数据
+}
+```
 
 ## 环境变量
 
@@ -112,6 +277,18 @@ KV_REST_API_READ_ONLY_TOKEN=
 
 # AI
 MINIMAX_API_KEY=
+
+# 地图服务
+NEXT_PUBLIC_GOOGLE_MAPS_KEY=
+
+# Paddle支付
+PADDLE_WEBHOOK_SECRET=
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=
+NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID=
+NEXT_PUBLIC_PADDLE_CREDITS_10_PRICE_ID=
+NEXT_PUBLIC_PADDLE_CREDITS_100_PRICE_ID=
+NEXT_PUBLIC_PADDLE_CREDITS_500_PRICE_ID=
+NEXT_PUBLIC_PADDLE_CREDITS_1000_PRICE_ID=
 ```
 
 ## 开发指南
@@ -267,80 +444,6 @@ npm run dev
 - 筛选功能
 - 删除功能
 - 编辑功能
-
-## 数据模型
-
-### User 用户模型
-```typescript
-{
-  id: string            // 用户唯一标识符
-  name: string?        // 用户名称
-  email: string?       // 邮箱地址（唯一）
-  emailVerified: Date? // 邮箱验证时间
-  image: string?       // 用户头像 URL
-  quota: number        // 剩余使用次数
-  accounts: Account[]  // 关联的第三方账号
-  sessions: Session[]  // 用户会话记录
-  letters: Letter[]    // 用户生成的情书
-}
-```
-
-### Letter 情书模型
-```typescript
-{
-  id: string          // 情书唯一标识符
-  createdAt: Date     // 创建时间
-  content: string     // 情书内容
-  imageUrl: string    // 关联图片 URL
-  userId: string      // 创建用户的 ID
-  status: string      // 生成状态
-  metadata: {         // 元数据
-    name: string      // 写信人名字
-    loverName: string // 收信人名字
-    story: string     // 故事背景
-    location: string? // 地理位置
-    time: string?     // 拍摄时间
-  }
-  language: string    // 生成语言
-}
-```
-
-### Account 账号模型（OAuth）
-```typescript
-{
-  id: string               // 账号唯一标识符
-  userId: string           // 关联的用户 ID
-  type: string            // 账号类型
-  provider: string        // 提供商（如 Google）
-  providerAccountId: string // 提供商的账号 ID
-  refresh_token: string?   // 刷新令牌
-  access_token: string?    // 访问令牌
-  expires_at: number?      // 令牌过期时间
-  token_type: string?     // 令牌类型
-  scope: string?          // 权限范围
-  id_token: string?       // ID 令牌
-  session_state: string?  // 会话状态
-}
-```
-
-### Session 会话模型
-```typescript
-{
-  id: string        // 会话唯一标识符
-  sessionToken: string // 会话令牌（唯一）
-  userId: string    // 关联的用户 ID
-  expires: Date     // 过期时间
-}
-```
-
-### VerificationToken 验证令牌模型
-```typescript
-{
-  identifier: string // 标识符
-  token: string     // 验证令牌（唯一）
-  expires: Date     // 过期时间
-}
-```
 
 ## 联系我们
 
@@ -650,15 +753,19 @@ app/
 ```typescript
 const TEMPLATES = {
   // 现有模板...
+  // 当前已有模板包括: classic, postcard, magazine, artisan, natural, darkWine, 
+  // paperMemo, oceanBreeze, darkCrimson, purpleDream, elegantPaper, roseParchment
+  
   myNewTemplate: {
     name: '模板名称',
     style: {
       width: 1200,            // 推荐宽度1173-1200px
       padding: 60,            // 内边距大小影响内容区域
       background: 'url(/images/my-bg.jpg) no-repeat center center / cover', // 背景可使用图片或渐变色
-      titleFont: '"Font Name", serif',  // 标题字体
-      contentFont: '"Font Name", serif', // 内容字体
-    }
+      titleFont: '"Source Serif Pro", serif',  // 标题字体
+      contentFont: '"Source Serif Pro", serif', // 内容字体
+    },
+    isFree: false // 是否为免费模板，true表示免费，false表示需要VIP或解锁
   }
 }
 ```
@@ -729,9 +836,7 @@ case 'myNewTemplate':
         display: flex;
         justify-content: center;
       ">
-        ${/* 浅色背景用深色水印，深色背景用浅色水印 */}
-        <img src="/watermark-light.svg" style="height: 35px;" alt="watermark" />
-        ${/* 或 <img src="/watermark-dark.svg" style="height: 35px;" alt="watermark" /> */}
+        ${getWatermarkHTML('light')}  // 浅色背景用light，深色背景用dark
       </div>
     </div>
   `;
@@ -771,22 +876,6 @@ key === 'myNewTemplate'
     <div className="w-[80%] h-[2px] rounded-full my-[3px] bg-[#颜色代码]" />
   </div>
 ) : null}
-
-// 对于双列布局的模板（如杂志），使用如下结构:
-{key === 'magazine' && (
-  <div className="w-full h-full flex justify-center items-center px-2">
-    <div className="w-1/2 pr-2 flex flex-col justify-center items-center border-r border-gray-200">
-      <div className="w-[85%] h-[2px] rounded-full my-[3px] bg-black/20" />
-      <div className="w-[75%] h-[2px] rounded-full my-[3px] bg-black/20" />
-      <div className="w-[65%] h-[2px] rounded-full my-[3px] bg-black/20" />
-    </div>
-    <div className="w-1/2 pl-2 flex flex-col justify-center items-center">
-      <div className="w-[75%] h-[2px] rounded-full my-[3px] bg-black/20" />
-      <div className="w-[85%] h-[2px] rounded-full my-[3px] bg-black/20" />
-      <div className="w-[65%] h-[2px] rounded-full my-[3px] bg-black/20" />
-    </div>
-  </div>
-)}
 ```
 
 #### 4. 更新结果页面渲染
@@ -811,7 +900,24 @@ key === 'myNewTemplate'
 )}>
 ```
 
-#### 5. 注意事项和最佳实践
+#### 5. 当前可用模板列表
+
+目前系统已实现以下模板，可作为新模板开发的参考：
+
+1. **classic**: Classic Dark - 深色经典模板，免费
+2. **postcard**: Postcard - 明信片风格模板，免费
+3. **magazine**: Magazine - 杂志风格模板，免费
+4. **artisan**: Artisan Red - 红色工匠风格，需VIP
+5. **natural**: Natural Parchment - 自然羊皮纸风格，需VIP
+6. **darkWine**: Dark Wine - 深红酒色风格，需VIP
+7. **paperMemo**: Paper Memoir - 纸质记忆风格，需VIP
+8. **oceanBreeze**: Ocean Breeze - 海洋微风风格，需VIP
+9. **darkCrimson**: Dark Crimson - 深红色风格，需VIP
+10. **purpleDream**: Purple Dream - 紫色梦境风格，需VIP
+11. **elegantPaper**: Elegant Paper - 优雅纸张风格，需VIP
+12. **roseParchment**: Rose Parchment - 玫瑰羊皮纸风格，需VIP
+
+#### 6. 注意事项和最佳实践
 
 1. **水印选择**: 
    - 浅色背景模板（如Postcard、Magazine）使用浅色水印（`watermark-light.svg`）

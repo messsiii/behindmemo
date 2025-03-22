@@ -37,27 +37,29 @@ model Session {
 }
 
 model User {
-  id                       String         @id @default(cuid())
-  name                     String?
-  email                    String?        @unique
-  emailVerified            DateTime?
-  image                    String?
-  totalUsage               Int            @default(0)
-  lastLoginAt              DateTime       @default(now())
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
-  isVIP                    Boolean        @default(false)
-  vipExpiresAt             DateTime?
-  credits                  Int            @default(30)
-  paddleCustomerId         String?        @unique
-  paddleSubscriptionId     String?        @unique
-  paddleSubscriptionStatus String?
-  accounts                 Account[]
-  letters                  Letter[]
-  sessions                 Session[]
-  Subscription             Subscription[]
-  transactions             Transaction[]
-  templateUnlocks          TemplateUnlock[]
+  id                          String                        @id @default(cuid())
+  name                        String?
+  email                       String?                       @unique
+  emailVerified               DateTime?
+  image                       String?
+  totalUsage                  Int                           @default(0)
+  lastLoginAt                 DateTime                      @default(now())
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  isVIP                       Boolean                       @default(false)
+  vipExpiresAt                DateTime?
+  credits                     Int                           @default(30)
+  paddleCustomerId            String?                       @unique
+  paddleSubscriptionId        String?                       @unique
+  paddleSubscriptionStatus    String?
+  accounts                    Account[]
+  letter_template_preferences letter_template_preferences[]
+  letters                     Letter[]
+  sessions                    Session[]
+  shared_letters              shared_letters[]
+  Subscription                Subscription[]
+  templateUnlocks             TemplateUnlock[]
+  transactions                Transaction[]
 
   @@map("users")
 }
@@ -66,27 +68,31 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+  code       String?
 
   @@unique([identifier, token])
   @@map("verification_tokens")
 }
 
 model Letter {
-  id         String   @id @default(cuid())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  content    String
-  imageUrl   String?
-  userId     String
-  prompt     String
-  isPublic   Boolean  @default(false)
-  likeCount  Int      @default(0)
-  shareCount Int      @default(0)
-  language   String   @default("zh")
-  metadata   Json?
-  status     String   @default("pending")
-  error      String?
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                          String                        @id @default(cuid())
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  content                     String
+  imageUrl                    String?
+  userId                      String
+  prompt                      String
+  isPublic                    Boolean                       @default(false)
+  likeCount                   Int                           @default(0)
+  shareCount                  Int                           @default(0)
+  language                    String                        @default("zh")
+  metadata                    Json?
+  status                      String                        @default("pending")
+  error                       String?
+  videoUrl                    String?
+  letter_template_preferences letter_template_preferences[]
+  user                        User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shared_letters              shared_letters[]
 
   @@index([userId])
   @@map("letters")
@@ -176,14 +182,36 @@ model TemplateUnlock {
   @@map("template_unlocks")
 }
 
-// 匿名请求记录表，用于限制IP频率
-model AnonymousRequest {
-  id          String   @id @default(cuid())
-  ipAddress   String
-  requestType String    // 请求类型，例如 LETTER_GENERATE, TEMPLATE_UNLOCK
-  createdAt   DateTime @default(now())
-  metadata    Json?     // 可选元数据，存储额外信息
+model letter_template_preferences {
+  id            String   @id
+  userId        String
+  letterId      String
+  templateId    String   @default("classic")
+  hideWatermark Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  letters       Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  users         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([ipAddress, createdAt])
-  @@map("anonymous_requests")
+  @@unique([userId, letterId])
+  @@index([letterId])
+  @@index([userId])
+}
+
+model shared_letters {
+  id            String   @id
+  letterId      String
+  userId        String
+  accessToken   String   @unique
+  templateStyle String   @default("classic")
+  viewCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  hideWatermark Boolean  @default(false)
+  letters       Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  users         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([accessToken])
+  @@index([letterId])
+  @@index([userId])
 }

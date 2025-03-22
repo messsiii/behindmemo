@@ -29,7 +29,8 @@
     "db:backup": "node dev-tools/backup-db.js",
     "db:migrate:dev": "node dev-tools/safe-migrate.js dev",
     "db:migrate:deploy": "node dev-tools/safe-migrate.js deploy",
-    "db:push": "node dev-tools/safe-migrate.js push"
+    "db:push": "node dev-tools/safe-migrate.js push",
+    "test:email": "node dev-tools/test-email.js"
   },
   "dependencies": {
     "@auth/core": "^0.37.4",
@@ -90,6 +91,7 @@
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.4",
     "node-cache": "^5.1.2",
+    "nodemailer": "^6.10.0",
     "openai": "^4.83.0",
     "react": "^19.0.0",
     "react-day-picker": "8.10.1",
@@ -112,6 +114,7 @@
     "@types/dotenv": "^8.2.3",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.5",
+    "@types/nodemailer": "^6.4.17",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/uuid": "^10.0.0",
