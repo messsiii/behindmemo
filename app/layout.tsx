@@ -1,4 +1,5 @@
 import { authConfig } from '@/auth'
+import GoogleAnalytics from '@/components/GoogleAnalytics'
 import { Providers } from '@/components/Providers'
 import { Analytics } from '@vercel/analytics/react'
 import type { Metadata } from 'next'
@@ -28,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={inter.className}>
         <Providers session={session}>{children}</Providers>
         <Analytics />
+        <GoogleAnalytics />
       </body>
     </html>
   )
