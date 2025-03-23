@@ -83,11 +83,21 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     try {
       // 生成信件内容
       console.log('Letter metadata before generation:', letter.metadata)
+      
+      // 创建metadata对象，确保包含imageUrl
+      const generationMetadata = letter.metadata ? JSON.parse(JSON.stringify(letter.metadata)) : {};
+      
+      // 确保将imageUrl添加到metadata中
+      if (letter.imageUrl && !generationMetadata.imageUrl) {
+        generationMetadata.imageUrl = letter.imageUrl;
+        console.log('Added image URL to metadata:', letter.imageUrl);
+      }
+      
       const content = await generateLetter({
         prompt: letter.prompt,
         language: letter.language,
-        metadata: letter.metadata ? JSON.parse(JSON.stringify(letter.metadata)) : undefined,
-      })
+        metadata: generationMetadata,
+      });
 
       // 验证生成的内容
       if (!content || content.trim() === '') {

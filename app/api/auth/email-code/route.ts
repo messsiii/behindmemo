@@ -102,10 +102,14 @@ export async function POST(req: NextRequest) {
       errorMessage = error.message || errorMessage;
     }
     
+    // 从请求头获取语言偏好，默认为中文
+    const acceptLanguage = req.headers.get('accept-language') || '';
+    const isEnglish = acceptLanguage.includes('en');
+    
     return NextResponse.json(
       { 
         success: false, 
-        error: language === 'en' 
+        error: isEnglish
           ? 'Failed to send verification code, please try again later' 
           : errorMessage 
       },

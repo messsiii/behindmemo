@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Check, Copy, RefreshCw } from 'lucide-react'
+import { Check, Copy, Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface ShareStatus {
@@ -64,29 +64,48 @@ export function ShareLetterDialog({
         if (data.isShared) {
           setShareUrl(data.shareUrl)
           setSharedTemplateStyle(data.templateStyle || 'classic')
-          setSharedHideWatermark(Boolean(data.hideWatermark))
+          
+          // 明确转换为布尔值
+          const fetchedHideWatermark = Boolean(data.hideWatermark);
+          setSharedHideWatermark(fetchedHideWatermark)
           
           // 分别检查模板和水印是否需要更新
           setNeedsTemplateUpdate(data.templateStyle !== currentTemplate)
           
-          // 在下一个渲染周期检查水印设置是否需要更新
-          setTimeout(() => {
-            // 只有VIP用户才需要考虑水印设置
-            if (isVIP) {
-              // 注意比较时保证类型一致性，统一使用布尔值
-              const sharedWatermarkSetting = Boolean(data.hideWatermark);
-              
-              console.log('Comparing watermark settings:', {
-                currentHideWatermark,
-                sharedWatermarkSetting,
-                needsUpdate: currentHideWatermark !== sharedWatermarkSetting
-              });
-              
-              if (currentHideWatermark !== sharedWatermarkSetting) {
-                setNeedsWatermarkUpdate(true);
+          // 直接检查水印设置是否需要更新，不使用setTimeout
+          if (isVIP) {
+            const currentHideWatermarkBool = Boolean(currentHideWatermark);
+            
+            console.log('Comparing watermark settings:', {
+              currentSetting: currentHideWatermarkBool,
+              serverSetting: fetchedHideWatermark,
+              needsUpdate: currentHideWatermarkBool !== fetchedHideWatermark
+            });
+            
+            setNeedsWatermarkUpdate(currentHideWatermarkBool !== fetchedHideWatermark);
+          }
+          
+          // 如果已有分享URL，请求最新的viewCount但不增加计数
+          if (data.shareUrl) {
+            try {
+              // 使用noIncrement=true参数请求共享信件信息，避免增加计数
+              const token = data.accessToken;
+              const sharedResponse = await fetch(`/api/shared/${token}?noIncrement=true`);
+              if (sharedResponse.ok) {
+                const sharedData = await sharedResponse.json();
+                // 更新视图计数，确保显示最新的计数而不增加计数
+                if (sharedData.viewCount !== undefined) {
+                  // 使用服务器返回的最新viewCount更新状态
+                  setShareStatus(prev => ({
+                    ...prev,
+                    viewCount: sharedData.viewCount
+                  }));
+                }
               }
+            } catch (error) {
+              console.error('Failed to fetch updated view count:', error);
             }
-          }, 0)
+          }
         }
       } catch (error) {
         console.error('Failed to check share status:', error)
@@ -161,25 +180,43 @@ export function ShareLetterDialog({
       }
       
       const data = await response.json();
+      console.log('Response from server:', data);
+      
+      // 确保显式转换为布尔值，避免类型不匹配问题
+      const updatedHideWatermark = Boolean(data.hideWatermark);
+      
+      // 更新本地状态
       setSharedTemplateStyle(data.templateStyle);
-      setSharedHideWatermark(data.hideWatermark);
+      setSharedHideWatermark(updatedHideWatermark);
       setNeedsTemplateUpdate(false);
       setNeedsWatermarkUpdate(false);
       
+      console.log('Updated local state:', {
+        templateStyle: data.templateStyle,
+        hideWatermark: updatedHideWatermark
+      });
+      
       // 确定更新了什么内容并显示相应提示
       let updateMessage = '';
-      if (sharedTemplateStyle !== currentTemplate && sharedHideWatermark !== currentHideWatermark) {
+      const templateUpdated = currentTemplate !== sharedTemplateStyle;
+      const watermarkUpdated = currentHideWatermark !== sharedHideWatermark;
+      
+      if (templateUpdated && watermarkUpdated) {
         updateMessage = language === 'en' 
           ? 'The shared letter template and watermark settings have been updated' 
           : '已更新分享信件的模板样式和水印设置';
-      } else if (sharedTemplateStyle !== currentTemplate) {
+      } else if (templateUpdated) {
         updateMessage = language === 'en' 
           ? 'The shared letter template has been updated' 
           : '已更新分享信件的模板样式';
-      } else {
+      } else if (watermarkUpdated) {
         updateMessage = language === 'en' 
           ? 'The shared letter watermark setting has been updated' 
           : '已更新分享信件的水印设置';
+      } else {
+        updateMessage = language === 'en'
+          ? 'No changes were detected'
+          : '未检测到变更';
       }
       
       toast({ 
@@ -239,7 +276,12 @@ export function ShareLetterDialog({
         
         {isLoading ? (
           <div className="flex justify-center items-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">
+                {language === 'en' ? 'Loading...' : '加载中...'}
+              </p>
+            </div>
           </div>
         ) : !shareStatus.isShared ? (
           <div className="flex flex-col items-center justify-center py-4">
@@ -254,9 +296,14 @@ export function ShareLetterDialog({
               disabled={isLoading}
               className="w-full"
             >
-              {isLoading 
-                ? (language === 'en' ? 'Generating...' : '生成中...') 
-                : (language === 'en' ? 'Generate Sharing Link' : '生成分享链接')}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {language === 'en' ? 'Generating...' : '生成中...'}
+                </>
+              ) : (
+                language === 'en' ? 'Generate Sharing Link' : '生成分享链接'
+              )}
             </Button>
           </div>
         ) : (
@@ -293,8 +340,17 @@ export function ShareLetterDialog({
                   disabled={isUpdating}
                   className="gap-1.5"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
-                  {language === 'en' ? 'Update' : '更新'}
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {language === 'en' ? 'Updating...' : '更新中...'}
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      {language === 'en' ? 'Update' : '更新'}
+                    </>
+                  )}
                 </Button>
               </div>
             )}

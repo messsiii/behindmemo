@@ -4,16 +4,9 @@ import { nanoid } from 'nanoid'
 import { getServerSession } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
-// 1. 修改接口类型
-interface ShareLetterPayload {
-  templateStyle?: string
-  updateTemplate?: boolean
-  hideWatermark?: boolean
-}
-
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authConfig)
   if (!session?.user) {
@@ -21,9 +14,10 @@ export async function POST(
   }
 
   // 确保安全地获取id值并使用 await
-  const letterId = await Promise.resolve(params.id)
+  const resolvedParams = await params;
+  const letterId = resolvedParams.id;
   
-  // 2. 解析请求体，获取hideWatermark字段 - 设置默认值，防止解析错误
+  // 解析请求体，获取模板样式和水印设置
   let templateStyle = 'classic';
   let updateTemplate = false;
   let hideWatermark = false;
@@ -94,27 +88,38 @@ export async function POST(
     // 如果存在分享记录且请求要求更新模板，则更新模板样式
     if (existingShare && updateTemplate) {
       try {
-        // 使用原始SQL直接更新记录
-        await prisma.$executeRaw`
-          UPDATE shared_letters
-          SET 
-            "templateStyle" = ${finalTemplateStyle},
-            "hideWatermark" = ${finalHideWatermark},
-            "updatedAt" = ${new Date()}
-          WHERE id = ${existingShare.id}
-        `;
+        // 使用Prisma客户端API更新记录，而不是原始SQL
+        const updatedShare = await prisma.sharedLetter.update({
+          where: { 
+            id: existingShare.id 
+          },
+          data: {
+            templateStyle: finalTemplateStyle,
+            hideWatermark: finalHideWatermark,
+            updatedAt: new Date()
+          }
+        });
         
-        // 重新获取更新后的记录
-        existingShare = await prisma.sharedLetter.findUnique({
-          where: { id: existingShare.id }
-        }) || existingShare;
+        // 使用更新后的记录作为返回数据源
+        existingShare = updatedShare;
+        
+        // 添加调试日志
+        console.log('Updated shared letter settings:', {
+          id: updatedShare.id,
+          templateStyle: updatedShare.templateStyle,
+          hideWatermark: updatedShare.hideWatermark
+        });
+        
+        // 添加回退逻辑
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+        const shareUrl = `${baseUrl}/shared/${existingShare.accessToken}`;
         
         return NextResponse.json({
           id: existingShare.id,
           accessToken: existingShare.accessToken,
           templateStyle: existingShare.templateStyle,
           hideWatermark: existingShare.hideWatermark,
-          shareUrl: `${process.env.NEXT_PUBLIC_APP_URL}/shared/${existingShare.accessToken}`,
+          shareUrl,
         })
       } catch (updateError) {
         console.error('[UPDATE_SHARED_LETTER_ERROR]', updateError);
@@ -130,18 +135,20 @@ export async function POST(
         const shareId = nanoid(24);
         const now = new Date();
         
-        // 使用原生SQL创建记录
-        await prisma.$executeRaw`
-          INSERT INTO shared_letters (
-            "id", "letterId", "userId", "accessToken", 
-            "templateStyle", "hideWatermark", "viewCount",
-            "createdAt", "updatedAt"
-          ) VALUES (
-            ${shareId}, ${letterId}, ${session.user.id}, ${accessToken},
-            ${finalTemplateStyle}, ${finalHideWatermark}, 0,
-            ${now}, ${now}
-          )
-        `;
+        // 使用Prisma客户端API而不是原始SQL
+        const createdShare = await prisma.sharedLetter.create({
+          data: {
+            id: shareId,
+            letterId,
+            userId: session.user.id,
+            accessToken,
+            templateStyle: finalTemplateStyle,
+            hideWatermark: finalHideWatermark,
+            viewCount: 0,
+            createdAt: now,
+            updatedAt: now
+          }
+        });
         
         // 更新信件的分享计数
         await prisma.letter.update({
@@ -154,13 +161,7 @@ export async function POST(
         });
         
         // 设置返回值
-        existingShare = {
-          id: shareId,
-          accessToken,
-          templateStyle: finalTemplateStyle,
-          hideWatermark: finalHideWatermark,
-          viewCount: 0
-        };
+        existingShare = createdShare;
       } catch (createError) {
         console.error('[CREATE_SHARED_LETTER_ERROR]', createError);
         throw new Error('Failed to create shared letter');
@@ -172,7 +173,7 @@ export async function POST(
       accessToken: existingShare.accessToken,
       templateStyle: existingShare.templateStyle,
       hideWatermark: existingShare.hideWatermark,
-      shareUrl: `${process.env.NEXT_PUBLIC_APP_URL}/shared/${existingShare.accessToken}`,
+      shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/shared/${existingShare.accessToken}`,
     })
   } catch (error) {
     console.error('[SHARE_LETTER_ERROR]', error instanceof Error ? error.message : String(error))

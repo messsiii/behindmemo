@@ -27,6 +27,7 @@
     "fix:types": "tsc --noEmit",
     "stress": "NODE_OPTIONS='--experimental-vm-modules' jest tests/stress/stress.test.ts --detectOpenHandles",
     "db:backup": "node dev-tools/backup-db.js",
+    "db:check": "node scripts/verify-db-connection.js",
     "db:migrate:dev": "node dev-tools/safe-migrate.js dev",
     "db:migrate:deploy": "node dev-tools/safe-migrate.js deploy",
     "db:push": "node dev-tools/safe-migrate.js push",

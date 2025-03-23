@@ -6,8 +6,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // 获取用户对特定信件的模板偏好
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authConfig)
@@ -15,8 +15,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 确保安全地获取id值
-    const { id: letterId } = params
+    // 确保安全地获取id值，使用await处理Promise
+    const resolvedParams = await params;
+    const letterId = resolvedParams.id;
     
     // 检查信件是否属于当前用户
     const letter = await prisma.letter.findUnique({
@@ -63,7 +64,7 @@ export async function GET(
 // 保存用户对特定信件的模板偏好
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authConfig)
@@ -71,8 +72,9 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 确保安全地获取id值
-    const { id: letterId } = params
+    // 确保安全地获取id值，使用await处理Promise
+    const resolvedParams = await params;
+    const letterId = resolvedParams.id;
     const { templateId, hideWatermark } = await req.json()
     
     // 检查信件是否属于当前用户

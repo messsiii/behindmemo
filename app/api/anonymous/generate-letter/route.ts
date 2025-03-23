@@ -250,14 +250,29 @@ async function generateLetterInBackground(
       data: { status: 'generating' }
     })
     
+    // 获取信件数据，确保获取imageUrl
+    const letterData = await prisma.letter.findUnique({
+      where: { id: letterId },
+      select: { imageUrl: true }
+    });
+    
+    // 添加imageUrl到metadata
+    const enrichedMetadata = {
+      ...metadata,
+      name: name || '',
+      loverName: loverName || '',
+    };
+    
+    // 如果有图片URL，添加到metadata
+    if (letterData?.imageUrl) {
+      enrichedMetadata.imageUrl = letterData.imageUrl;
+      console.log(`添加图片URL到metadata: ${letterData.imageUrl}`);
+    }
+    
     const content = await generateLetter({
       prompt: `From ${name} to ${loverName}: ${story}`,
       language: metadata?.language || 'en',
-      metadata: {
-        ...metadata,
-        name: name || '',
-        loverName: loverName || '',
-      },
+      metadata: enrichedMetadata,
     })
 
     // 更新信件内容

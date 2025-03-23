@@ -10,10 +10,10 @@ declare global {
 import PaddleScript from '@/components/PaddleScript';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription, DialogHeader,
-  DialogTitle
+    Dialog,
+    DialogContent,
+    DialogDescription, DialogHeader,
+    DialogTitle
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
