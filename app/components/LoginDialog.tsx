@@ -225,8 +225,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       setIsCodeSent(true);
       
       // 显示成功提示
-      toast({
-        title: language === 'en' ? 'Code Sent' : '验证码已发送',
+      toast.success(language === 'en' ? 'Code Sent' : '验证码已发送', {
         description: language === 'en' ? 'Please check your email' : '请查看您的邮箱'
       });
       
@@ -235,10 +234,8 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
         codeInputRefs.current[0].focus();
       }
     } catch (error) {
-      toast({
-        title: language === 'en' ? 'Error' : '错误',
-        description: error instanceof Error ? error.message : 'Failed to send code',
-        variant: "destructive",
+      toast.error(language === 'en' ? 'Error' : '错误', {
+        description: error instanceof Error ? error.message : 'Failed to send code'
       });
     } finally {
       setIsSendingCode(false);
@@ -347,15 +344,12 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       
       if (result?.error) {
         setLoginError(result.error);
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: result.error,
-          variant: "destructive"
+        toast.error(language === 'en' ? 'Error' : '错误', {
+          description: result.error
         });
         setIsLoggingIn(false);
       } else if (result?.url) {
-        toast({
-          title: language === 'en' ? 'Success' : '成功',
+        toast.success(language === 'en' ? 'Success' : '成功', {
           description: content[language].loginSuccess
         });
         
@@ -534,6 +528,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
                         value={digit}
                         onChange={(e) => handleCodeChange(index, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(index, e)}
+                        onPaste={index === 0 ? handlePaste : undefined}
                         ref={(el) => {
                           codeInputRefs.current[index] = el;
                           return undefined; // 明确返回undefined以符合React类型要求

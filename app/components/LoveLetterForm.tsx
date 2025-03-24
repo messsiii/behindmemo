@@ -4,7 +4,6 @@ import { CreditsAlert } from '@/components/CreditsAlert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useToast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
@@ -12,6 +11,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { signIn, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { ImageUploadPreview } from './ImageUploadPreview'
 import { LoginDialog } from './LoginDialog'
 
@@ -109,7 +109,6 @@ const questions = [
 export default function LoveLetterForm() {
   const { data: session } = useSession()
   const { language } = useLanguage()
-  const { toast } = useToast()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
@@ -123,13 +122,12 @@ export default function LoveLetterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState('classic')
+  const [selectedTemplate] = useState('classic')
   const debounceRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [isRestoringAfterLogin, setIsRestoringAfterLogin] = useState(false)
-  const [activeTabIndex, setActiveTabIndex] = useState(0)
 
   const currentQuestion = useMemo(() => questions[currentStep], [currentStep])
 
@@ -475,16 +473,11 @@ export default function LoveLetterForm() {
     }
   }, [])
 
-  // 修改handleSubmit函数中生成成功部分，确保生成成功后清除缓存
   const handleSubmitSuccess = useCallback(() => {
     // 清除临时表单数据
     localStorage.removeItem('pendingFormData')
   }, [])
 
-  // 添加表单引用以检测变更
-  const formRef = useRef<HTMLFormElement>(null)
-  const isSubmittingRef = useRef(false)
-  
   // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
   const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
     console.log(`处理错误响应: 状态码=${statusCode}, 错误文本=${errorText}`);
@@ -644,23 +637,19 @@ export default function LoveLetterForm() {
           console.log('检测到积分不足错误消息，显示积分不足提示');
           setShowCreditsAlert(true);
         } else {
-          toast({
-            title: language === 'en' ? 'Error' : '错误',
-            description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
-            variant: "destructive"
+          toast.error(language === 'en' ? 'Error' : '错误', {
+            description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败')
           });
         }
       } catch (e) {
         console.error('解析错误响应失败:', e);
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: language === 'en' ? 'Failed to generate letter' : '生成信件失败',
-          variant: "destructive"
+        toast.error(language === 'en' ? 'Error' : '错误', {
+          description: language === 'en' ? 'Failed to generate letter' : '生成信件失败'
         });
       }
       setIsSubmitting(false);
     }
-  }, [formData, language, toast, showLoginDialog, setShowLoginDialog, setShowCreditsAlert, setIsSubmitting]);
+  }, [formData, language, showLoginDialog, setShowLoginDialog, setShowCreditsAlert, setIsSubmitting]);
   
   // 表单提交处理
   const handleSubmit = useCallback(
@@ -671,10 +660,8 @@ export default function LoveLetterForm() {
       // 完整的表单验证
       if (!formData.name?.trim()) {
         console.log('姓名为空，终止提交')
-        toast({
-          title: language === 'en' ? 'Name is required' : '请输入您的名字',
-          description: language === 'en' ? 'Please enter your name to continue.' : '请输入您的名字后继续。',
-          variant: "destructive"
+        toast.error(language === 'en' ? 'Name is required' : '请输入您的名字', {
+          description: language === 'en' ? 'Please enter your name to continue.' : '请输入您的名字后继续。'
         })
         setCurrentStep(0) // 跳转到姓名输入步骤
         return
@@ -682,10 +669,8 @@ export default function LoveLetterForm() {
       
       if (!formData.photo) {
         console.log('照片未上传，终止提交')
-        toast({
-          title: language === 'en' ? 'Photo is required' : '请上传照片',
-          description: language === 'en' ? 'Please upload a photo to continue.' : '请上传照片后继续。',
-          variant: "destructive"
+        toast.error(language === 'en' ? 'Photo is required' : '请上传照片', {
+          description: language === 'en' ? 'Please upload a photo to continue.' : '请上传照片后继续。'
         })
         setCurrentStep(1) // 跳转到照片上传步骤
         return
@@ -693,10 +678,8 @@ export default function LoveLetterForm() {
       
       if (!formData.loverName?.trim()) {
         console.log('对方姓名为空，终止提交')
-        toast({
-          title: language === 'en' ? 'Partner name is required' : '请输入对方的名字',
-          description: language === 'en' ? 'Please enter your partner\'s name to continue.' : '请输入对方的名字后继续。',
-          variant: "destructive"
+        toast.error(language === 'en' ? 'Partner name is required' : '请输入对方的名字', {
+          description: language === 'en' ? 'Please enter your partner\'s name to continue.' : '请输入对方的名字后继续。'
         })
         setCurrentStep(2) // 跳转到对方姓名输入步骤
         return
@@ -704,10 +687,8 @@ export default function LoveLetterForm() {
 
       if (!formData.story?.trim()) {
         console.log('故事内容为空，终止提交')
-        toast({
-          title: language === 'en' ? 'Story is required' : '请输入故事内容',
-          description: language === 'en' ? 'Please share your story to continue.' : '请分享您的故事后继续。',
-          variant: "destructive"
+        toast.error(language === 'en' ? 'Story is required' : '请输入故事内容', {
+          description: language === 'en' ? 'Please share your story to continue.' : '请分享您的故事后继续。'
         })
         triggerShake()
         return
@@ -749,10 +730,8 @@ export default function LoveLetterForm() {
             }
           }
           
-          toast({
-            title: language === 'en' ? 'Upload Failed' : '上传失败',
-            description: errorMessage,
-            variant: "destructive"
+          toast.error(language === 'en' ? 'Upload Failed' : '上传失败', {
+            description: errorMessage
           })
           setIsSubmitting(false)
           return
@@ -902,10 +881,8 @@ export default function LoveLetterForm() {
         setIsLoading(false)
         setIsSubmitting(false)
         console.error('Error in submit handler:', error)
-        toast({
-          title: content[language].error,
-          description: error instanceof Error ? error.message : String(error),
-          variant: 'destructive',
+        toast.error(content[language].error, {
+          description: error instanceof Error ? error.message : String(error)
         })
       }
     },
@@ -915,7 +892,6 @@ export default function LoveLetterForm() {
       selectedTemplate,
       setCurrentStep,
       setIsSubmitting,
-      toast,
       uploadPhotoAndPrepareData,
       handleErrorResponse,
       router,
@@ -1004,22 +980,18 @@ export default function LoveLetterForm() {
         if (hasRestoredPhoto) {
           // 照片已恢复，直接跳到第四步（故事页面）
           setCurrentStep(3);
-          toast({
-            title: language === 'en' ? 'Form data fully restored' : '表单数据已完全恢复',
+          toast.success(language === 'en' ? 'Form data fully restored' : '表单数据已完全恢复', {
             description: language === 'en'
               ? 'Your form and photo have been restored. You can now generate your letter!'
-              : '您的表单数据和照片已完全恢复。现在可以生成您的信件了！',
-            variant: 'default',
+              : '您的表单数据和照片已完全恢复。现在可以生成您的信件了！'
           });
         } else {
           // 照片未恢复，跳到第二步（照片上传页面）
           setCurrentStep(1);
-          toast({
-            title: language === 'en' ? 'Please upload a photo' : '请上传照片',
+          toast(language === 'en' ? 'Please upload a photo' : '请上传照片', {
             description: language === 'en'
               ? 'Your form data has been restored. Please upload a photo to continue.'
-              : '您的表单数据已恢复。请上传照片后继续。',
-            variant: 'default',
+              : '您的表单数据已恢复。请上传照片后继续。'
           });
         }
       }, 500);
@@ -1032,7 +1004,7 @@ export default function LoveLetterForm() {
       console.error('Failed to restore form data:', error);
       setIsRestoringAfterLogin(false);
     }
-  }, [formData, language, toast]);
+  }, [formData, language, setCurrentStep, setIsRestoringAfterLogin]);
 
   // 登录对话框关闭逻辑
   const handleLoginDialogClose = useCallback(() => {
@@ -1199,13 +1171,11 @@ export default function LoveLetterForm() {
     
     if (hasRestoredPhoto) {
       // 照片已上传，直接跳转到最后一步
-      toast({
-        title: language === 'en' ? 'Photo uploaded successfully!' : '照片上传成功！',
+      toast.success(language === 'en' ? 'Photo uploaded successfully!' : '照片上传成功！', {
         description: language === 'en' 
           ? 'Taking you to the final step...' 
-          : '正在跳转到最后一步...',
-        variant: 'default',
-      })
+          : '正在跳转到最后一步...'
+      });
       
       // 延迟跳转，让用户看到提示
       setTimeout(() => {
@@ -1213,19 +1183,17 @@ export default function LoveLetterForm() {
         setCurrentStep(3)
         
         // 提示用户准备生成
-        toast({
-          title: language === 'en' ? 'Ready to generate' : '准备就绪',
+        toast(language === 'en' ? 'Ready to generate' : '准备就绪', {
           description: language === 'en' 
             ? 'You can now generate your letter!' 
-            : '现在您可以生成您的信件了！',
-          variant: 'default',
-        })
+            : '现在您可以生成您的信件了！'
+        });
         
         // 标记恢复完成
         setIsRestoringAfterLogin(false)
       }, 800)
     }
-  }, [isRestoringAfterLogin, currentStep, formData.photo, language, toast])
+  }, [isRestoringAfterLogin, currentStep, formData.photo, language, setCurrentStep, setIsRestoringAfterLogin]);
 
   return (
     <div className="w-full max-w-2xl">
