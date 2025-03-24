@@ -603,41 +603,7 @@ export default function LoveLetterForm() {
       if (parsedData.loverName) updatedFormData.loverName = parsedData.loverName;
       if (parsedData.story) updatedFormData.story = parsedData.story;
       
-      // 恢复图片数据（如果有）
-      if (parsedData.photoInfo && parsedData.photoInfo.dataURL) {
-        try {
-          console.log('Restoring photo from dataURL');
-          // 从Base64数据URL创建Blob
-          const dataURLParts = parsedData.photoInfo.dataURL.split(',');
-          const mime = dataURLParts[0].match(/:(.*?);/)[1];
-          const binaryString = atob(dataURLParts[1]);
-          const binaryLen = binaryString.length;
-          const bytes = new Uint8Array(binaryLen);
-          
-          for (let i = 0; i < binaryLen; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          
-          // 创建Blob
-          const blob = new Blob([bytes], { type: mime });
-          
-          // 从Blob创建File对象
-          const restoredFile = new File(
-            [blob], 
-            parsedData.photoInfo.name || 'restored-image.jpg', 
-            { 
-              type: parsedData.photoInfo.type || 'image/jpeg',
-              lastModified: parsedData.photoInfo.lastModified || Date.now()
-            }
-          );
-          
-          // 将恢复的File对象设置到表单数据中
-          updatedFormData.photo = restoredFile;
-          console.log('Photo successfully restored');
-        } catch (err) {
-          console.error('Failed to restore photo from dataURL:', err);
-        }
-      }
+      // 注意：不再尝试恢复照片数据，因为我们不再在localStorage中保存它
       
       // 更新表单数据
       setFormData(updatedFormData);
@@ -648,35 +614,20 @@ export default function LoveLetterForm() {
       // 清除localStorage中的数据
       localStorage.removeItem('pendingFormData');
       
-      // 根据是否已恢复照片决定跳转到哪一步
+      // 始终跳转到照片上传步骤
       setTimeout(() => {
-        if (updatedFormData.photo instanceof File) {
-          // 如果照片已恢复，直接跳到第四步（故事/生成按钮页面）
-          setCurrentStep(3);
-          toast({
-            title: language === 'en' ? 'Form data restored' : '表单数据已恢复',
-            description: language === 'en' 
-              ? 'Your form has been fully recovered. You can now generate your letter!' 
-              : '您的表单已完全恢复。现在可以生成您的信件了！',
-            variant: 'default',
-          });
-          
-          // 标记恢复流程完成
-          setIsRestoringAfterLogin(false);
-        } else {
-          // 如果没有恢复照片，跳到第二步（照片上传）
-          setCurrentStep(1);
-          toast({
-            title: language === 'en' ? 'Please upload your photo again' : '请重新上传照片',
-            description: language === 'en'
-              ? 'We have restored your form data, but you need to upload your photo again.'
-              : '我们已恢复您的表单数据，但您需要重新上传照片。',
-            variant: 'default',
-          });
-          
-          // 标记恢复流程完成
-          setIsRestoringAfterLogin(false);
-        }
+        // 始终跳到第二步（照片上传）
+        setCurrentStep(1);
+        toast({
+          title: language === 'en' ? 'Please upload your photo' : '请上传照片',
+          description: language === 'en'
+            ? 'We have restored your form data. Please upload your photo to continue.'
+            : '我们已恢复您的表单数据。请上传照片以继续。',
+          variant: 'default',
+        });
+        
+        // 标记恢复流程完成
+        setIsRestoringAfterLogin(false);
       }, 500);
     } catch (error) {
       console.error('Failed to restore form data:', error);
@@ -870,69 +821,30 @@ export default function LoveLetterForm() {
   // 处理错误响应
   const handleErrorResponse = useCallback(async (response: Response) => {
     if (response.status === 401) {
-      // 用户未登录，保存当前表单数据
+      // 用户未登录，只保存基本表单数据
       try {
-        // 深拷贝表单数据（除了File对象）
-        // 定义类型包含photoInfo
-        interface FormDataForStorage {
-          name?: string;
-          loverName?: string;
-          story?: string;
-          photo?: File;
-          photoInfo?: {
-            name: string;
-            type: string;
-            lastModified: number;
-            dataURL: string;
-          };
-        }
-        
-        const formDataForStorage: FormDataForStorage = { ...formData };
-        
-        // 如果有照片，将File对象转换为DataURL
-        if (formData.photo) {
-          const photoInfo = {
-            name: formData.photo.name,
-            type: formData.photo.type,
-            lastModified: formData.photo.lastModified
-          };
-          
-          // 读取文件并转换为DataURL
-          const reader = new FileReader();
-          await new Promise((resolve, reject) => {
-            reader.onload = resolve;
-            reader.onerror = reject;
-            reader.readAsDataURL(formData.photo as File);
-          });
-          
-          // 存储照片信息和DataURL
-          formDataForStorage.photoInfo = {
-            ...photoInfo,
-            dataURL: reader.result as string
-          };
-          
-          // 删除无法序列化的File对象
-          delete formDataForStorage.photo;
-        }
-        
-        // 保存处理后的表单数据
-        localStorage.setItem('pendingFormData', JSON.stringify(formDataForStorage));
-        console.log('表单数据（含照片）已保存到localStorage');
-      } catch (err) {
-        console.error('无法保存表单数据:', err);
-        // 出错时尝试保存不含照片的基本数据
+        // 只保存基本数据，不包括照片
         const basicData = {
           name: formData.name,
           loverName: formData.loverName,
           story: formData.story
         };
+        
+        // 保存处理后的表单数据
         localStorage.setItem('pendingFormData', JSON.stringify(basicData));
-        console.log('基本表单数据已保存到localStorage (照片除外)');
+        console.log('基本表单数据已保存到localStorage (不含照片)');
+        
+        // 弹出登录框
+        setShowLoginDialog(true);
+        setIsSubmitting(false);
+      } catch (err) {
+        console.error('无法保存表单数据:', err);
+        // 清除可能部分写入的数据
+        localStorage.removeItem('pendingFormData');
+        // 弹出登录框
+        setShowLoginDialog(true);
+        setIsSubmitting(false);
       }
-      
-      // 弹出登录框
-      setShowLoginDialog(true);
-      setIsSubmitting(false);
     } else if (response.status === 402) {
       // 积分不足
       setShowCreditsAlert(true);
