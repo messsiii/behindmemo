@@ -369,7 +369,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       const code = verificationCode.join('');
       const result = await signIn('email-login', {
         email,
-        code,
+        verificationCode: code,
         redirect: false,
         callbackUrl,
       });
