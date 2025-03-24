@@ -247,9 +247,28 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       }
     } catch (error) {
       console.error('发送验证码失败:', error);
-      toast.error(language === 'en' ? 'Error' : '错误', {
-        description: error instanceof Error ? error.message : 'Failed to send code'
-      });
+      
+      // 检查是否是频率限制错误
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send code';
+      const rateErrorMatch = errorMessage.match(/You can request a new one in (\d+) seconds/);
+      
+      if (rateErrorMatch && rateErrorMatch[1]) {
+        // 如果是频率限制错误，提取剩余秒数并设置倒计时
+        const remainingSeconds = parseInt(rateErrorMatch[1]);
+        setCountdown(remainingSeconds);
+        setIsCodeSent(true); // 标记为已发送，激活输入框
+        
+        toast.info(language === 'en' ? 'Code already sent' : '验证码已发送', {
+          description: language === 'en' 
+            ? `Please check your email or wait ${remainingSeconds} seconds to request a new one` 
+            : `请查看您的邮箱或等待 ${remainingSeconds} 秒后重新请求`
+        });
+      } else {
+        // 其他错误正常显示
+        toast.error(language === 'en' ? 'Error' : '错误', {
+          description: errorMessage
+        });
+      }
     } finally {
       setIsSendingCode(false);
     }

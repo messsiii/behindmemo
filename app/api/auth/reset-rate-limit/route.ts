@@ -1,3 +1,4 @@
+import { resetFailedLoginAttempts, unlockAccount } from '@/lib/login-monitoring';
 import { resetEmailRateLimit, resetIPRateLimit } from '@/lib/rate-limit';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -16,12 +17,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { email, ip } = body;
+    const { email, ip, secret } = body;
 
     if (!email && !ip) {
       return NextResponse.json(
         { error: '需要提供email或ip参数' },
         { status: 400 }
+      );
+    }
+
+    // 验证安全密钥
+    const API_SECRET = process.env.ADMIN_API_SECRET;
+    if (!secret || secret !== API_SECRET) {
+      console.warn(`未授权的重置尝试: ${email}`);
+      return NextResponse.json(
+        { error: '未授权的请求' },
+        { status: 401 }
       );
     }
 
@@ -32,6 +43,14 @@ export async function POST(req: NextRequest) {
     if (ip) {
       await resetIPRateLimit(ip);
     }
+
+    // 解锁账户
+    await unlockAccount(email);
+    
+    // 重置失败尝试次数
+    await resetFailedLoginAttempts(email);
+    
+    console.log(`账户已解锁: ${email}`);
 
     return NextResponse.json({
       success: true,
