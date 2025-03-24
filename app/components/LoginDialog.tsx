@@ -1,6 +1,5 @@
 'use client'
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -12,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useLanguage } from "@/contexts/LanguageContext"
-import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -31,8 +30,8 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
   const { language } = useLanguage()
   const router = useRouter()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
-  const [activeTab, setActiveTab] = useState('google')
-  const [isUnsafeEnvironment, setIsUnsafeEnvironment] = useState(false)
+  const [activeTab, setActiveTab] = useState('google') // 默认为谷歌登录
+  const [isUnsafeEnvironment, setIsUnsafeEnvironment] = useState(false) // 检测社交媒体浏览器
   
   // 邮箱验证码状态
   const [email, setEmail] = useState('')
@@ -52,7 +51,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     console.log('LoginDialog 状态变化：isOpen =', isOpen);
   }, [isOpen]);
   
-  // 检测不安全的浏览器环境
+  // 检测浏览器环境
   useEffect(() => {
     if (isOpen) {
       console.log('LoginDialog 已打开，检查浏览器环境');
@@ -91,7 +90,14 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     const isInAppBrowser = userAgent.includes('wv') || 
                          /mozilla\/[\d\.]+ \((?:iphone|ipad|ipod|android).*applewebkit\/[\d\.]+.*mobile.*safari\/[\d\.]+(?!.+chrome)/i.test(userAgent)
     
-    setIsUnsafeEnvironment(isInstagram || isFacebook || isWeChat || isLineApp || isSnapchat || isInAppBrowser)
+    const isUnsafe = isInstagram || isFacebook || isWeChat || isLineApp || isSnapchat || isInAppBrowser
+    
+    // 在社交媒体浏览器中强制使用邮箱登录
+    if (isUnsafe) {
+      setActiveTab('email');
+    }
+    
+    setIsUnsafeEnvironment(isUnsafe)
   }
   
   const content = {
@@ -112,21 +118,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       codeSent: "Code sent",
       loginButton: "Login",
       loggingIn: "Logging in...",
-      loginSuccess: "Success",
-      unsafeEnvironment: {
-        title: "Browser Not Supported for Login",
-        description: "Google blocks logins from Instagram, Facebook, and other social media in-app browsers due to security concerns.",
-        alertTitle: "Login Blocked by Google",
-        alertDescription: "To continue, please use one of these options:",
-        openInBrowser: "Open in Safari/Chrome",
-        orCopy: "Copy link:",
-        copyButton: "Copy URL",
-        qrCodeTab: "QR Code",
-        linkTab: "Copy Link",
-        scanQrCode: "Scan QR Code",
-        scanQrDescription: "Scan this QR code with your camera to open in an external browser",
-        copySuccess: "Link copied to clipboard!"
-      }
+      loginSuccess: "Success"
     },
     zh: {
       title: "距离您的信件只有一步之遥",
@@ -145,21 +137,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       codeSent: "验证码已发送",
       loginButton: "登录",
       loggingIn: "登录中...",
-      loginSuccess: "登录成功",
-      unsafeEnvironment: {
-        title: "浏览器不支持登录",
-        description: "由于安全原因，Google 阻止了从 Instagram、微信等应用内置浏览器的登录请求。",
-        alertTitle: "Google 已阻止登录",
-        alertDescription: "请使用以下方式继续操作：",
-        openInBrowser: "在浏览器中打开",
-        orCopy: "复制链接：",
-        copyButton: "复制链接",
-        qrCodeTab: "二维码",
-        linkTab: "复制链接",
-        scanQrCode: "扫描二维码",
-        scanQrDescription: "使用相机扫描此二维码在外部浏览器中打开网站",
-        copySuccess: "链接已复制到剪贴板！"
-      }
+      loginSuccess: "登录成功"
     }
   }
 
@@ -401,28 +379,6 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     }
   };
   
-  // 在外部浏览器中打开
-  const openInExternalBrowser = () => {
-    const currentUrl = window.location.href;
-    window.open(currentUrl, '_blank');
-  }
-  
-  // 复制当前URL到剪贴板
-  const copyUrlToClipboard = () => {
-    const currentUrl = window.location.href;
-    navigator.clipboard.writeText(currentUrl).then(() => {
-      alert(content[language].unsafeEnvironment.copySuccess);
-    }).catch(err => {
-      console.error('Failed to copy: ', err);
-    });
-  }
-  
-  // 获取QR码URL
-  const getQRCodeUrl = () => {
-    const currentUrl = encodeURIComponent(window.location.href);
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${currentUrl}`;
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       console.log('Dialog onOpenChange 被触发：', open);
@@ -430,76 +386,97 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{isUnsafeEnvironment 
-            ? content[language].unsafeEnvironment.title 
-            : content[language].title}
-          </DialogTitle>
-          <DialogDescription>
-            {isUnsafeEnvironment 
-              ? content[language].unsafeEnvironment.description 
-              : content[language].description}
-          </DialogDescription>
+          <DialogTitle>{content[language].title}</DialogTitle>
+          <DialogDescription>{content[language].description}</DialogDescription>
         </DialogHeader>
         
         {isUnsafeEnvironment ? (
-          <div className="space-y-4">
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>{content[language].unsafeEnvironment.alertTitle}</AlertTitle>
-              <AlertDescription>
-                {content[language].unsafeEnvironment.alertDescription}
-              </AlertDescription>
-            </Alert>
+          // 社交媒体浏览器中只显示邮箱登录选项
+          <div className="mt-2 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">
+                {content[language].emailLabel}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="email"
+                  type="email"
+                  ref={emailInputRef}
+                  placeholder={content[language].emailPlaceholder}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isCodeSent && countdown > 0}
+                  className={emailError ? "border-red-500" : ""}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSendCode}
+                  disabled={isSendingCode || (isCodeSent && countdown > 0) || !email}
+                  className="whitespace-nowrap min-w-[120px]"
+                >
+                  {isSendingCode ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : isCodeSent && countdown > 0 ? (
+                    `${countdown}${content[language].resendCode}`
+                  ) : (
+                    content[language].sendCode
+                  )}
+                </Button>
+              </div>
+              {emailError && <p className="text-sm text-red-500">{emailError}</p>}
+            </div>
             
-            <Button 
-              onClick={openInExternalBrowser}
-              className="w-full flex items-center justify-center gap-2"
-              variant="default"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {content[language].unsafeEnvironment.openInBrowser}
-            </Button>
+            {isCodeSent && (
+              <div className="space-y-2">
+                <Label htmlFor="code" className="text-sm font-medium">
+                  {content[language].codeLabel}
+                </Label>
+                <div className="grid grid-cols-6 gap-2 mt-2">
+                  {verificationCode.map((digit, index) => (
+                    <Input
+                      key={index}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      className="text-center"
+                      value={digit}
+                      onChange={(e) => handleCodeChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      onPaste={index === 0 ? handlePaste : undefined}
+                      ref={(el) => {
+                        codeInputRefs.current[index] = el;
+                        return undefined; // 明确返回undefined以符合React类型要求
+                      }}
+                    />
+                  ))}
+                </div>
+                {loginError && <p className="text-sm text-red-500">{loginError}</p>}
+              </div>
+            )}
             
-            <Tabs defaultValue="qrcode" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="qrcode">{content[language].unsafeEnvironment.qrCodeTab}</TabsTrigger>
-                <TabsTrigger value="copy">{content[language].unsafeEnvironment.linkTab}</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="qrcode" className="space-y-2 pt-2">
-                <div className="flex justify-center py-2">
-                  <img 
-                    src={getQRCodeUrl()} 
-                    alt="QR Code" 
-                    className="w-48 h-48 border rounded"
-                  />
-                </div>
-                <p className="text-center text-sm text-gray-500">
-                  {content[language].unsafeEnvironment.scanQrDescription}
-                </p>
-              </TabsContent>
-              
-              <TabsContent value="copy" className="space-y-2 pt-2">
-                <div className="text-sm text-gray-500 mb-2">
-                  {content[language].unsafeEnvironment.orCopy}
-                </div>
-                
-                <div className="flex items-center">
-                  <div className="border rounded-l px-3 py-2 bg-muted text-xs truncate flex-1 overflow-hidden">
-                    {window.location.href}
-                  </div>
-                  <Button 
-                    onClick={copyUrlToClipboard} 
-                    className="rounded-l-none"
-                    size="sm"
-                  >
-                    {content[language].unsafeEnvironment.copyButton}
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
+            {isCodeSent && (
+              <Button
+                type="button"
+                variant="default"
+                onClick={handleEmailLogin}
+                disabled={isLoggingIn || verificationCode.some((digit) => digit === '')}
+                className="w-full"
+              >
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {content[language].loggingIn}
+                  </>
+                ) : (
+                  content[language].loginButton
+                )}
+              </Button>
+            )}
           </div>
         ) : (
+          // 普通浏览器显示所有登录选项
           <Tabs 
             defaultValue="google" 
             className="w-full"
