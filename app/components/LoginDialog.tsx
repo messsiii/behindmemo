@@ -234,17 +234,17 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     setIsSendingCode(true);
     
     try {
-      const response = await fetch('/api/auth/send-verification-code', {
+      const response = await fetch('/api/auth/email-code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, language }),
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send verification code');
+        throw new Error(errorData.error || 'Failed to send verification code');
       }
       
       // 设置倒计时60秒
@@ -362,9 +362,9 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       const callbackUrl = prepareLoginCallback();
       
       const code = verificationCode.join('');
-      const result = await signIn('email-verification', {
+      const result = await signIn('email-login', {
         email,
-        verificationCode: code,
+        code,
         redirect: false,
         callbackUrl,
       });
