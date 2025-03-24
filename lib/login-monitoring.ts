@@ -1,7 +1,7 @@
 import { redis } from '@/lib/redis';
 
 // 登录安全配置
-const MAX_FAILED_ATTEMPTS = 5;      // 最大失败尝试次数
+const MAX_FAILED_ATTEMPTS = 20;      // 最大失败尝试次数
 const ACCOUNT_LOCK_TIME = 60 * 60;  // 账户锁定时间（1小时，单位：秒）
 
 /**

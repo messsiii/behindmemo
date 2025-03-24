@@ -232,19 +232,26 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     }
     
     setIsSendingCode(true);
+    console.log('准备发送验证码，参数:', { email, language });
     
     try {
+      const requestBody = { email, language };
+      console.log('请求体:', JSON.stringify(requestBody));
+      
       const response = await fetch('/api/auth/email-code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, language }),
+        body: JSON.stringify(requestBody),
       });
       
+      console.log('API响应状态:', response.status);
+      const responseData = await response.json();
+      console.log('API响应数据:', responseData);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send verification code');
+        throw new Error(responseData.error || 'Failed to send verification code');
       }
       
       // 设置倒计时60秒
@@ -261,6 +268,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
         codeInputRefs.current[0].focus();
       }
     } catch (error) {
+      console.error('发送验证码失败:', error);
       toast.error(language === 'en' ? 'Error' : '错误', {
         description: error instanceof Error ? error.message : 'Failed to send code'
       });
