@@ -301,13 +301,14 @@ export default function LoveLetterForm() {
             latitude: exifData.gps.latitude,
             longitude: exifData.gps.longitude,
           },
-          raw_address: exifData.gps.GPSAreaInformation || '',
+          // 不再存储原始GPS区域信息
         } : undefined,
         uploadTime: exifData?.DateTimeOriginal || undefined,
         context: {
-          uploadDevice: navigator.userAgent,
+          // 限制设备信息长度
+          uploadDevice: navigator.userAgent.substring(0, 100),
           screenSize: `${window.screen.width}x${window.screen.height}`,
-          colorDepth: window.screen.colorDepth,
+          // 移除不必要的颜色深度信息
         },
       }
 
@@ -444,15 +445,30 @@ export default function LoveLetterForm() {
           locationInfo = await reverseGeocode(latitude, longitude, language)
         }
 
-        // 更新元数据，添加地理位置信息
+        // 更新元数据，精简数据结构但保留关键信息
         const updatedMetadata = {
-          ...uploadResult.metadata,
-          gps: {
-            ...uploadResult.metadata.gps,
+          // 保留基本信息
+          orientation: uploadResult.metadata.orientation,
+          // 精简GPS信息，只保留必要的地址和坐标
+          gps: uploadResult.metadata.gps ? {
+            coordinates: uploadResult.metadata.gps.coordinates,
             address: locationInfo?.address || '',
-            components: locationInfo?.components || {},
+            // 不再包含整个components对象，只保留主要位置信息
+            country: locationInfo?.components?.country || '',
+            state: locationInfo?.components?.state || '',
+            city: locationInfo?.components?.city || '',
+            district: locationInfo?.components?.district || '',
+          } : undefined,
+          // 保留基本时间信息
+          uploadTime: uploadResult.metadata.uploadTime,
+          // 精简上下文信息
+          context: {
+            uploadDevice: navigator.userAgent.substring(0, 100), // 限制长度
+            screenSize: `${window.screen.width}x${window.screen.height}`,
           },
+          // 添加位置信息字段，与minimax.ts中使用相匹配
           location: locationInfo?.address || '',
+          // 用户信息会在后续添加
         }
 
         // 4. 生成请求 ID
