@@ -506,6 +506,10 @@ export default function LoveLetterForm() {
             } | null;
           }
           
+          console.log('准备保存表单数据，表单数据：', 
+            {name: formData.name, loverName: formData.loverName, 
+             hasStory: !!formData.story, hasPhoto: !!formData.photo});
+          
           const dataToSave: SavedFormData = {
             name: formData.name,
             loverName: formData.loverName,
@@ -516,6 +520,7 @@ export default function LoveLetterForm() {
           // 尝试处理照片数据
           if (formData.photo instanceof File) {
             try {
+              console.log(`尝试处理照片数据: ${formData.photo.name}, 大小: ${(formData.photo.size/1024/1024).toFixed(2)}MB`);
               // 创建一个新的canvas来压缩图片
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
@@ -524,81 +529,202 @@ export default function LoveLetterForm() {
                 // 从File创建图片对象
                 const img = new Image();
                 const imageUrl = URL.createObjectURL(formData.photo);
+                console.log('创建图片URL成功:', imageUrl.substring(0, 30) + '...');
                 
-                // 等待图片加载
-                const processImage = async () => {
-                  return new Promise<void>((resolve) => {
-                    img.onload = () => {
-                      // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
-                      const MAX_WIDTH = 300;
-                      const scaleFactor = MAX_WIDTH / img.width;
-                      const width = MAX_WIDTH;
-                      const height = img.height * scaleFactor;
+                img.onload = () => {
+                  console.log(`图片加载成功，原始尺寸: ${img.width}x${img.height}`);
+                  try {
+                    // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
+                    const MAX_WIDTH = 300;
+                    const scaleFactor = MAX_WIDTH / img.width;
+                    const width = MAX_WIDTH;
+                    const height = img.height * scaleFactor;
+                    
+                    console.log(`压缩后尺寸: ${width}x${height}`);
+                    
+                    // 设置canvas尺寸并绘制图片
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 将canvas转换为低质量的JPEG DataURL
+                    const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+                    
+                    // 检查DataURL大小是否超过2MB限制 (调低限制以确保数据能够保存)
+                    const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
+                    console.log(`dataURL生成成功，大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
+                    
+                    if (estimatedSize < 2 * 1024 * 1024) { // 小于2MB
+                      // 保存图片信息和DataURL
+                      dataToSave.photoInfo = {
+                        name: formData.photo?.name || 'image.jpg',
+                        type: 'image/jpeg', // 强制使用JPEG格式
+                        lastModified: formData.photo?.lastModified || Date.now(),
+                        dataURL: dataURL,
+                        isCompressed: true
+                      };
+                      console.log(`照片已压缩并保存到表单数据，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
                       
-                      // 设置canvas尺寸并绘制图片
-                      canvas.width = width;
-                      canvas.height = height;
-                      ctx.drawImage(img, 0, 0, width, height);
+                      // 尝试将dataToSave保存到localStorage
+                      try {
+                        const dataStr = JSON.stringify(dataToSave);
+                        console.log(`准备保存数据到localStorage，数据大小: ${(dataStr.length/1024/1024).toFixed(2)}MB`);
+                        
+                        localStorage.setItem('pendingFormData', dataStr);
+                        console.log('表单数据成功保存到localStorage');
+                        
+                        // 设置标记，指示有表单数据等待恢复
+                        localStorage.setItem('hasFormDataPending', 'true');
+                        console.log('已设置hasFormDataPending标记');
+                      } catch (storageError) {
+                        console.error('保存数据到localStorage失败，可能是数据太大:', storageError);
+                        // 如果保存失败，尝试缩小图片尺寸后重试
+                        try {
+                          console.log('尝试进一步压缩照片...');
+                          const REDUCED_WIDTH = 150; // 减小到更小的尺寸
+                          const reducedScaleFactor = REDUCED_WIDTH / img.width;
+                          canvas.width = REDUCED_WIDTH;
+                          canvas.height = img.height * reducedScaleFactor;
+                          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                          
+                          const smallerDataURL = canvas.toDataURL('image/jpeg', 0.3);
+                          const smallerSize = (smallerDataURL.length * 3) / 4;
+                          
+                          dataToSave.photoInfo = {
+                            name: formData.photo?.name || 'image.jpg',
+                            type: 'image/jpeg',
+                            lastModified: formData.photo?.lastModified || Date.now(),
+                            dataURL: smallerDataURL,
+                            isCompressed: true
+                          };
+                          
+                          const reducedDataStr = JSON.stringify(dataToSave);
+                          console.log(`再次尝试保存，进一步压缩后大小: ${(smallerSize/1024/1024).toFixed(2)}MB, 数据字符串大小: ${(reducedDataStr.length/1024/1024).toFixed(2)}MB`);
+                          
+                          localStorage.setItem('pendingFormData', reducedDataStr);
+                          localStorage.setItem('hasFormDataPending', 'true');
+                          console.log('进一步压缩后表单数据保存成功');
+                        } catch (retryError) {
+                          console.error('即使进一步压缩也无法保存数据:', retryError);
+                          // 失败后，只保存基本表单数据，不包含照片
+                          delete dataToSave.photoInfo;
+                          localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+                          localStorage.setItem('hasFormDataPending', 'true');
+                          console.log('仅保存了基本表单数据，不含照片');
+                        }
+                      }
+                    } else {
+                      console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，尝试进一步压缩`);
+                      // 进一步压缩图片
+                      const REDUCED_WIDTH = 150; // 减小到更小的尺寸
+                      canvas.width = REDUCED_WIDTH;
+                      canvas.height = img.height * (REDUCED_WIDTH / img.width);
+                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                       
-                      // 将canvas转换为低质量的JPEG DataURL
-                      const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+                      const smallerDataURL = canvas.toDataURL('image/jpeg', 0.3);
+                      const smallerSize = (smallerDataURL.length * 3) / 4;
                       
-                      // 检查DataURL大小是否超过3MB限制
-                      const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
+                      console.log(`进一步压缩后大小: ${(smallerSize/1024/1024).toFixed(2)}MB`);
                       
-                      if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
-                        // 保存图片信息和DataURL
+                      if (smallerSize < 1.5 * 1024 * 1024) { // 限制更小一点
                         dataToSave.photoInfo = {
                           name: formData.photo?.name || 'image.jpg',
-                          type: 'image/jpeg', // 强制使用JPEG格式
+                          type: 'image/jpeg',
                           lastModified: formData.photo?.lastModified || Date.now(),
-                          dataURL: dataURL,
+                          dataURL: smallerDataURL,
                           isCompressed: true
                         };
-                        console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
+                        
+                        const dataStr = JSON.stringify(dataToSave);
+                        try {
+                          localStorage.setItem('pendingFormData', dataStr);
+                          localStorage.setItem('hasFormDataPending', 'true');
+                          console.log('进一步压缩后表单数据保存成功');
+                        } catch (storageError) {
+                          console.error('仍无法保存数据，只保存基本表单数据:', storageError);
+                          delete dataToSave.photoInfo;
+                          localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+                          localStorage.setItem('hasFormDataPending', 'true');
+                        }
                       } else {
-                        console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
+                        console.log(`即使进一步压缩，照片仍然太大，只保存基本表单数据`);
+                        delete dataToSave.photoInfo;
+                        localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+                        localStorage.setItem('hasFormDataPending', 'true');
                       }
-                      
-                      URL.revokeObjectURL(imageUrl);
-                      resolve();
-                    };
+                    }
                     
-                    img.onerror = () => {
-                      console.error('图片加载失败');
-                      URL.revokeObjectURL(imageUrl);
-                      resolve();
-                    };
+                    // 释放URL对象
+                    URL.revokeObjectURL(imageUrl);
+                    console.log('图片URL已释放');
                     
-                    img.src = imageUrl;
-                  });
+                  } catch (drawError) {
+                    console.error('处理图片错误:', drawError);
+                    // 如果处理失败，仍然尝试保存基本表单数据
+                    delete dataToSave.photoInfo;
+                    localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+                    localStorage.setItem('hasFormDataPending', 'true');
+                    console.log('处理图片失败，仅保存了基本表单数据');
+                    URL.revokeObjectURL(imageUrl);
+                  }
+                  
+                  // 设置登录对话框显示
+                  console.log('处理完成，即将显示登录对话框');
+                  setShowLoginDialog(true);
+                  setIsSubmitting(false);
                 };
                 
-                // 使用立即执行的异步函数包装await调用
-                (async () => {
-                  try {
-                    await processImage();
-                  } catch (error) {
-                    console.error('处理图片过程中发生错误:', error);
-                  }
-                })();
+                img.onerror = (err) => {
+                  console.error('图片加载失败:', err);
+                  URL.revokeObjectURL(imageUrl);
+                  // 如果图片加载失败，仍然保存基本表单数据
+                  delete dataToSave.photoInfo;
+                  localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+                  localStorage.setItem('hasFormDataPending', 'true');
+                  console.log('图片加载失败，仅保存了基本表单数据');
+                  
+                  // 设置登录对话框显示
+                  setShowLoginDialog(true);
+                  setIsSubmitting(false);
+                };
+                
+                // 开始加载图片
+                img.src = imageUrl;
+                console.log('已设置图片src，等待加载完成');
+              } else {
+                console.error('无法获取Canvas上下文');
+                // 保存基本表单数据
+                delete dataToSave.photoInfo;
+                localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+                localStorage.setItem('hasFormDataPending', 'true');
+                console.log('无法获取Canvas上下文，仅保存了基本表单数据');
+                
+                // 设置登录对话框显示
+                setShowLoginDialog(true);
+                setIsSubmitting(false);
               }
             } catch (photoError) {
               console.error('处理照片时出错:', photoError);
               // 照片处理失败，仅保存基本数据
+              delete dataToSave.photoInfo;
+              localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+              localStorage.setItem('hasFormDataPending', 'true');
+              console.log('处理照片出错，仅保存了基本表单数据');
+              
+              // 设置登录对话框显示
+              setShowLoginDialog(true);
+              setIsSubmitting(false);
             }
+          } else {
+            console.log('没有检测到照片数据，仅保存基本表单数据');
+            // 没有照片数据，保存基本表单数据
+            localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+            localStorage.setItem('hasFormDataPending', 'true');
+            
+            // 设置登录对话框显示
+            setShowLoginDialog(true);
+            setIsSubmitting(false);
           }
-          
-          // 保存处理后的表单数据
-          localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
-          // 设置标记，指示有表单数据等待恢复
-          localStorage.setItem('hasFormDataPending', 'true');
-          console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
-          
-          // 弹出登录框
-          console.log('即将设置showLoginDialog为true');
-          setShowLoginDialog(true);
-          setIsSubmitting(false);
         }, 50);
         
       } catch (err) {
@@ -912,17 +1038,24 @@ export default function LoveLetterForm() {
       // 从localStorage获取之前保存的表单数据
       const savedFormData = localStorage.getItem('pendingFormData');
       if (!savedFormData) {
-        console.log('No saved form data found');
+        console.log('没有找到保存的表单数据');
         return;
       }
+      
+      console.log('找到待恢复的表单数据，长度:', savedFormData.length);
       
       const parsedData = JSON.parse(savedFormData);
       if (!parsedData || (!parsedData.name && !parsedData.story)) {
-        console.log('Invalid saved form data');
+        console.log('解析的表单数据无效或为空');
         return;
       }
       
-      console.log('Restoring form data after login');
+      console.log('开始恢复登录后的表单数据', { 
+        hasName: !!parsedData.name, 
+        hasLoverName: !!parsedData.loverName, 
+        hasStory: !!parsedData.story,
+        hasPhotoInfo: !!parsedData.photoInfo 
+      });
       
       // 恢复表单数据
       const updatedFormData = { ...formData };
@@ -934,43 +1067,108 @@ export default function LoveLetterForm() {
       let hasRestoredPhoto = false;
       if (parsedData.photoInfo && parsedData.photoInfo.dataURL) {
         try {
-          console.log('Restoring compressed photo from dataURL');
-          // 从DataURL创建Blob
-          const dataURL = parsedData.photoInfo.dataURL;
-          const byteString = atob(dataURL.split(',')[1]);
-          const mimeType = dataURL.split(',')[0].split(':')[1].split(';')[0];
+          console.log('尝试从dataURL恢复压缩照片', {
+            photoName: parsedData.photoInfo.name,
+            photoType: parsedData.photoInfo.type,
+            isCompressed: parsedData.photoInfo.isCompressed,
+            dataURLLength: parsedData.photoInfo.dataURL.length
+          });
           
-          const ab = new ArrayBuffer(byteString.length);
-          const ia = new Uint8Array(ab);
-          for (let i = 0; i < byteString.length; i++) {
-            ia[i] = byteString.charCodeAt(i);
+          // 检查dataURL格式
+          if (!parsedData.photoInfo.dataURL.startsWith('data:image/')) {
+            console.error('dataURL格式错误，无法恢复照片');
+            throw new Error('Invalid dataURL format');
           }
           
-          // 创建Blob
-          const blob = new Blob([ab], { type: mimeType });
+          // 从DataURL创建Blob
+          const dataURL = parsedData.photoInfo.dataURL;
+          console.log('dataURL前缀:', dataURL.substring(0, 30) + '...');
           
-          // 从Blob创建File对象
-          const restoredFile = new File(
-            [blob], 
-            parsedData.photoInfo.name || 'restored-image.jpg', 
-            { 
-              type: parsedData.photoInfo.type || 'image/jpeg',
-              lastModified: parsedData.photoInfo.lastModified || Date.now()
+          // 解析dataURL
+          const parts = dataURL.split(',');
+          if (parts.length !== 2) {
+            console.error('dataURL格式解析失败，无法拆分为parts');
+            throw new Error('Failed to parse dataURL');
+          }
+          
+          try {
+            const byteString = atob(parts[1]);
+            console.log('成功解码base64字符串，长度:', byteString.length);
+            
+            const mimeMatch = parts[0].match(/:(.*?);/);
+            if (!mimeMatch) {
+              console.error('无法从dataURL中提取MIME类型');
+              throw new Error('Cannot extract MIME type');
             }
-          );
-          
-          // 将File对象添加自定义属性，标记为从压缩数据恢复的
-          // @ts-expect-error - File对象不支持自定义属性，但我们需要添加标记
-          restoredFile.isRestoredFromCompressed = true;
-          
-          // 将恢复的File对象设置到表单数据中
-          updatedFormData.photo = restoredFile;
-          console.log('Photo successfully restored from compressed data');
-          hasRestoredPhoto = true;
+            
+            const mimeType = mimeMatch[1];
+            console.log('提取的MIME类型:', mimeType);
+            
+            // 创建ArrayBuffer
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            console.log('成功创建ArrayBuffer, 大小:', ab.byteLength);
+            
+            // 创建Blob
+            const blob = new Blob([ab], { type: mimeType });
+            console.log('成功创建Blob, 大小:', blob.size);
+            
+            // 从Blob创建File对象
+            const restoredFile = new File(
+              [blob], 
+              parsedData.photoInfo.name || 'restored-image.jpg', 
+              { 
+                type: parsedData.photoInfo.type || 'image/jpeg',
+                lastModified: parsedData.photoInfo.lastModified || Date.now()
+              }
+            );
+            console.log('成功创建File对象:', {
+              name: restoredFile.name,
+              size: restoredFile.size,
+              type: restoredFile.type
+            });
+            
+            // 将File对象添加自定义属性，标记为从压缩数据恢复的
+            // @ts-expect-error - File对象不支持自定义属性，但我们需要添加标记
+            restoredFile.isRestoredFromCompressed = true;
+            
+            // 将恢复的File对象设置到表单数据中
+            updatedFormData.photo = restoredFile;
+            console.log('照片已成功从压缩数据恢复');
+            hasRestoredPhoto = true;
+            
+            // 尝试预加载图片，确认可用性
+            const img = new Image();
+            img.onload = () => {
+              console.log('恢复的照片预加载成功，尺寸:', img.width, 'x', img.height);
+            };
+            img.onerror = (err) => {
+              console.error('恢复的照片预加载失败:', err);
+            };
+            img.src = URL.createObjectURL(restoredFile);
+          } catch (decodeError) {
+            console.error('base64解码或Blob创建失败:', decodeError);
+            throw decodeError;
+          }
         } catch (err) {
-          console.error('Failed to restore photo from compressed data:', err);
+          console.error('从压缩数据恢复照片失败:', err);
+          hasRestoredPhoto = false;
         }
+      } else {
+        console.log('保存的数据中不包含照片信息');
       }
+      
+      console.log('更新表单数据', {
+        name: updatedFormData.name?.substring(0, 10) + '...',
+        loverName: updatedFormData.loverName?.substring(0, 10) + '...',
+        storyLength: updatedFormData.story?.length,
+        hasPhoto: !!updatedFormData.photo,
+        photoRestored: hasRestoredPhoto
+      });
       
       // 更新表单数据
       setFormData(updatedFormData);
@@ -980,6 +1178,7 @@ export default function LoveLetterForm() {
       
       // 清除localStorage中的数据
       localStorage.removeItem('pendingFormData');
+      console.log('已清除localStorage中的pendingFormData');
       
       // 根据是否成功恢复照片决定跳转步骤
       setTimeout(() => {
@@ -1007,10 +1206,22 @@ export default function LoveLetterForm() {
         setIsRestoringAfterLogin(false);
       }, 2000);
     } catch (error) {
-      console.error('Failed to restore form data:', error);
+      console.error('恢复表单数据失败:', error);
+      
+      // 异常情况处理：清理脏数据
+      localStorage.removeItem('pendingFormData');
+      localStorage.removeItem('hasFormDataPending');
+      
+      // 确保界面还原到初始状态
       setIsRestoringAfterLogin(false);
+      
+      toast.error(language === 'en' ? 'Failed to restore data' : '恢复数据失败', {
+        description: language === 'en'
+          ? 'We could not restore your previous form data. Please start again.'
+          : '无法恢复您之前的表单数据，请重新开始。'
+      });
     }
-  }, [formData, language, setCurrentStep, setIsRestoringAfterLogin]);
+  }, [formData, language, setCurrentStep, setIsRestoringAfterLogin, setFormData]);
 
   // 登录对话框关闭逻辑
   const handleLoginDialogClose = useCallback(() => {

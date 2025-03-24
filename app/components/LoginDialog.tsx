@@ -170,8 +170,30 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     
     // 确保设置localStorage标记，用于登录后恢复表单数据
     localStorage.setItem('hasFormDataPending', 'true');
-    console.log('设置登录回调URL:', currentUrl.toString());
-    return currentUrl.toString();
+    
+    // 检查页面类型并确保导航到正确的页面
+    const isWritePage = window.location.pathname.includes('/write');
+    console.log(`准备登录回调URL，当前页面类型: ${isWritePage ? '写作页面' : '其他页面'}`);
+    
+    // 如果不是写作页面，确保回调到写作页面
+    if (!isWritePage) {
+      currentUrl.pathname = '/write';
+      console.log('设置回调到写作页面: /write');
+    }
+    
+    const callbackUrl = currentUrl.toString();
+    console.log('设置登录回调URL:', callbackUrl);
+    
+    // 检查是否已经保存了表单数据
+    const hasSavedFormData = !!localStorage.getItem('pendingFormData');
+    console.log('检查是否已保存表单数据:', hasSavedFormData);
+    
+    // 仅当有pendingFormData时才设置hasFormDataPending标记
+    if (!hasSavedFormData) {
+      console.log('警告: 没有找到已保存的表单数据，但仍然设置了hasFormDataPending标记');
+    }
+    
+    return callbackUrl;
   }
 
   const handleGoogleLogin = async () => {
