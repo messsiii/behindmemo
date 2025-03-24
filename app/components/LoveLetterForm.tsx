@@ -762,6 +762,16 @@ export default function LoveLetterForm() {
     console.log('showCreditsAlert state changed:', showCreditsAlert)
   }, [showCreditsAlert])
 
+  // 监控showCreditsAlert状态变化
+  useEffect(() => {
+    console.log('showCreditsAlert状态变化:', showCreditsAlert)
+    
+    // 如果状态为true，额外打印一些调试信息
+    if (showCreditsAlert) {
+      console.log('检测到积分不足，CreditsAlert已触发显示')
+    }
+  }, [showCreditsAlert])
+
   // 修改键盘事件处理，在移动端不处理
   const handleKeyPress = useCallback(
     (e: KeyboardEvent) => {
@@ -884,36 +894,45 @@ export default function LoveLetterForm() {
         setIsSubmitting(false);
       }
     } else if (response.status === 402) {
-      // 积分不足，弹出购买引导
-      console.log('检测到402响应，积分不足，准备显示付费引导...');
-      
-      // 在显示积分警告前确保先重置提交状态
+      // 积分不足
+      console.log('收到402状态码，显示积分不足提示');
+      setShowCreditsAlert(true);
       setIsSubmitting(false);
-      
-      // 延迟一帧再设置弹窗状态，避免状态更新被批处理优化掉
-      setTimeout(() => {
-        console.log('设置showCreditsAlert为true');
-        setShowCreditsAlert(true);
-      }, 0);
-      
-      // 显示Toast提示用户
-      toast({
-        title: language === 'en' ? 'Credits Exceeded' : '创作配额不足',
-        description: language === 'en' 
-          ? 'You need more credits to generate letters.' 
-          : '您需要更多点数来生成信件。',
-        variant: "default"
-      });
     } else {
       // 其他错误
       try {
-        const errorData = await response.json();
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
-          variant: "destructive"
-        });
+        const errorText = await response.text();
+        console.log('错误响应内容:', errorText);
+        
+        // 尝试解析JSON
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch(e) {
+          errorData = { message: errorText };
+        }
+        
+        // 检查错误信息中是否包含积分不足的关键词
+        const errorMessage = errorData.message || errorText;
+        const isCreditsError = 
+          errorMessage.includes('insufficient credits') || 
+          errorMessage.includes('配额不足') || 
+          errorMessage.includes('创作次数') ||
+          errorMessage.includes('credits') ||
+          errorMessage.toLowerCase().includes('quota');
+        
+        if (isCreditsError || errorData.code === 'INSUFFICIENT_CREDITS') {
+          console.log('检测到积分不足错误消息，显示积分不足提示');
+          setShowCreditsAlert(true);
+        } else {
+          toast({
+            title: language === 'en' ? 'Error' : '错误',
+            description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
+            variant: "destructive"
+          });
+        }
       } catch (e) {
+        console.error('解析错误响应失败:', e);
         toast({
           title: language === 'en' ? 'Error' : '错误',
           description: language === 'en' ? 'Failed to generate letter' : '生成信件失败',
@@ -1075,13 +1094,8 @@ export default function LoveLetterForm() {
       <CreditsAlert
         open={showCreditsAlert}
         onOpenChange={(open: boolean) => {
-          console.log('CreditsAlert onOpenChange:', open);
-          setShowCreditsAlert(open);
-          
-          // 如果关闭了弹窗，且用户需要购买积分，可以导航到定价页面
-          if (!open) {
-            console.log('积分弹窗被关闭');
-          }
+          console.log('CreditsAlert onOpenChange:', open, '当前状态:', showCreditsAlert)
+          setShowCreditsAlert(open)
         }}
       />
 
