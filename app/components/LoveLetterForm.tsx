@@ -51,7 +51,7 @@ interface FormData {
   name: string
   loverName: string
   story: string
-  photo: File
+  photo: File | null
 }
 
 /* 保留以下接口用于未来功能扩展 */
@@ -114,7 +114,12 @@ export default function LoveLetterForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
-  const [formData, setFormData] = useState<Partial<FormData>>({})
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    loverName: '',
+    story: '',
+    photo: null,
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -124,6 +129,7 @@ export default function LoveLetterForm() {
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [isRestoringAfterLogin, setIsRestoringAfterLogin] = useState(false)
+  const [activeTabIndex, setActiveTabIndex] = useState(0)
 
   const currentQuestion = useMemo(() => questions[currentStep], [currentStep])
 
@@ -210,7 +216,7 @@ export default function LoveLetterForm() {
       console.log(`原始文件: ${file.name}, 大小: ${(file.size/1024/1024).toFixed(2)}MB, 类型: ${file.type}`);
       
       // 检查文件是否是从压缩数据恢复的
-      // @ts-ignore - 访问自定义属性
+      // @ts-expect-error - File对象不支持自定义属性，但需要检查标记
       const isRestoredFile = !!file.isRestoredFromCompressed;
       if (isRestoredFile) {
         console.log('检测到从压缩数据恢复的照片，将使用简化的EXIF处理');
@@ -254,7 +260,7 @@ export default function LoveLetterForm() {
       let processedFile = file
       
       // 对于恢复的压缩照片，使用简化处理流程
-      // @ts-ignore - 访问自定义属性
+      // @ts-expect-error - File对象不支持自定义属性，需要识别恢复的照片
       if (file.isRestoredFromCompressed) {
         console.log('跳过压缩照片的HEIC转换和部分EXIF处理');
         // 直接使用恢复的照片，不做额外处理
@@ -282,7 +288,7 @@ export default function LoveLetterForm() {
       // 3. 创建图片预览并应用正确的方向
       console.log(`创建图片预览并校正方向...`);
       
-      // @ts-ignore - 访问自定义属性
+      // @ts-expect-error - File对象不支持自定义属性，用于识别恢复照片
       if (file.isRestoredFromCompressed) {
         console.log('使用简化的方向校正处理恢复的照片');
         // 对于恢复的照片，直接使用简单的预处理，避免复杂的方向校正
@@ -314,7 +320,7 @@ export default function LoveLetterForm() {
               });
               
               // 保持恢复照片标记
-              // @ts-ignore
+              // @ts-expect-error - File对象不支持自定义属性，但我们需要添加标记
               processedFile.isRestoredFromCompressed = true;
               
               console.log(`恢复照片处理完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
@@ -401,7 +407,7 @@ export default function LoveLetterForm() {
       // 4. 准备元数据 - 简化结构，只保留最必要的信息
       console.log(`准备元数据...`);
       
-      // @ts-ignore - 访问自定义属性
+      // @ts-expect-error - File对象不支持自定义属性，标记照片来源
       const isRestoredPhoto = !!file.isRestoredFromCompressed;
       
       const metadata = {
@@ -475,9 +481,191 @@ export default function LoveLetterForm() {
     localStorage.removeItem('pendingFormData')
   }, [])
 
+  // 添加表单引用以检测变更
+  const formRef = useRef<HTMLFormElement>(null)
+  const isSubmittingRef = useRef(false)
+  
+  // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
+  const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
+    console.log(`处理错误响应: 状态码=${statusCode}, 错误文本=${errorText}`);
+    
+    if (statusCode === 401) {
+      console.log('检测到401未授权错误，准备显示登录弹窗');
+      // 用户未登录，尝试保存表单数据（包括缩小后的照片）
+      try {
+        // 首先设置为true，确保状态更新
+        console.log('先设置showLoginDialog为true，让React渲染循环开始');
+        setShowLoginDialog(true);
+        
+        // 创建一个用于存储的数据对象
+        interface SavedFormData {
+          name?: string;
+          loverName?: string;
+          story?: string;
+          photoInfo?: {
+            name: string;
+            type: string;
+            lastModified: number;
+            dataURL: string;
+            isCompressed: boolean;
+          } | null;
+        }
+        
+        const dataToSave: SavedFormData = {
+          name: formData.name,
+          loverName: formData.loverName,
+          story: formData.story,
+          photoInfo: null
+        };
+        
+        // 尝试处理照片数据
+        if (formData.photo instanceof File) {
+          try {
+            // 创建一个新的canvas来压缩图片
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              // 从File创建图片对象
+              const img = new Image();
+              const imageUrl = URL.createObjectURL(formData.photo);
+              
+              // 等待图片加载
+              await new Promise((resolve) => {
+                img.onload = resolve;
+                img.src = imageUrl;
+              });
+              
+              URL.revokeObjectURL(imageUrl);
+              
+              // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
+              const MAX_WIDTH = 300;
+              const scaleFactor = MAX_WIDTH / img.width;
+              const width = MAX_WIDTH;
+              const height = img.height * scaleFactor;
+              
+              // 设置canvas尺寸并绘制图片
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // 将canvas转换为低质量的JPEG DataURL
+              const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+              
+              // 检查DataURL大小是否超过3MB限制
+              const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
+              
+              if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
+                // 保存图片信息和DataURL
+                dataToSave.photoInfo = {
+                  name: formData.photo.name,
+                  type: 'image/jpeg', // 强制使用JPEG格式
+                  lastModified: formData.photo.lastModified,
+                  dataURL: dataURL,
+                  isCompressed: true
+                };
+                console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
+              } else {
+                console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
+              }
+            }
+          } catch (photoError) {
+            console.error('处理照片时出错:', photoError);
+            // 照片处理失败，仅保存基本数据
+          }
+        }
+        
+        // 保存处理后的表单数据
+        localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+        // 设置标记，指示有表单数据等待恢复
+        localStorage.setItem('hasFormDataPending', 'true');
+        console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
+        
+        // 弹出登录框
+        console.log('即将设置showLoginDialog为true');
+        setShowLoginDialog(true);
+        console.log('已设置showLoginDialog为true');
+        setIsSubmitting(false);
+        
+        // 强制更新UI以确保对话框显示
+        setTimeout(() => {
+          if (!showLoginDialog) {
+            console.log('检测到showLoginDialog仍为false，再次尝试设置');
+            setShowLoginDialog(true);
+          }
+        }, 100);
+      } catch (err) {
+        console.error('无法保存表单数据:', err);
+        // 清除可能部分写入的数据
+        localStorage.removeItem('pendingFormData');
+        // 仍然弹出登录框
+        console.log('遇到错误，但仍设置showLoginDialog为true');
+        setShowLoginDialog(true);
+        setIsSubmitting(false);
+        
+        // 强制更新UI以确保对话框显示
+        setTimeout(() => {
+          if (!showLoginDialog) {
+            console.log('遇到错误后检测到showLoginDialog仍为false，再次尝试设置');
+            setShowLoginDialog(true);
+          }
+        }, 100);
+      }
+    } else if (statusCode === 402) {
+      // 积分不足
+      console.log('收到402状态码，显示积分不足提示');
+      setShowCreditsAlert(true);
+      setIsSubmitting(false);
+    } else {
+      // 其他错误
+      try {
+        console.log('错误响应内容:', errorText);
+        
+        // 尝试解析JSON
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch(e) {
+          errorData = { message: errorText };
+        }
+        
+        // 检查错误信息中是否包含积分不足的关键词
+        const errorMessage = errorData.message || errorText;
+        const isCreditsError = 
+          errorMessage.includes('insufficient credits') || 
+          errorMessage.includes('配额不足') || 
+          errorMessage.includes('创作次数') ||
+          errorMessage.includes('credits') ||
+          errorMessage.toLowerCase().includes('quota') || 
+          errorMessage.includes('Failed to consume credits'); // 添加新的错误消息匹配
+        
+        if (isCreditsError || errorData.code === 'INSUFFICIENT_CREDITS' || 
+            (errorData.details && errorData.details.includes('consume credits'))) {
+          console.log('检测到积分不足错误消息，显示积分不足提示');
+          setShowCreditsAlert(true);
+        } else {
+          toast({
+            title: language === 'en' ? 'Error' : '错误',
+            description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
+            variant: "destructive"
+          });
+        }
+      } catch (e) {
+        console.error('解析错误响应失败:', e);
+        toast({
+          title: language === 'en' ? 'Error' : '错误',
+          description: language === 'en' ? 'Failed to generate letter' : '生成信件失败',
+          variant: "destructive"
+        });
+      }
+      setIsSubmitting(false);
+    }
+  }, [formData, language, toast, showLoginDialog, setShowLoginDialog, setShowCreditsAlert, setIsSubmitting]);
+  
+  // 表单提交处理
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
+    async (e?: React.FormEvent) => {
+      e?.preventDefault()
       console.log('=== 提交处理开始 ===')
 
       // 完整的表单验证
@@ -722,17 +910,16 @@ export default function LoveLetterForm() {
       }
     },
     [
-      session, 
-      formData, 
-      toast, 
-      language, 
-      router, 
-      uploadPhotoAndPrepareData, 
-      triggerShake, 
-      setIsLoading, 
-      setIsSubmitting, 
-      setShowCreditsAlert,
-      setShowLoginDialog,
+      formData,
+      language,
+      selectedTemplate,
+      setCurrentStep,
+      setIsSubmitting,
+      toast,
+      uploadPhotoAndPrepareData,
+      handleErrorResponse,
+      router,
+      triggerShake,
       handleSubmitSuccess
     ]
   )
@@ -791,7 +978,7 @@ export default function LoveLetterForm() {
           );
           
           // 将File对象添加自定义属性，标记为从压缩数据恢复的
-          // @ts-ignore - 添加自定义属性
+          // @ts-expect-error - File对象不支持自定义属性，但我们需要添加标记
           restoredFile.isRestoredFromCompressed = true;
           
           // 将恢复的File对象设置到表单数据中
@@ -1039,183 +1226,6 @@ export default function LoveLetterForm() {
       }, 800)
     }
   }, [isRestoringAfterLogin, currentStep, formData.photo, language, toast])
-
-  // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
-  const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
-    console.log(`处理错误响应: 状态码=${statusCode}, 错误文本=${errorText}`);
-    
-    if (statusCode === 401) {
-      console.log('检测到401未授权错误，准备显示登录弹窗');
-      // 用户未登录，尝试保存表单数据（包括缩小后的照片）
-      try {
-        // 创建一个用于存储的数据对象
-        interface SavedFormData {
-          name?: string;
-          loverName?: string;
-          story?: string;
-          photoInfo?: {
-            name: string;
-            type: string;
-            lastModified: number;
-            dataURL: string;
-            isCompressed: boolean;
-          } | null;
-        }
-        
-        // 首先设置为true，确保状态更新
-        console.log('先设置showLoginDialog为true，让React渲染循环开始');
-        setShowLoginDialog(true);
-        
-        const dataToSave: SavedFormData = {
-          name: formData.name,
-          loverName: formData.loverName,
-          story: formData.story,
-          photoInfo: null
-        };
-        
-        // 尝试处理照片数据
-        if (formData.photo instanceof File) {
-          try {
-            // 创建一个新的canvas来压缩图片
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            if (ctx) {
-              // 从File创建图片对象
-              const img = new Image();
-              const imageUrl = URL.createObjectURL(formData.photo);
-              
-              // 等待图片加载
-              await new Promise((resolve) => {
-                img.onload = resolve;
-                img.src = imageUrl;
-              });
-              
-              URL.revokeObjectURL(imageUrl);
-              
-              // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
-              const MAX_WIDTH = 300;
-              const scaleFactor = MAX_WIDTH / img.width;
-              const width = MAX_WIDTH;
-              const height = img.height * scaleFactor;
-              
-              // 设置canvas尺寸并绘制图片
-              canvas.width = width;
-              canvas.height = height;
-              ctx.drawImage(img, 0, 0, width, height);
-              
-              // 将canvas转换为低质量的JPEG DataURL
-              const dataURL = canvas.toDataURL('image/jpeg', 0.5);
-              
-              // 检查DataURL大小是否超过3MB限制
-              const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
-              
-              if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
-                // 保存图片信息和DataURL
-                dataToSave.photoInfo = {
-                  name: formData.photo.name,
-                  type: 'image/jpeg', // 强制使用JPEG格式
-                  lastModified: formData.photo.lastModified,
-                  dataURL: dataURL,
-                  isCompressed: true
-                };
-                console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
-              } else {
-                console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
-              }
-            }
-          } catch (photoError) {
-            console.error('处理照片时出错:', photoError);
-            // 照片处理失败，仅保存基本数据
-          }
-        }
-        
-        // 保存处理后的表单数据
-        localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
-        // 设置标记，指示有表单数据等待恢复
-        localStorage.setItem('hasFormDataPending', 'true');
-        console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
-        
-        // 弹出登录框
-        console.log('即将设置showLoginDialog为true');
-        setShowLoginDialog(true);
-        console.log('已设置showLoginDialog为true');
-        setIsSubmitting(false);
-        
-        // 强制更新UI以确保对话框显示
-        setTimeout(() => {
-          if (!showLoginDialog) {
-            console.log('检测到showLoginDialog仍为false，再次尝试设置');
-            setShowLoginDialog(true);
-          }
-        }, 100);
-      } catch (err) {
-        console.error('无法保存表单数据:', err);
-        // 清除可能部分写入的数据
-        localStorage.removeItem('pendingFormData');
-        // 仍然弹出登录框
-        console.log('遇到错误，但仍设置showLoginDialog为true');
-        setShowLoginDialog(true);
-        setIsSubmitting(false);
-        
-        // 强制更新UI以确保对话框显示
-        setTimeout(() => {
-          if (!showLoginDialog) {
-            console.log('遇到错误后检测到showLoginDialog仍为false，再次尝试设置');
-            setShowLoginDialog(true);
-          }
-        }, 100);
-      }
-    } else if (statusCode === 402) {
-      // 积分不足
-      console.log('收到402状态码，显示积分不足提示');
-      setShowCreditsAlert(true);
-      setIsSubmitting(false);
-    } else {
-      // 其他错误
-      try {
-        console.log('错误响应内容:', errorText);
-        
-        // 尝试解析JSON
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch(e) {
-          errorData = { message: errorText };
-        }
-        
-        // 检查错误信息中是否包含积分不足的关键词
-        const errorMessage = errorData.message || errorText;
-        const isCreditsError = 
-          errorMessage.includes('insufficient credits') || 
-          errorMessage.includes('配额不足') || 
-          errorMessage.includes('创作次数') ||
-          errorMessage.includes('credits') ||
-          errorMessage.toLowerCase().includes('quota') || 
-          errorMessage.includes('Failed to consume credits'); // 添加新的错误消息匹配
-        
-        if (isCreditsError || errorData.code === 'INSUFFICIENT_CREDITS' || 
-            (errorData.details && errorData.details.includes('consume credits'))) {
-          console.log('检测到积分不足错误消息，显示积分不足提示');
-          setShowCreditsAlert(true);
-        } else {
-          toast({
-            title: language === 'en' ? 'Error' : '错误',
-            description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
-            variant: "destructive"
-          });
-        }
-      } catch (e) {
-        console.error('解析错误响应失败:', e);
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: language === 'en' ? 'Failed to generate letter' : '生成信件失败',
-          variant: "destructive"
-        });
-      }
-      setIsSubmitting(false);
-    }
-  }, [formData, language, toast]);
 
   return (
     <div className="w-full max-w-2xl">
