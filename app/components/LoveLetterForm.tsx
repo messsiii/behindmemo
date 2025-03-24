@@ -209,30 +209,56 @@ export default function LoveLetterForm() {
       console.log(`=== 图片上传开始 ===`);
       console.log(`原始文件: ${file.name}, 大小: ${(file.size/1024/1024).toFixed(2)}MB, 类型: ${file.type}`);
       
+      // 检查文件是否是从压缩数据恢复的
+      // @ts-ignore - 访问自定义属性
+      const isRestoredFile = !!file.isRestoredFromCompressed;
+      if (isRestoredFile) {
+        console.log('检测到从压缩数据恢复的照片，将使用简化的EXIF处理');
+      }
+      
       // 1. 首先读取原始 EXIF 数据
       console.log(`正在提取EXIF数据...`);
-      const exifData = await exifr.parse(file, {
-        tiff: true,
-        xmp: true,
-        gps: true,
-        translateValues: true,
-        translateKeys: true,
-        reviveValues: true,
-        mergeOutput: false,
-        exif: true,
-      })
+      let exifData;
+      try {
+        exifData = await exifr.parse(file, {
+          tiff: true,
+          xmp: true,
+          gps: true,
+          translateValues: true,
+          translateKeys: true,
+          reviveValues: true,
+          mergeOutput: false,
+          exif: true,
+        });
+        
+        if (!exifData) {
+          console.log('未检测到EXIF数据，这可能是因为图片已被压缩或处理过');
+        }
+      } catch (exifError) {
+        console.error('EXIF数据提取失败:', exifError);
+        console.log('将继续处理图片，但没有EXIF元数据');
+        exifData = {};
+      }
       
       // 记录EXIF数据大小
-      const exifDataStr = JSON.stringify(exifData);
+      const exifDataStr = JSON.stringify(exifData || {});
       console.log(`EXIF数据大小: ${exifDataStr.length} 字符, ${(new TextEncoder().encode(exifDataStr).length/1024).toFixed(2)}KB`);
       
       if (exifData?.gps) {
         console.log(`包含GPS数据: ${JSON.stringify(exifData.gps).substring(0, 200)}${JSON.stringify(exifData.gps).length > 200 ? '...(已截断)' : ''}`);
+      } else {
+        console.log('照片不包含GPS数据或EXIF信息');
       }
 
       // 2. 处理 HEIC 转换
       let processedFile = file
-      if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+      
+      // 对于恢复的压缩照片，使用简化处理流程
+      // @ts-ignore - 访问自定义属性
+      if (file.isRestoredFromCompressed) {
+        console.log('跳过压缩照片的HEIC转换和部分EXIF处理');
+        // 直接使用恢复的照片，不做额外处理
+      } else if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
         console.log(`检测到HEIC格式，开始转换...`);
         try {
           const heic2any = (await import('heic2any')).default
@@ -255,66 +281,129 @@ export default function LoveLetterForm() {
 
       // 3. 创建图片预览并应用正确的方向
       console.log(`创建图片预览并校正方向...`);
-      const imageUrl = URL.createObjectURL(processedFile)
-      const img = new Image()
-      img.src = imageUrl
+      
+      // @ts-ignore - 访问自定义属性
+      if (file.isRestoredFromCompressed) {
+        console.log('使用简化的方向校正处理恢复的照片');
+        // 对于恢复的照片，直接使用简单的预处理，避免复杂的方向校正
+        const imageUrl = URL.createObjectURL(processedFile);
+        const img = new Image();
+        img.src = imageUrl;
+        
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              URL.revokeObjectURL(imageUrl);
+              throw new Error('Failed to get canvas context');
+            }
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            
+            canvas.toBlob((blob) => {
+              if (!blob) {
+                URL.revokeObjectURL(imageUrl);
+                throw new Error('Failed to convert canvas to blob');
+              }
+              
+              processedFile = new File([blob], processedFile.name, {
+                type: 'image/jpeg',
+              });
+              
+              // 保持恢复照片标记
+              // @ts-ignore
+              processedFile.isRestoredFromCompressed = true;
+              
+              console.log(`恢复照片处理完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+              URL.revokeObjectURL(imageUrl);
+              resolve(true);
+            }, 'image/jpeg', 0.9);
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(imageUrl);
+            console.error('图片加载失败');
+            // 仍然使用原始文件继续
+            resolve(true);
+          };
+        });
+      } else {
+        // 正常照片的完整处理流程
+        const imageUrl = URL.createObjectURL(processedFile)
+        const img = new Image()
+        img.src = imageUrl
 
-      await new Promise((resolve) => {
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            URL.revokeObjectURL(imageUrl)
-            throw new Error('Failed to get canvas context')
-          }
-
-          let width = img.width
-          let height = img.height
-          const orientation = exifData?.Orientation || 1
-
-          console.log(`图片尺寸: ${width}x${height}, 方向: ${orientation}`);
-
-          if (orientation > 4) {
-            [width, height] = [height, width]
-          }
-
-          canvas.width = width
-          canvas.height = height
-
-          ctx.save()
-          switch (orientation) {
-            case 2: ctx.transform(-1, 0, 0, 1, width, 0); break
-            case 3: ctx.transform(-1, 0, 0, -1, width, height); break
-            case 4: ctx.transform(1, 0, 0, -1, 0, height); break
-            case 5: ctx.transform(0, 1, 1, 0, 0, 0); break
-            case 6: ctx.transform(0, 1, -1, 0, height, 0); break
-            case 7: ctx.transform(0, -1, -1, 0, height, width); break
-            case 8: ctx.transform(0, -1, 1, 0, 0, width); break
-          }
-
-          ctx.drawImage(img, 0, 0)
-          ctx.restore()
-
-          canvas.toBlob(async (blob) => {
-            if (!blob) {
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            if (!ctx) {
               URL.revokeObjectURL(imageUrl)
-              throw new Error('Failed to convert canvas to blob')
+              throw new Error('Failed to get canvas context')
             }
 
-            processedFile = new File([blob], processedFile.name, {
-              type: 'image/jpeg',
-            })
-            
-            console.log(`图片方向校正完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+            let width = img.width
+            let height = img.height
+            const orientation = exifData?.Orientation || 1
 
-            URL.revokeObjectURL(imageUrl)
-            resolve(true)
-          }, 'image/jpeg', 0.9)
-        }
-      })
+            console.log(`图片尺寸: ${width}x${height}, 方向: ${orientation}`);
+
+            if (orientation > 4) {
+              [width, height] = [height, width]
+            }
+
+            canvas.width = width
+            canvas.height = height
+
+            ctx.save()
+            switch (orientation) {
+              case 2: ctx.transform(-1, 0, 0, 1, width, 0); break
+              case 3: ctx.transform(-1, 0, 0, -1, width, height); break
+              case 4: ctx.transform(1, 0, 0, -1, 0, height); break
+              case 5: ctx.transform(0, 1, 1, 0, 0, 0); break
+              case 6: ctx.transform(0, 1, -1, 0, height, 0); break
+              case 7: ctx.transform(0, -1, -1, 0, height, width); break
+              case 8: ctx.transform(0, -1, 1, 0, 0, width); break
+            }
+
+            ctx.drawImage(img, 0, 0)
+            ctx.restore()
+
+            canvas.toBlob(async (blob) => {
+              if (!blob) {
+                URL.revokeObjectURL(imageUrl)
+                throw new Error('Failed to convert canvas to blob')
+              }
+
+              processedFile = new File([blob], processedFile.name, {
+                type: 'image/jpeg',
+              })
+              
+              console.log(`图片方向校正完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+
+              URL.revokeObjectURL(imageUrl)
+              resolve(true)
+            }, 'image/jpeg', 0.9)
+          }
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(imageUrl);
+            console.error('图片加载失败');
+            // 仍然使用原始文件继续
+            resolve(true);
+          };
+        })
+      }
 
       // 4. 准备元数据 - 简化结构，只保留最必要的信息
       console.log(`准备元数据...`);
+      
+      // @ts-ignore - 访问自定义属性
+      const isRestoredPhoto = !!file.isRestoredFromCompressed;
+      
       const metadata = {
         // 只保留方向信息和时间信息
         orientation: exifData?.Orientation,
@@ -326,11 +415,12 @@ export default function LoveLetterForm() {
           }
         } : undefined,
         // 只保留日期时间，不包含其他EXIF信息
-        uploadTime: exifData?.DateTimeOriginal || undefined,
+        uploadTime: exifData?.DateTimeOriginal || new Date().toISOString(),
         // 简化上下文信息，减少传输数据量
         context: {
           // 只保留简化的设备信息
           device: navigator.userAgent.split(' ').slice(-1)[0]?.substring(0, 30),
+          isRestoredPhoto: isRestoredPhoto,
         },
       }
       
@@ -452,9 +542,28 @@ export default function LoveLetterForm() {
           console.log('上传照片完成')
         } catch (error) {
           console.error('上传照片失败:', error)
+          
+          // 提供更友好的错误消息
+          let errorMessage = language === 'en' ? 'Failed to upload photo' : '上传照片失败';
+          
+          // 根据错误类型提供更具体的错误信息
+          if (error instanceof Error) {
+            console.error('详细错误:', error.message);
+            
+            if (error.message.includes('EXIF') || error.message.includes('length')) {
+              errorMessage = language === 'en' 
+                ? 'Failed to process photo metadata. Please try uploading the original photo again.' 
+                : '处理照片元数据失败。请尝试重新上传原始照片。';
+            } else if (error.message.includes('network') || error.message.includes('fetch')) {
+              errorMessage = language === 'en'
+                ? 'Network error during upload. Please check your connection and try again.'
+                : '上传过程中网络错误。请检查您的网络连接并重试。';
+            }
+          }
+          
           toast({
             title: language === 'en' ? 'Upload Failed' : '上传失败',
-            description: language === 'en' ? 'Failed to upload photo' : '上传照片失败',
+            description: errorMessage,
             variant: "destructive"
           })
           setIsSubmitting(false)
@@ -672,6 +781,10 @@ export default function LoveLetterForm() {
               lastModified: parsedData.photoInfo.lastModified || Date.now()
             }
           );
+          
+          // 将File对象添加自定义属性，标记为从压缩数据恢复的
+          // @ts-ignore - 添加自定义属性
+          restoredFile.isRestoredFromCompressed = true;
           
           // 将恢复的File对象设置到表单数据中
           updatedFormData.photo = restoredFile;
