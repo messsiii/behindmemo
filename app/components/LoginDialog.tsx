@@ -168,22 +168,27 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('returnFrom', 'login');
     
+    // 确保设置localStorage标记，用于登录后恢复表单数据
     localStorage.setItem('hasFormDataPending', 'true');
+    console.log('设置登录回调URL:', currentUrl.toString());
     return currentUrl.toString();
   }
 
   const handleGoogleLogin = async () => {
     setIsLoggingIn(true)
     try {
+      console.log('准备Google登录，设置回调URL');
       const callbackUrl = prepareLoginCallback();
+      console.log('使用的回调URL:', callbackUrl);
       
+      // 确保redirect设为true，让浏览器完成完整的重定向过程
       signIn('google', { 
         redirect: true,
         callbackUrl
       });
       
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('Google登录错误:', error)
       setIsLoggingIn(false)
     }
   }

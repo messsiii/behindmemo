@@ -8,7 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
 import { AnimatePresence, motion } from 'framer-motion'
-import { signIn, useSession } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -486,107 +486,121 @@ export default function LoveLetterForm() {
       console.log('检测到401未授权错误，准备显示登录弹窗');
       // 用户未登录，尝试保存表单数据（包括缩小后的照片）
       try {
-        // 首先设置为true，确保状态更新
-        console.log('先设置showLoginDialog为true，让React渲染循环开始');
-        setShowLoginDialog(true);
+        // 确保将showLoginDialog设置为false，然后再设置为true
+        // 这样可以强制React重新渲染组件
+        setShowLoginDialog(false);
         
-        // 创建一个用于存储的数据对象
-        interface SavedFormData {
-          name?: string;
-          loverName?: string;
-          story?: string;
-          photoInfo?: {
-            name: string;
-            type: string;
-            lastModified: number;
-            dataURL: string;
-            isCompressed: boolean;
-          } | null;
-        }
-        
-        const dataToSave: SavedFormData = {
-          name: formData.name,
-          loverName: formData.loverName,
-          story: formData.story,
-          photoInfo: null
-        };
-        
-        // 尝试处理照片数据
-        if (formData.photo instanceof File) {
-          try {
-            // 创建一个新的canvas来压缩图片
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            if (ctx) {
-              // 从File创建图片对象
-              const img = new Image();
-              const imageUrl = URL.createObjectURL(formData.photo);
-              
-              // 等待图片加载
-              await new Promise((resolve) => {
-                img.onload = resolve;
-                img.src = imageUrl;
-              });
-              
-              URL.revokeObjectURL(imageUrl);
-              
-              // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
-              const MAX_WIDTH = 300;
-              const scaleFactor = MAX_WIDTH / img.width;
-              const width = MAX_WIDTH;
-              const height = img.height * scaleFactor;
-              
-              // 设置canvas尺寸并绘制图片
-              canvas.width = width;
-              canvas.height = height;
-              ctx.drawImage(img, 0, 0, width, height);
-              
-              // 将canvas转换为低质量的JPEG DataURL
-              const dataURL = canvas.toDataURL('image/jpeg', 0.5);
-              
-              // 检查DataURL大小是否超过3MB限制
-              const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
-              
-              if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
-                // 保存图片信息和DataURL
-                dataToSave.photoInfo = {
-                  name: formData.photo.name,
-                  type: 'image/jpeg', // 强制使用JPEG格式
-                  lastModified: formData.photo.lastModified,
-                  dataURL: dataURL,
-                  isCompressed: true
-                };
-                console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
-              } else {
-                console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
-              }
-            }
-          } catch (photoError) {
-            console.error('处理照片时出错:', photoError);
-            // 照片处理失败，仅保存基本数据
-          }
-        }
-        
-        // 保存处理后的表单数据
-        localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
-        // 设置标记，指示有表单数据等待恢复
-        localStorage.setItem('hasFormDataPending', 'true');
-        console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
-        
-        // 弹出登录框
-        console.log('即将设置showLoginDialog为true');
-        setShowLoginDialog(true);
-        console.log('已设置showLoginDialog为true');
-        setIsSubmitting(false);
-        
-        // 强制更新UI以确保对话框显示
+        // 使用setTimeout确保状态更新完成后再继续
         setTimeout(() => {
-          if (!showLoginDialog) {
-            console.log('检测到showLoginDialog仍为false，再次尝试设置');
-            setShowLoginDialog(true);
+          // 创建一个用于存储的数据对象
+          interface SavedFormData {
+            name?: string;
+            loverName?: string;
+            story?: string;
+            photoInfo?: {
+              name: string;
+              type: string;
+              lastModified: number;
+              dataURL: string;
+              isCompressed: boolean;
+            } | null;
           }
-        }, 100);
+          
+          const dataToSave: SavedFormData = {
+            name: formData.name,
+            loverName: formData.loverName,
+            story: formData.story,
+            photoInfo: null
+          };
+          
+          // 尝试处理照片数据
+          if (formData.photo instanceof File) {
+            try {
+              // 创建一个新的canvas来压缩图片
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              if (ctx) {
+                // 从File创建图片对象
+                const img = new Image();
+                const imageUrl = URL.createObjectURL(formData.photo);
+                
+                // 等待图片加载
+                const processImage = async () => {
+                  return new Promise<void>((resolve) => {
+                    img.onload = () => {
+                      // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
+                      const MAX_WIDTH = 300;
+                      const scaleFactor = MAX_WIDTH / img.width;
+                      const width = MAX_WIDTH;
+                      const height = img.height * scaleFactor;
+                      
+                      // 设置canvas尺寸并绘制图片
+                      canvas.width = width;
+                      canvas.height = height;
+                      ctx.drawImage(img, 0, 0, width, height);
+                      
+                      // 将canvas转换为低质量的JPEG DataURL
+                      const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+                      
+                      // 检查DataURL大小是否超过3MB限制
+                      const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
+                      
+                      if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
+                        // 保存图片信息和DataURL
+                        dataToSave.photoInfo = {
+                          name: formData.photo?.name || 'image.jpg',
+                          type: 'image/jpeg', // 强制使用JPEG格式
+                          lastModified: formData.photo?.lastModified || Date.now(),
+                          dataURL: dataURL,
+                          isCompressed: true
+                        };
+                        console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
+                      } else {
+                        console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
+                      }
+                      
+                      URL.revokeObjectURL(imageUrl);
+                      resolve();
+                    };
+                    
+                    img.onerror = () => {
+                      console.error('图片加载失败');
+                      URL.revokeObjectURL(imageUrl);
+                      resolve();
+                    };
+                    
+                    img.src = imageUrl;
+                  });
+                };
+                
+                // 使用立即执行的异步函数包装await调用
+                (async () => {
+                  try {
+                    await processImage();
+                  } catch (error) {
+                    console.error('处理图片过程中发生错误:', error);
+                  }
+                })();
+              }
+            } catch (photoError) {
+              console.error('处理照片时出错:', photoError);
+              // 照片处理失败，仅保存基本数据
+            }
+          }
+          
+          // 保存处理后的表单数据
+          localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+          // 设置标记，指示有表单数据等待恢复
+          localStorage.setItem('hasFormDataPending', 'true');
+          console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
+          
+          // 弹出登录框
+          console.log('即将设置showLoginDialog为true');
+          setShowLoginDialog(true);
+          setIsSubmitting(false);
+        }, 50);
+        
       } catch (err) {
         console.error('无法保存表单数据:', err);
         // 清除可能部分写入的数据
@@ -595,14 +609,6 @@ export default function LoveLetterForm() {
         console.log('遇到错误，但仍设置showLoginDialog为true');
         setShowLoginDialog(true);
         setIsSubmitting(false);
-        
-        // 强制更新UI以确保对话框显示
-        setTimeout(() => {
-          if (!showLoginDialog) {
-            console.log('遇到错误后检测到showLoginDialog仍为false，再次尝试设置');
-            setShowLoginDialog(true);
-          }
-        }, 100);
       }
     } else if (statusCode === 402) {
       // 积分不足
@@ -1358,45 +1364,6 @@ export default function LoveLetterForm() {
           handleLoginDialogClose();
         }}
       />
-      
-      {/* 当401错误发生时，强制显示另一个登录弹窗 */}
-      {showLoginDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70" 
-             onClick={(e) => {
-               // 仅当点击了背景层时才关闭
-               if (e.target === e.currentTarget) {
-                 console.log('背景层被点击，关闭登录弹窗');
-                 handleLoginDialogClose();
-               }
-             }}>
-          <div className="bg-background rounded-lg p-4 w-[425px] shadow-xl" 
-               onClick={(e) => e.stopPropagation()}>
-            <div className="text-xl font-bold mb-4">
-              {language === 'en' ? 'Login Required' : '需要登录'}
-            </div>
-            <div className="mb-6">
-              {language === 'en' 
-                ? 'You need to login to generate a love letter. Your information will be preserved.' 
-                : '您需要登录才能生成情书。您的信息将被保留。'}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => {
-                console.log('取消按钮被点击');
-                handleLoginDialogClose();
-              }}>
-                {language === 'en' ? 'Cancel' : '取消'}
-              </Button>
-              <Button onClick={() => {
-                console.log('登录按钮被点击，准备使用Google登录');
-                // 使用Google登录
-                signIn('google', { callbackUrl: `${window.location.origin}/?returnFrom=login` });
-              }}>
-                {language === 'en' ? 'Login with Google' : '使用Google登录'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
