@@ -552,11 +552,14 @@ export default function LoveLetterForm() {
           try {
             const errorText = await response.text();
             console.error(`错误详情: ${errorText.substring(0, 1000)}`);
+            
+            // 将错误文本和状态码传递给错误处理函数，而不是直接传递response对象
+            await handleErrorResponse(response.status, errorText);
           } catch (e) {
             console.error('无法获取错误详情:', e);
+            // 如果无法读取错误详情，仍然需要处理错误状态
+            await handleErrorResponse(response.status, '');
           }
-          
-          await handleErrorResponse(response)
           return
         }
 
@@ -641,8 +644,6 @@ export default function LoveLetterForm() {
       if (parsedData.loverName) updatedFormData.loverName = parsedData.loverName;
       if (parsedData.story) updatedFormData.story = parsedData.story;
       
-      // 注意：不再尝试恢复照片数据，因为我们不再在localStorage中保存它
-      
       // 更新表单数据
       setFormData(updatedFormData);
       
@@ -652,15 +653,23 @@ export default function LoveLetterForm() {
       // 清除localStorage中的数据
       localStorage.removeItem('pendingFormData');
       
-      // 直接跳转到第四步（故事输入页面）
+      // 检查是否需要重新上传照片
+      const needPhotoUpload = parsedData.needPhotoUpload === true;
+      
       setTimeout(() => {
-        // 直接跳到第四步（故事页面）
-        setCurrentStep(3);
+        // 跳到第二步（照片上传步骤，index为1）
+        setCurrentStep(1);
+        
+        // 提示用户需要上传照片
         toast({
-          title: language === 'en' ? 'Form data restored' : '表单数据已恢复',
+          title: language === 'en' ? 'Please upload a photo' : '请上传照片',
           description: language === 'en'
-            ? 'Your form has been restored. Please make sure to upload a photo before generating.'
-            : '您的表单数据已恢复。请确保在生成前上传照片。',
+            ? needPhotoUpload 
+                ? 'Your form data has been restored. You need to re-upload your photo to continue.' 
+                : 'Your form data has been restored. Please upload a photo to continue.'
+            : needPhotoUpload
+                ? '您的表单数据已恢复。您需要重新上传照片以继续。'
+                : '您的表单数据已恢复。请上传照片以继续。',
           variant: 'default',
         });
         
@@ -866,16 +875,17 @@ export default function LoveLetterForm() {
     }
   }, [isRestoringAfterLogin, currentStep, formData.photo, language, toast])
 
-  // 处理错误响应
-  const handleErrorResponse = useCallback(async (response: Response) => {
-    if (response.status === 401) {
+  // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
+  const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
+    if (statusCode === 401) {
       // 用户未登录，只保存基本表单数据
       try {
         // 只保存基本数据，不包括照片
         const basicData = {
           name: formData.name,
           loverName: formData.loverName,
-          story: formData.story
+          story: formData.story,
+          needPhotoUpload: true // 添加标记，指示需要重新上传照片
         };
         
         // 保存处理后的表单数据
@@ -893,7 +903,7 @@ export default function LoveLetterForm() {
         setShowLoginDialog(true);
         setIsSubmitting(false);
       }
-    } else if (response.status === 402) {
+    } else if (statusCode === 402) {
       // 积分不足
       console.log('收到402状态码，显示积分不足提示');
       setShowCreditsAlert(true);
@@ -901,7 +911,6 @@ export default function LoveLetterForm() {
     } else {
       // 其他错误
       try {
-        const errorText = await response.text();
         console.log('错误响应内容:', errorText);
         
         // 尝试解析JSON
@@ -919,9 +928,11 @@ export default function LoveLetterForm() {
           errorMessage.includes('配额不足') || 
           errorMessage.includes('创作次数') ||
           errorMessage.includes('credits') ||
-          errorMessage.toLowerCase().includes('quota');
+          errorMessage.toLowerCase().includes('quota') || 
+          errorMessage.includes('Failed to consume credits'); // 添加新的错误消息匹配
         
-        if (isCreditsError || errorData.code === 'INSUFFICIENT_CREDITS') {
+        if (isCreditsError || errorData.code === 'INSUFFICIENT_CREDITS' || 
+            (errorData.details && errorData.details.includes('consume credits'))) {
           console.log('检测到积分不足错误消息，显示积分不足提示');
           setShowCreditsAlert(true);
         } else {
