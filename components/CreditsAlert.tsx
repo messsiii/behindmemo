@@ -22,14 +22,14 @@ const content = {
   en: {
     title: 'Credits Exceeded',
     description:
-      "You've used up all your free credits. Each new user gets 2 free credits. Upgrade to VIP for unlimited access or purchase additional credits.",
+      "You've used up all your free credits. Upgrade to VIP to enjoy unlimited letter generation, unlimited template usage, unlimited sharing, and watermark removal. Experience premium features to create perfect memories!",
     cancel: 'Cancel',
     upgrade: 'Upgrade to VIP',
   },
   zh: {
     title: '创作配额不足',
     description:
-      '您的免费创作次数已用完。每位新用户可获得2次免费创作机会。升级为VIP获取无限使用权限，或购买额外配额。',
+      '您的免费创作次数已用完。升级为VIP即可享受无限生成信件、无限使用模板、无限分享以及去除水印等特权。立即开通VIP，创造完美回忆！',
     cancel: '取消',
     upgrade: '升级VIP',
   },
