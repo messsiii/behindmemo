@@ -657,19 +657,27 @@ export default function LoveLetterForm() {
         // 处理可能的错误
         if (!response.ok) {
           console.error(`生成请求失败: ${response.status} ${response.statusText}`);
-          // 尝试读取更详细的错误信息
+          
+          // 直接使用状态码处理，避免重复消费response.text()
+          if (response.status === 401) {
+            console.log('直接检测到401状态码，绕过错误文本读取');
+            await handleErrorResponse(401, '{"error":"Unauthorized"}');
+            return;
+          }
+          
+          // 如果不是401，再尝试读取错误文本
           try {
             const errorText = await response.text();
             console.error(`错误详情: ${errorText.substring(0, 1000)}`);
             
-            // 将错误文本和状态码传递给错误处理函数，而不是直接传递response对象
+            // 将错误文本和状态码传递给错误处理函数
             await handleErrorResponse(response.status, errorText);
           } catch (e) {
             console.error('无法获取错误详情:', e);
             // 如果无法读取错误详情，仍然需要处理错误状态
             await handleErrorResponse(response.status, '');
           }
-          return
+          return;
         }
 
         // 获取信件ID并跳转到结果页
@@ -1053,6 +1061,10 @@ export default function LoveLetterForm() {
             isCompressed: boolean;
           } | null;
         }
+        
+        // 首先设置为true，确保状态更新
+        console.log('先设置showLoginDialog为true，让React渲染循环开始');
+        setShowLoginDialog(true);
         
         const dataToSave: SavedFormData = {
           name: formData.name,
