@@ -644,6 +644,44 @@ export default function LoveLetterForm() {
       if (parsedData.loverName) updatedFormData.loverName = parsedData.loverName;
       if (parsedData.story) updatedFormData.story = parsedData.story;
       
+      // 恢复压缩的照片数据（如果有）
+      let hasRestoredPhoto = false;
+      if (parsedData.photoInfo && parsedData.photoInfo.dataURL) {
+        try {
+          console.log('Restoring compressed photo from dataURL');
+          // 从DataURL创建Blob
+          const dataURL = parsedData.photoInfo.dataURL;
+          const byteString = atob(dataURL.split(',')[1]);
+          const mimeType = dataURL.split(',')[0].split(':')[1].split(';')[0];
+          
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+          }
+          
+          // 创建Blob
+          const blob = new Blob([ab], { type: mimeType });
+          
+          // 从Blob创建File对象
+          const restoredFile = new File(
+            [blob], 
+            parsedData.photoInfo.name || 'restored-image.jpg', 
+            { 
+              type: parsedData.photoInfo.type || 'image/jpeg',
+              lastModified: parsedData.photoInfo.lastModified || Date.now()
+            }
+          );
+          
+          // 将恢复的File对象设置到表单数据中
+          updatedFormData.photo = restoredFile;
+          console.log('Photo successfully restored from compressed data');
+          hasRestoredPhoto = true;
+        } catch (err) {
+          console.error('Failed to restore photo from compressed data:', err);
+        }
+      }
+      
       // 更新表单数据
       setFormData(updatedFormData);
       
@@ -653,29 +691,35 @@ export default function LoveLetterForm() {
       // 清除localStorage中的数据
       localStorage.removeItem('pendingFormData');
       
-      // 检查是否需要重新上传照片
-      const needPhotoUpload = parsedData.needPhotoUpload === true;
-      
+      // 根据是否成功恢复照片决定跳转步骤
       setTimeout(() => {
-        // 跳到第二步（照片上传步骤，index为1）
-        setCurrentStep(1);
-        
-        // 提示用户需要上传照片
-        toast({
-          title: language === 'en' ? 'Please upload a photo' : '请上传照片',
-          description: language === 'en'
-            ? needPhotoUpload 
-                ? 'Your form data has been restored. You need to re-upload your photo to continue.' 
-                : 'Your form data has been restored. Please upload a photo to continue.'
-            : needPhotoUpload
-                ? '您的表单数据已恢复。您需要重新上传照片以继续。'
-                : '您的表单数据已恢复。请上传照片以继续。',
-          variant: 'default',
-        });
-        
-        // 标记恢复流程完成
-        setIsRestoringAfterLogin(false);
+        if (hasRestoredPhoto) {
+          // 照片已恢复，直接跳到第四步（故事页面）
+          setCurrentStep(3);
+          toast({
+            title: language === 'en' ? 'Form data fully restored' : '表单数据已完全恢复',
+            description: language === 'en'
+              ? 'Your form and photo have been restored. You can now generate your letter!'
+              : '您的表单数据和照片已完全恢复。现在可以生成您的信件了！',
+            variant: 'default',
+          });
+        } else {
+          // 照片未恢复，跳到第二步（照片上传页面）
+          setCurrentStep(1);
+          toast({
+            title: language === 'en' ? 'Please upload a photo' : '请上传照片',
+            description: language === 'en'
+              ? 'Your form data has been restored. Please upload a photo to continue.'
+              : '您的表单数据已恢复。请上传照片后继续。',
+            variant: 'default',
+          });
+        }
       }, 500);
+      
+      // 给用户上传照片的时间后，标记恢复流程完成
+      setTimeout(() => {
+        setIsRestoringAfterLogin(false);
+      }, 2000);
     } catch (error) {
       console.error('Failed to restore form data:', error);
       setIsRestoringAfterLogin(false);
@@ -878,19 +922,89 @@ export default function LoveLetterForm() {
   // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
   const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
     if (statusCode === 401) {
-      // 用户未登录，只保存基本表单数据
+      // 用户未登录，尝试保存表单数据（包括缩小后的照片）
       try {
-        // 只保存基本数据，不包括照片
-        const basicData = {
+        // 创建一个用于存储的数据对象
+        interface SavedFormData {
+          name?: string;
+          loverName?: string;
+          story?: string;
+          photoInfo?: {
+            name: string;
+            type: string;
+            lastModified: number;
+            dataURL: string;
+            isCompressed: boolean;
+          } | null;
+        }
+        
+        const dataToSave: SavedFormData = {
           name: formData.name,
           loverName: formData.loverName,
           story: formData.story,
-          needPhotoUpload: true // 添加标记，指示需要重新上传照片
+          photoInfo: null
         };
         
+        // 尝试处理照片数据
+        if (formData.photo instanceof File) {
+          try {
+            // 创建一个新的canvas来压缩图片
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              // 从File创建图片对象
+              const img = new Image();
+              const imageUrl = URL.createObjectURL(formData.photo);
+              
+              // 等待图片加载
+              await new Promise((resolve) => {
+                img.onload = resolve;
+                img.src = imageUrl;
+              });
+              
+              URL.revokeObjectURL(imageUrl);
+              
+              // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
+              const MAX_WIDTH = 300;
+              const scaleFactor = MAX_WIDTH / img.width;
+              const width = MAX_WIDTH;
+              const height = img.height * scaleFactor;
+              
+              // 设置canvas尺寸并绘制图片
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // 将canvas转换为低质量的JPEG DataURL
+              const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+              
+              // 检查DataURL大小是否超过3MB限制
+              const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
+              
+              if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
+                // 保存图片信息和DataURL
+                dataToSave.photoInfo = {
+                  name: formData.photo.name,
+                  type: 'image/jpeg', // 强制使用JPEG格式
+                  lastModified: formData.photo.lastModified,
+                  dataURL: dataURL,
+                  isCompressed: true
+                };
+                console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
+              } else {
+                console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
+              }
+            }
+          } catch (photoError) {
+            console.error('处理照片时出错:', photoError);
+            // 照片处理失败，仅保存基本数据
+          }
+        }
+        
         // 保存处理后的表单数据
-        localStorage.setItem('pendingFormData', JSON.stringify(basicData));
-        console.log('基本表单数据已保存到localStorage (不含照片)');
+        localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+        console.log('表单数据已保存到localStorage');
         
         // 弹出登录框
         setShowLoginDialog(true);
@@ -899,7 +1013,7 @@ export default function LoveLetterForm() {
         console.error('无法保存表单数据:', err);
         // 清除可能部分写入的数据
         localStorage.removeItem('pendingFormData');
-        // 弹出登录框
+        // 仍然弹出登录框
         setShowLoginDialog(true);
         setIsSubmitting(false);
       }
