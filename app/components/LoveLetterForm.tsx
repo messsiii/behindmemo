@@ -390,9 +390,47 @@ export default function LoveLetterForm() {
       e.preventDefault()
       console.log('=== 提交处理开始 ===')
 
-      // 在最开始添加内容校验
+      // 完整的表单验证
+      if (!formData.name?.trim()) {
+        console.log('姓名为空，终止提交')
+        toast({
+          title: language === 'en' ? 'Name is required' : '请输入您的名字',
+          description: language === 'en' ? 'Please enter your name to continue.' : '请输入您的名字后继续。',
+          variant: "destructive"
+        })
+        setCurrentStep(0) // 跳转到姓名输入步骤
+        return
+      }
+      
+      if (!formData.photo) {
+        console.log('照片未上传，终止提交')
+        toast({
+          title: language === 'en' ? 'Photo is required' : '请上传照片',
+          description: language === 'en' ? 'Please upload a photo to continue.' : '请上传照片后继续。',
+          variant: "destructive"
+        })
+        setCurrentStep(1) // 跳转到照片上传步骤
+        return
+      }
+      
+      if (!formData.loverName?.trim()) {
+        console.log('对方姓名为空，终止提交')
+        toast({
+          title: language === 'en' ? 'Partner name is required' : '请输入对方的名字',
+          description: language === 'en' ? 'Please enter your partner\'s name to continue.' : '请输入对方的名字后继续。',
+          variant: "destructive"
+        })
+        setCurrentStep(2) // 跳转到对方姓名输入步骤
+        return
+      }
+
       if (!formData.story?.trim()) {
         console.log('故事内容为空，终止提交')
+        toast({
+          title: language === 'en' ? 'Story is required' : '请输入故事内容',
+          description: language === 'en' ? 'Please share your story to continue.' : '请分享您的故事后继续。',
+          variant: "destructive"
+        })
         triggerShake()
         return
       }
@@ -614,15 +652,15 @@ export default function LoveLetterForm() {
       // 清除localStorage中的数据
       localStorage.removeItem('pendingFormData');
       
-      // 始终跳转到照片上传步骤
+      // 直接跳转到第四步（故事输入页面）
       setTimeout(() => {
-        // 始终跳到第二步（照片上传）
-        setCurrentStep(1);
+        // 直接跳到第四步（故事页面）
+        setCurrentStep(3);
         toast({
-          title: language === 'en' ? 'Please upload your photo' : '请上传照片',
+          title: language === 'en' ? 'Form data restored' : '表单数据已恢复',
           description: language === 'en'
-            ? 'We have restored your form data. Please upload your photo to continue.'
-            : '我们已恢复您的表单数据。请上传照片以继续。',
+            ? 'Your form has been restored. Please make sure to upload a photo before generating.'
+            : '您的表单数据已恢复。请确保在生成前上传照片。',
           variant: 'default',
         });
         
