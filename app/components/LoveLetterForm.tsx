@@ -1039,6 +1039,8 @@ export default function LoveLetterForm() {
       const savedFormData = localStorage.getItem('pendingFormData');
       if (!savedFormData) {
         console.log('没有找到保存的表单数据');
+        // 清除标记，防止反复尝试恢复
+        localStorage.removeItem('hasFormDataPending');
         return;
       }
       
@@ -1047,6 +1049,9 @@ export default function LoveLetterForm() {
       const parsedData = JSON.parse(savedFormData);
       if (!parsedData || (!parsedData.name && !parsedData.story)) {
         console.log('解析的表单数据无效或为空');
+        // 清除标记，防止反复尝试恢复
+        localStorage.removeItem('hasFormDataPending');
+        localStorage.removeItem('pendingFormData');
         return;
       }
       
@@ -1176,9 +1181,10 @@ export default function LoveLetterForm() {
       // 设置恢复标志
       setIsRestoringAfterLogin(true);
       
-      // 清除localStorage中的数据
+      // 清除localStorage中的数据和恢复标记，确保恢复逻辑只执行一次
       localStorage.removeItem('pendingFormData');
-      console.log('已清除localStorage中的pendingFormData');
+      localStorage.removeItem('hasFormDataPending');
+      console.log('已清除localStorage中的pendingFormData和hasFormDataPending标记');
       
       // 根据是否成功恢复照片决定跳转步骤
       setTimeout(() => {
@@ -1223,6 +1229,49 @@ export default function LoveLetterForm() {
     }
   }, [formData, language, setCurrentStep, setIsRestoringAfterLogin, setFormData]);
 
+  // 检查用户是否刚从登录页返回，以及是否有待恢复的表单数据
+  useEffect(() => {
+    const isReturningFromLogin = 
+      typeof window !== 'undefined' && 
+      window.location.search.includes('returnFrom=login');
+    
+    const hasFormDataPending = 
+      typeof window !== 'undefined' && 
+      localStorage.getItem('hasFormDataPending') === 'true';
+    
+    console.log('User returned from login:', isReturningFromLogin);
+    console.log('Has form data pending:', hasFormDataPending);
+    
+    if (isReturningFromLogin && hasFormDataPending) {
+      console.log('User returned from login, attempting to restore data');
+      restoreFormDataAfterLogin();
+      
+      // 登录成功后，清除URL中的returnFrom参数
+      const url = new URL(window.location.href);
+      url.searchParams.delete('returnFrom');
+      window.history.replaceState({}, '', url.toString());
+    } else if (hasFormDataPending && !isRestoringAfterLogin) {
+      // 如果有未恢复的表单数据但不是从登录返回的情况
+      // 检查当前是否已登录
+      fetch('/api/auth/session')
+        .then(res => res.json())
+        .then(session => {
+          if (session && session.user) {
+            // 用户已登录，可以恢复表单数据
+            console.log('User is logged in, can restore cached form data');
+            restoreFormDataAfterLogin();
+          } else {
+            // 用户未登录，保留表单数据直到用户登录
+            console.log('User is not logged in, keeping cached form data for later');
+          }
+        })
+        .catch(err => {
+          console.error('Failed to check session:', err);
+          // 出错时保留表单数据
+        });
+    }
+  }, [restoreFormDataAfterLogin, isRestoringAfterLogin]);
+
   // 登录对话框关闭逻辑
   const handleLoginDialogClose = useCallback(() => {
     setShowLoginDialog(false);
@@ -1245,44 +1294,6 @@ export default function LoveLetterForm() {
       }
     }
   }, [session, restoreFormDataAfterLogin]);
-
-  // 检测用户是否从登录返回
-  useEffect(() => {
-    // 检查组件是否已挂载且用户已登录
-    if (mounted && session?.user?.id) {
-      // 检查是否需要恢复表单数据（同时检查URL参数和localStorage标记）
-      const params = new URLSearchParams(window.location.search);
-      const hasLoginParam = params.get('returnFrom') === 'login';
-      const hasPendingFlag = localStorage.getItem('hasFormDataPending') === 'true';
-      const isReturningFromLogin = hasLoginParam || hasPendingFlag;
-      
-      // 如果是从登录返回，尝试恢复数据并清理URL参数
-      if (isReturningFromLogin) {
-        console.log('User returned from login, attempting to restore data');
-        
-        // 清除标记
-        localStorage.removeItem('hasFormDataPending');
-        
-        // 如果有URL参数，清理它
-        if (hasLoginParam) {
-          // 移除URL参数，避免刷新页面时重复处理
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('returnFrom');
-          
-          // 使用history.replaceState更新URL而不刷新页面
-          window.history.replaceState({}, document.title, newUrl.toString());
-        }
-        
-        // 尝试恢复表单数据
-        restoreFormDataAfterLogin();
-      } else {
-        // 非登录返回场景，清除缓存
-        localStorage.removeItem('pendingFormData');
-        localStorage.removeItem('hasFormDataPending');
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, session]);
 
   // 初始化音频
   useEffect(() => {
