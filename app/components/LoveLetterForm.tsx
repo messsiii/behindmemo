@@ -870,8 +870,67 @@ export default function LoveLetterForm() {
   // 处理错误响应
   const handleErrorResponse = useCallback(async (response: Response) => {
     if (response.status === 401) {
-      // 用户未登录，保存当前表单数据并弹出登录框
-      localStorage.setItem('pendingFormData', JSON.stringify(formData));
+      // 用户未登录，保存当前表单数据
+      try {
+        // 深拷贝表单数据（除了File对象）
+        // 定义类型包含photoInfo
+        interface FormDataForStorage {
+          name?: string;
+          loverName?: string;
+          story?: string;
+          photo?: File;
+          photoInfo?: {
+            name: string;
+            type: string;
+            lastModified: number;
+            dataURL: string;
+          };
+        }
+        
+        const formDataForStorage: FormDataForStorage = { ...formData };
+        
+        // 如果有照片，将File对象转换为DataURL
+        if (formData.photo) {
+          const photoInfo = {
+            name: formData.photo.name,
+            type: formData.photo.type,
+            lastModified: formData.photo.lastModified
+          };
+          
+          // 读取文件并转换为DataURL
+          const reader = new FileReader();
+          await new Promise((resolve, reject) => {
+            reader.onload = resolve;
+            reader.onerror = reject;
+            reader.readAsDataURL(formData.photo as File);
+          });
+          
+          // 存储照片信息和DataURL
+          formDataForStorage.photoInfo = {
+            ...photoInfo,
+            dataURL: reader.result as string
+          };
+          
+          // 删除无法序列化的File对象
+          delete formDataForStorage.photo;
+        }
+        
+        // 保存处理后的表单数据
+        localStorage.setItem('pendingFormData', JSON.stringify(formDataForStorage));
+        console.log('表单数据（含照片）已保存到localStorage');
+      } catch (err) {
+        console.error('无法保存表单数据:', err);
+        // 出错时尝试保存不含照片的基本数据
+        const basicData = {
+          name: formData.name,
+          loverName: formData.loverName,
+          story: formData.story
+        };
+        localStorage.setItem('pendingFormData', JSON.stringify(basicData));
+        console.log('基本表单数据已保存到localStorage (照片除外)');
+      }
+      
+      // 弹出登录框
       setShowLoginDialog(true);
       setIsSubmitting(false);
     } else if (response.status === 402) {
