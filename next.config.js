@@ -61,18 +61,6 @@ const nextConfig = {
     // 自定义 webpack 配置
     return config
   },
-  // 配置服务器端的请求体大小限制
-  serverRuntimeConfig: {
-    // 设置为 16MB
-    maxRequestSize: 16 * 1024 * 1024,
-  },
-  // 配置 API 路由
-  api: {
-    bodyParser: {
-      sizeLimit: '16mb',
-    },
-    responseLimit: '16mb',
-  },
 }
 
 module.exports = nextConfig

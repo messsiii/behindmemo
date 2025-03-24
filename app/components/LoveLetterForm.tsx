@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { reverseGeocode } from '@/lib/geocode'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -205,7 +204,12 @@ export default function LoveLetterForm() {
 
   const uploadPhotoAndPrepareData = useCallback(async (file: File) => {
     try {
+      // 记录上传开始和原始文件信息
+      console.log(`=== 图片上传开始 ===`);
+      console.log(`原始文件: ${file.name}, 大小: ${(file.size/1024/1024).toFixed(2)}MB, 类型: ${file.type}`);
+      
       // 1. 首先读取原始 EXIF 数据
+      console.log(`正在提取EXIF数据...`);
       const exifData = await exifr.parse(file, {
         tiff: true,
         xmp: true,
@@ -216,10 +220,19 @@ export default function LoveLetterForm() {
         mergeOutput: false,
         exif: true,
       })
+      
+      // 记录EXIF数据大小
+      const exifDataStr = JSON.stringify(exifData);
+      console.log(`EXIF数据大小: ${exifDataStr.length} 字符, ${(new TextEncoder().encode(exifDataStr).length/1024).toFixed(2)}KB`);
+      
+      if (exifData?.gps) {
+        console.log(`包含GPS数据: ${JSON.stringify(exifData.gps).substring(0, 200)}${JSON.stringify(exifData.gps).length > 200 ? '...(已截断)' : ''}`);
+      }
 
       // 2. 处理 HEIC 转换
       let processedFile = file
       if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+        console.log(`检测到HEIC格式，开始转换...`);
         try {
           const heic2any = (await import('heic2any')).default
           const blob = await heic2any({
@@ -232,6 +245,7 @@ export default function LoveLetterForm() {
           processedFile = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
             type: 'image/jpeg',
           })
+          console.log(`HEIC转换完成，转换后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
         } catch (error) {
           console.error('Error converting HEIC:', error)
           throw new Error('Failed to convert HEIC image')
@@ -239,6 +253,7 @@ export default function LoveLetterForm() {
       }
 
       // 3. 创建图片预览并应用正确的方向
+      console.log(`创建图片预览并校正方向...`);
       const imageUrl = URL.createObjectURL(processedFile)
       const img = new Image()
       img.src = imageUrl
@@ -255,6 +270,8 @@ export default function LoveLetterForm() {
           let width = img.width
           let height = img.height
           const orientation = exifData?.Orientation || 1
+
+          console.log(`图片尺寸: ${width}x${height}, 方向: ${orientation}`);
 
           if (orientation > 4) {
             [width, height] = [height, width]
@@ -286,6 +303,8 @@ export default function LoveLetterForm() {
             processedFile = new File([blob], processedFile.name, {
               type: 'image/jpeg',
             })
+            
+            console.log(`图片方向校正完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
 
             URL.revokeObjectURL(imageUrl)
             resolve(true)
@@ -293,40 +312,59 @@ export default function LoveLetterForm() {
         }
       })
 
-      // 4. 准备元数据
+      // 4. 准备元数据 - 简化结构，只保留最必要的信息
+      console.log(`准备元数据...`);
       const metadata = {
+        // 只保留方向信息和时间信息
         orientation: exifData?.Orientation,
-        gps: exifData?.gps ? {
+        // GPS信息做最小化处理，只保留坐标
+        gps: exifData?.gps?.latitude && exifData?.gps?.longitude ? {
           coordinates: {
             latitude: exifData.gps.latitude,
             longitude: exifData.gps.longitude,
-          },
-          // 不再存储原始GPS区域信息
+          }
         } : undefined,
+        // 只保留日期时间，不包含其他EXIF信息
         uploadTime: exifData?.DateTimeOriginal || undefined,
+        // 简化上下文信息，减少传输数据量
         context: {
-          // 限制设备信息长度
-          uploadDevice: navigator.userAgent.substring(0, 100),
-          screenSize: `${window.screen.width}x${window.screen.height}`,
-          // 移除不必要的颜色深度信息
+          // 只保留简化的设备信息
+          device: navigator.userAgent.split(' ').slice(-1)[0]?.substring(0, 30),
         },
       }
+      
+      // 记录元数据大小
+      const metadataStr = JSON.stringify(metadata);
+      console.log(`准备的元数据大小: ${metadataStr.length} 字符, ${(new TextEncoder().encode(metadataStr).length/1024).toFixed(2)}KB`);
+      console.log(`元数据内容: ${metadataStr}`);
 
       // 5. 上传处理后的文件
+      console.log(`开始上传处理后的文件...`);
       const formData = new FormData()
       formData.append('file', processedFile)
       formData.append('metadata', JSON.stringify(metadata))
+      
+      // 记录FormData大小估计
+      console.log(`处理后的文件大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+      console.log(`FormData总估计大小: ${((processedFile.size + new TextEncoder().encode(JSON.stringify(metadata)).length)/1024/1024).toFixed(2)}MB`);
 
+      console.log(`发送上传请求...`);
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       })
 
       if (!response.ok) {
+        console.error(`上传失败: 状态码 ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`错误详情: ${errorText.substring(0, 1000)}`);
         throw new Error(`Upload failed: ${response.statusText}`)
       }
 
       const data = await response.json()
+      console.log(`上传成功，接收到响应数据大小: ${JSON.stringify(data).length} 字符`);
+      console.log(`图片URL长度: ${data.url.length} 字符`);
+      
       return {
         blobUrl: data.url,
         metadata: {
@@ -349,127 +387,51 @@ export default function LoveLetterForm() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
-      console.log('Submit handler started')
+      console.log('=== 提交处理开始 ===')
 
       // 在最开始添加内容校验
       if (!formData.story?.trim()) {
+        console.log('故事内容为空，终止提交')
         triggerShake()
         return
       }
 
       // 保存表单数据到localStorage，以便登录后恢复
       try {
-        // 创建可序列化的表单数据
-        const serializableFormData: any = {
-          name: formData.name,
-          loverName: formData.loverName,
-          story: formData.story
-        }
+        setIsSubmitting(true)
         
-        // 如果有图片，将其转换为DataURL
-        if (formData.photo instanceof File) {
-          // 创建一个FileReader来将图片转换为DataURL
-          const reader = new FileReader()
-          
-          // 将图片读取操作封装为Promise
-          const readFileAsDataURL = new Promise((resolve) => {
-            reader.onload = () => resolve(reader.result)
-            reader.readAsDataURL(formData.photo as Blob)
-          })
-          
-          // 等待图片读取完成
-          const dataURL = await readFileAsDataURL as string
-          
-          // 保存图片信息
-          serializableFormData.photoInfo = {
-            dataURL,
-            name: formData.photo.name,
-            type: formData.photo.type,
-            size: formData.photo.size,
-            lastModified: formData.photo.lastModified
+        console.log('上传照片开始...')
+        // 1. 上传照片
+        let uploadResult
+        try {
+          if (!formData.photo) {
+            throw new Error('请上传照片')
           }
-        }
-        
-        // 保存到localStorage
-        localStorage.setItem('pendingFormData', JSON.stringify(serializableFormData))
-      } catch (error) {
-        console.error('Failed to save form data to localStorage:', error)
-      }
-
-      // 检查用户是否登录
-      if (!session?.user?.id) {
-        console.log('No user session found, showing login dialog')
-        setShowLoginDialog(true)
-        return
-      }
-
-      // 用户已登录，继续生成过程
-      setIsLoading(true)
-      setIsSubmitting(true)
-      
-      try {
-        // 1. 检查配额
-        const creditsResponse = await fetch('/api/user/credits')
-        console.log('Credits response:', creditsResponse.status)
-
-        if (!creditsResponse.ok) {
-          console.error('Failed to check credits:', creditsResponse.statusText)
-          throw new Error('Failed to check credits')
-        }
-
-        const creditsData = await creditsResponse.json()
-        console.log('Credits data:', creditsData)
-
-        // 如果配额不足，显示提示并终止
-        if (!creditsData.isVIP && creditsData.credits <= 0) {
-          console.log('Insufficient credits, showing alert')
-          setShowCreditsAlert(true)
-          setIsLoading(false)
+          
+          console.log(`处理的照片: ${formData.photo.name}, 大小: ${(formData.photo.size/1024/1024).toFixed(2)}MB`)
+          uploadResult = await uploadPhotoAndPrepareData(formData.photo)
+          console.log('上传照片完成')
+        } catch (error) {
+          console.error('上传照片失败:', error)
+          toast.error(language === 'en' ? 'Failed to upload photo' : '上传照片失败')
           setIsSubmitting(false)
           return
         }
 
-        console.log('Starting generation process...')
-        // 2. 处理图片上传
-        if (!(formData.photo instanceof File)) {
-          throw new Error('Photo is required')
-        }
+        // 2. 获取照片URL
+        const { blobUrl: imageUrl, metadata: imageMetadata } = uploadResult
+        
+        console.log(`获取到的图片URL长度: ${imageUrl.length} 字符`)
+        console.log(`元数据对象大小: ${JSON.stringify(imageMetadata).length} 字符`)
 
-        const uploadResult = await uploadPhotoAndPrepareData(formData.photo)
-        console.log('Photo upload result:', uploadResult)
-
-        // 3. 如果有 GPS 坐标，调用地理编码服务
-        let locationInfo = null
-        if (uploadResult.metadata.gps?.coordinates) {
-          const { latitude, longitude } = uploadResult.metadata.gps.coordinates
-          locationInfo = await reverseGeocode(latitude, longitude, language)
-        }
-
-        // 更新元数据，精简数据结构但保留关键信息
+        // 3. 更新元数据
         const updatedMetadata = {
-          // 保留基本信息
-          orientation: uploadResult.metadata.orientation,
-          // 精简GPS信息，只保留必要的地址和坐标
-          gps: uploadResult.metadata.gps ? {
-            coordinates: uploadResult.metadata.gps.coordinates,
-            address: locationInfo?.address || '',
-            // 不再包含整个components对象，只保留主要位置信息
-            country: locationInfo?.components?.country || '',
-            state: locationInfo?.components?.state || '',
-            city: locationInfo?.components?.city || '',
-            district: locationInfo?.components?.district || '',
-          } : undefined,
-          // 保留基本时间信息
-          uploadTime: uploadResult.metadata.uploadTime,
-          // 精简上下文信息
-          context: {
-            uploadDevice: navigator.userAgent.substring(0, 100), // 限制长度
-            screenSize: `${window.screen.width}x${window.screen.height}`,
-          },
-          // 添加位置信息字段，与minimax.ts中使用相匹配
-          location: locationInfo?.address || '',
-          // 用户信息会在后续添加
+          ...imageMetadata,
+          language,
+          templateStyle: selectedTemplate,
         }
+        
+        console.log(`更新后的元数据大小: ${JSON.stringify(updatedMetadata).length} 字符`)
 
         // 4. 生成请求 ID
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -508,15 +470,26 @@ export default function LoveLetterForm() {
         console.log(`story 大小: ${storySizeBytes} 字节`);
         console.log(`blobUrl 大小: ${blobUrlSizeBytes} 字节`);
         console.log(`metadata 大小: ${metadataSizeBytes} 字节`);
-        console.log('=== 元数据详细信息 ===');
-        console.log('metadata:', requestBody.metadata);
         
         // 判断请求大小是否可能导致问题
         if (totalSizeInMB > 1) {
           console.warn(`警告: 请求大小 ${totalSizeInMB.toFixed(2)} MB 可能导致413错误!`);
+          
+          // 如果BlobURL特别大，输出更多调试信息
+          if (blobUrlSizeBytes > 500000) {
+            console.warn(`BlobURL 特别大 (${(blobUrlSizeBytes/1024/1024).toFixed(2)} MB)，可能是问题根源`);
+            console.log(`BlobURL前100字符: ${requestBody.blobUrl.substring(0, 100)}...`);
+          }
+          
+          // 如果元数据特别大，输出更详细内容
+          if (metadataSizeBytes > 100000) {
+            console.warn(`元数据特别大 (${(metadataSizeBytes/1024).toFixed(2)} KB)，可能是问题根源`);
+            console.log('元数据详细内容:', requestBody.metadata);
+          }
         }
 
         // 5. 创建信件记录
+        console.log('开始发送生成请求...')
         const response = await fetch('/api/generate-letter', {
           method: 'POST',
           headers: {
@@ -526,22 +499,27 @@ export default function LoveLetterForm() {
           body: requestJson, // 使用已经计算过大小的JSON
           credentials: 'include',
         })
+        
+        console.log(`生成请求响应状态: ${response.status} ${response.statusText}`)
 
+        // 处理可能的错误
         if (!response.ok) {
-          const errorData = await response.json()
-          console.error('Generation failed:', errorData)
-          toast({
-            title: content[language].error,
-            description: errorData.error || `Generation failed with status ${response.status}`,
-            variant: 'destructive',
-          })
-          throw new Error(errorData.error || `Generation failed with status ${response.status}`)
+          console.error(`生成请求失败: ${response.status} ${response.statusText}`);
+          // 尝试读取更详细的错误信息
+          try {
+            const errorText = await response.text();
+            console.error(`错误详情: ${errorText.substring(0, 1000)}`);
+          } catch (e) {
+            console.error('无法获取错误详情:', e);
+          }
+          
+          await handleErrorResponse(response)
+          return
         }
 
-        const { letterId } = await response.json()
-        if (!letterId) {
-          throw new Error('No letter ID returned')
-        }
+        // 获取信件ID并跳转到结果页
+        const generateData = await response.json()
+        console.log('生成请求成功，获取到信件ID:', generateData.letterId)
 
         // 6. 跳转到结果页
         const letterData = {
@@ -553,7 +531,7 @@ export default function LoveLetterForm() {
           isComplete: false,
           fromHistory: false,
           letter: '',
-          id: letterId,
+          id: generateData.letterId,
         }
 
         // 保存状态到 localStorage
@@ -568,7 +546,7 @@ export default function LoveLetterForm() {
           audioRef.current.currentTime = 0
         }
 
-        router.push(`/result/${letterId}`)
+        router.push(`/result/${generateData.letterId}`)
       } catch (error) {
         setIsLoading(false)
         setIsSubmitting(false)
