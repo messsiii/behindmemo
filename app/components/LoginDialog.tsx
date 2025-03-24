@@ -216,7 +216,10 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       setIsCodeSent(true);
       setCountdown(60); // 60秒倒计时
       
-      toast.success(content[language].codeSent);
+      toast({
+        title: language === 'en' ? 'Code Sent' : '验证码已发送',
+        description: content[language].codeSent
+      });
       
       // 聚焦到第一个验证码输入框
       const firstInput = codeInputRefs.current[0];
@@ -225,7 +228,11 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       }
     } catch (error) {
       console.error('发送验证码错误:', error);
-      toast.error(error instanceof Error ? error.message : '发送验证码失败，请稍后重试');
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: error instanceof Error ? error.message : '发送验证码失败，请稍后重试',
+        variant: "destructive"
+      });
     } finally {
       setIsSendingCode(false);
     }
@@ -333,10 +340,22 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       
       if (result?.error) {
         setLoginError(result.error);
-        toast.error(result.error);
+        toast({
+          title: language === 'en' ? 'Error' : '错误',
+          description: result.error,
+          variant: "destructive"
+        });
         setIsLoggingIn(false);
       } else if (result?.url) {
-        toast.success(content[language].loginSuccess);
+        toast({
+          title: language === 'en' ? 'Success' : '成功',
+          description: content[language].loginSuccess
+        });
+        
+        // 关闭登录对话框
+        onClose();
+        
+        // 重定向到预定的URL
         router.push(result.url);
       }
     } catch (error) {

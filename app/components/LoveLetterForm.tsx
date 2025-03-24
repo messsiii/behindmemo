@@ -579,11 +579,6 @@ export default function LoveLetterForm() {
     ]
   )
   
-  // 登录对话框关闭逻辑
-  const handleLoginDialogClose = useCallback(() => {
-    setShowLoginDialog(false)
-  }, [])
-
   // 提取恢复表单数据的逻辑为单独函数
   const restoreFormDataAfterLogin = useCallback(() => {
     try {
@@ -673,18 +668,45 @@ export default function LoveLetterForm() {
           setCurrentStep(1);
           toast({
             title: language === 'en' ? 'Please upload your photo again' : '请重新上传照片',
-            description: language === 'en' 
-              ? 'We couldn\'t save your photo during login. Please select it again.' 
-              : '登录过程中无法保存您的照片，请重新选择。',
+            description: language === 'en'
+              ? 'We have restored your form data, but you need to upload your photo again.'
+              : '我们已恢复您的表单数据，但您需要重新上传照片。',
             variant: 'default',
           });
+          
+          // 标记恢复流程完成
+          setIsRestoringAfterLogin(false);
         }
       }, 500);
     } catch (error) {
-      console.error('Error restoring form data:', error);
+      console.error('Failed to restore form data:', error);
+      setIsRestoringAfterLogin(false);
     }
-  }, [formData, language, toast, setCurrentStep, setFormData, setIsRestoringAfterLogin]);
-  
+  }, [formData, language, toast]);
+
+  // 登录对话框关闭逻辑
+  const handleLoginDialogClose = useCallback(() => {
+    setShowLoginDialog(false);
+    
+    // 检查是否有存储的数据且用户已登录
+    const hasPendingData = localStorage.getItem('hasFormDataPending') === 'true';
+    if (hasPendingData && session) {
+      console.log('Login dialog closed with pending form data, attempting to restore...');
+      // 尝试恢复表单数据
+      restoreFormDataAfterLogin();
+      
+      // 清除标记
+      localStorage.removeItem('hasFormDataPending');
+      
+      // 清理URL参数，避免刷新页面时重复处理
+      const newUrl = new URL(window.location.href);
+      if (newUrl.searchParams.has('returnFrom')) {
+        newUrl.searchParams.delete('returnFrom');
+        window.history.replaceState({}, document.title, newUrl.toString());
+      }
+    }
+  }, [session, restoreFormDataAfterLogin]);
+
   // 检测用户是否从登录返回
   useEffect(() => {
     // 检查组件是否已挂载且用户已登录
