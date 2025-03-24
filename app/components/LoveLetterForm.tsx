@@ -9,7 +9,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useSession } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ImageUploadPreview } from './ImageUploadPreview'
@@ -118,7 +118,7 @@ export default function LoveLetterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const selectedTemplate = 'classic'; // 默认模板作为普通变量
+  const [selectedTemplate, setSelectedTemplate] = useState('classic')
   const debounceRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
@@ -209,30 +209,56 @@ export default function LoveLetterForm() {
       console.log(`=== 图片上传开始 ===`);
       console.log(`原始文件: ${file.name}, 大小: ${(file.size/1024/1024).toFixed(2)}MB, 类型: ${file.type}`);
       
+      // 检查文件是否是从压缩数据恢复的
+      // @ts-ignore - 访问自定义属性
+      const isRestoredFile = !!file.isRestoredFromCompressed;
+      if (isRestoredFile) {
+        console.log('检测到从压缩数据恢复的照片，将使用简化的EXIF处理');
+      }
+      
       // 1. 首先读取原始 EXIF 数据
       console.log(`正在提取EXIF数据...`);
-      const exifData = await exifr.parse(file, {
-        tiff: true,
-        xmp: true,
-        gps: true,
-        translateValues: true,
-        translateKeys: true,
-        reviveValues: true,
-        mergeOutput: false,
-        exif: true,
-      })
+      let exifData;
+      try {
+        exifData = await exifr.parse(file, {
+          tiff: true,
+          xmp: true,
+          gps: true,
+          translateValues: true,
+          translateKeys: true,
+          reviveValues: true,
+          mergeOutput: false,
+          exif: true,
+        });
+        
+        if (!exifData) {
+          console.log('未检测到EXIF数据，这可能是因为图片已被压缩或处理过');
+        }
+      } catch (exifError) {
+        console.error('EXIF数据提取失败:', exifError);
+        console.log('将继续处理图片，但没有EXIF元数据');
+        exifData = {};
+      }
       
       // 记录EXIF数据大小
-      const exifDataStr = JSON.stringify(exifData);
+      const exifDataStr = JSON.stringify(exifData || {});
       console.log(`EXIF数据大小: ${exifDataStr.length} 字符, ${(new TextEncoder().encode(exifDataStr).length/1024).toFixed(2)}KB`);
       
       if (exifData?.gps) {
         console.log(`包含GPS数据: ${JSON.stringify(exifData.gps).substring(0, 200)}${JSON.stringify(exifData.gps).length > 200 ? '...(已截断)' : ''}`);
+      } else {
+        console.log('照片不包含GPS数据或EXIF信息');
       }
 
       // 2. 处理 HEIC 转换
       let processedFile = file
-      if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+      
+      // 对于恢复的压缩照片，使用简化处理流程
+      // @ts-ignore - 访问自定义属性
+      if (file.isRestoredFromCompressed) {
+        console.log('跳过压缩照片的HEIC转换和部分EXIF处理');
+        // 直接使用恢复的照片，不做额外处理
+      } else if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
         console.log(`检测到HEIC格式，开始转换...`);
         try {
           const heic2any = (await import('heic2any')).default
@@ -255,66 +281,129 @@ export default function LoveLetterForm() {
 
       // 3. 创建图片预览并应用正确的方向
       console.log(`创建图片预览并校正方向...`);
-      const imageUrl = URL.createObjectURL(processedFile)
-      const img = new Image()
-      img.src = imageUrl
+      
+      // @ts-ignore - 访问自定义属性
+      if (file.isRestoredFromCompressed) {
+        console.log('使用简化的方向校正处理恢复的照片');
+        // 对于恢复的照片，直接使用简单的预处理，避免复杂的方向校正
+        const imageUrl = URL.createObjectURL(processedFile);
+        const img = new Image();
+        img.src = imageUrl;
+        
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              URL.revokeObjectURL(imageUrl);
+              throw new Error('Failed to get canvas context');
+            }
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            
+            canvas.toBlob((blob) => {
+              if (!blob) {
+                URL.revokeObjectURL(imageUrl);
+                throw new Error('Failed to convert canvas to blob');
+              }
+              
+              processedFile = new File([blob], processedFile.name, {
+                type: 'image/jpeg',
+              });
+              
+              // 保持恢复照片标记
+              // @ts-ignore
+              processedFile.isRestoredFromCompressed = true;
+              
+              console.log(`恢复照片处理完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+              URL.revokeObjectURL(imageUrl);
+              resolve(true);
+            }, 'image/jpeg', 0.9);
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(imageUrl);
+            console.error('图片加载失败');
+            // 仍然使用原始文件继续
+            resolve(true);
+          };
+        });
+      } else {
+        // 正常照片的完整处理流程
+        const imageUrl = URL.createObjectURL(processedFile)
+        const img = new Image()
+        img.src = imageUrl
 
-      await new Promise((resolve) => {
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            URL.revokeObjectURL(imageUrl)
-            throw new Error('Failed to get canvas context')
-          }
-
-          let width = img.width
-          let height = img.height
-          const orientation = exifData?.Orientation || 1
-
-          console.log(`图片尺寸: ${width}x${height}, 方向: ${orientation}`);
-
-          if (orientation > 4) {
-            [width, height] = [height, width]
-          }
-
-          canvas.width = width
-          canvas.height = height
-
-          ctx.save()
-          switch (orientation) {
-            case 2: ctx.transform(-1, 0, 0, 1, width, 0); break
-            case 3: ctx.transform(-1, 0, 0, -1, width, height); break
-            case 4: ctx.transform(1, 0, 0, -1, 0, height); break
-            case 5: ctx.transform(0, 1, 1, 0, 0, 0); break
-            case 6: ctx.transform(0, 1, -1, 0, height, 0); break
-            case 7: ctx.transform(0, -1, -1, 0, height, width); break
-            case 8: ctx.transform(0, -1, 1, 0, 0, width); break
-          }
-
-          ctx.drawImage(img, 0, 0)
-          ctx.restore()
-
-          canvas.toBlob(async (blob) => {
-            if (!blob) {
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            if (!ctx) {
               URL.revokeObjectURL(imageUrl)
-              throw new Error('Failed to convert canvas to blob')
+              throw new Error('Failed to get canvas context')
             }
 
-            processedFile = new File([blob], processedFile.name, {
-              type: 'image/jpeg',
-            })
-            
-            console.log(`图片方向校正完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+            let width = img.width
+            let height = img.height
+            const orientation = exifData?.Orientation || 1
 
-            URL.revokeObjectURL(imageUrl)
-            resolve(true)
-          }, 'image/jpeg', 0.9)
-        }
-      })
+            console.log(`图片尺寸: ${width}x${height}, 方向: ${orientation}`);
+
+            if (orientation > 4) {
+              [width, height] = [height, width]
+            }
+
+            canvas.width = width
+            canvas.height = height
+
+            ctx.save()
+            switch (orientation) {
+              case 2: ctx.transform(-1, 0, 0, 1, width, 0); break
+              case 3: ctx.transform(-1, 0, 0, -1, width, height); break
+              case 4: ctx.transform(1, 0, 0, -1, 0, height); break
+              case 5: ctx.transform(0, 1, 1, 0, 0, 0); break
+              case 6: ctx.transform(0, 1, -1, 0, height, 0); break
+              case 7: ctx.transform(0, -1, -1, 0, height, width); break
+              case 8: ctx.transform(0, -1, 1, 0, 0, width); break
+            }
+
+            ctx.drawImage(img, 0, 0)
+            ctx.restore()
+
+            canvas.toBlob(async (blob) => {
+              if (!blob) {
+                URL.revokeObjectURL(imageUrl)
+                throw new Error('Failed to convert canvas to blob')
+              }
+
+              processedFile = new File([blob], processedFile.name, {
+                type: 'image/jpeg',
+              })
+              
+              console.log(`图片方向校正完成，处理后大小: ${(processedFile.size/1024/1024).toFixed(2)}MB`);
+
+              URL.revokeObjectURL(imageUrl)
+              resolve(true)
+            }, 'image/jpeg', 0.9)
+          }
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(imageUrl);
+            console.error('图片加载失败');
+            // 仍然使用原始文件继续
+            resolve(true);
+          };
+        })
+      }
 
       // 4. 准备元数据 - 简化结构，只保留最必要的信息
       console.log(`准备元数据...`);
+      
+      // @ts-ignore - 访问自定义属性
+      const isRestoredPhoto = !!file.isRestoredFromCompressed;
+      
       const metadata = {
         // 只保留方向信息和时间信息
         orientation: exifData?.Orientation,
@@ -326,11 +415,12 @@ export default function LoveLetterForm() {
           }
         } : undefined,
         // 只保留日期时间，不包含其他EXIF信息
-        uploadTime: exifData?.DateTimeOriginal || undefined,
+        uploadTime: exifData?.DateTimeOriginal || new Date().toISOString(),
         // 简化上下文信息，减少传输数据量
         context: {
           // 只保留简化的设备信息
           device: navigator.userAgent.split(' ').slice(-1)[0]?.substring(0, 30),
+          isRestoredPhoto: isRestoredPhoto,
         },
       }
       
@@ -390,9 +480,47 @@ export default function LoveLetterForm() {
       e.preventDefault()
       console.log('=== 提交处理开始 ===')
 
-      // 在最开始添加内容校验
+      // 完整的表单验证
+      if (!formData.name?.trim()) {
+        console.log('姓名为空，终止提交')
+        toast({
+          title: language === 'en' ? 'Name is required' : '请输入您的名字',
+          description: language === 'en' ? 'Please enter your name to continue.' : '请输入您的名字后继续。',
+          variant: "destructive"
+        })
+        setCurrentStep(0) // 跳转到姓名输入步骤
+        return
+      }
+      
+      if (!formData.photo) {
+        console.log('照片未上传，终止提交')
+        toast({
+          title: language === 'en' ? 'Photo is required' : '请上传照片',
+          description: language === 'en' ? 'Please upload a photo to continue.' : '请上传照片后继续。',
+          variant: "destructive"
+        })
+        setCurrentStep(1) // 跳转到照片上传步骤
+        return
+      }
+      
+      if (!formData.loverName?.trim()) {
+        console.log('对方姓名为空，终止提交')
+        toast({
+          title: language === 'en' ? 'Partner name is required' : '请输入对方的名字',
+          description: language === 'en' ? 'Please enter your partner\'s name to continue.' : '请输入对方的名字后继续。',
+          variant: "destructive"
+        })
+        setCurrentStep(2) // 跳转到对方姓名输入步骤
+        return
+      }
+
       if (!formData.story?.trim()) {
         console.log('故事内容为空，终止提交')
+        toast({
+          title: language === 'en' ? 'Story is required' : '请输入故事内容',
+          description: language === 'en' ? 'Please share your story to continue.' : '请分享您的故事后继续。',
+          variant: "destructive"
+        })
         triggerShake()
         return
       }
@@ -414,9 +542,28 @@ export default function LoveLetterForm() {
           console.log('上传照片完成')
         } catch (error) {
           console.error('上传照片失败:', error)
+          
+          // 提供更友好的错误消息
+          let errorMessage = language === 'en' ? 'Failed to upload photo' : '上传照片失败';
+          
+          // 根据错误类型提供更具体的错误信息
+          if (error instanceof Error) {
+            console.error('详细错误:', error.message);
+            
+            if (error.message.includes('EXIF') || error.message.includes('length')) {
+              errorMessage = language === 'en' 
+                ? 'Failed to process photo metadata. Please try uploading the original photo again.' 
+                : '处理照片元数据失败。请尝试重新上传原始照片。';
+            } else if (error.message.includes('network') || error.message.includes('fetch')) {
+              errorMessage = language === 'en'
+                ? 'Network error during upload. Please check your connection and try again.'
+                : '上传过程中网络错误。请检查您的网络连接并重试。';
+            }
+          }
+          
           toast({
             title: language === 'en' ? 'Upload Failed' : '上传失败',
-            description: language === 'en' ? 'Failed to upload photo' : '上传照片失败',
+            description: errorMessage,
             variant: "destructive"
           })
           setIsSubmitting(false)
@@ -510,16 +657,27 @@ export default function LoveLetterForm() {
         // 处理可能的错误
         if (!response.ok) {
           console.error(`生成请求失败: ${response.status} ${response.statusText}`);
-          // 尝试读取更详细的错误信息
+          
+          // 直接使用状态码处理，避免重复消费response.text()
+          if (response.status === 401) {
+            console.log('直接检测到401状态码，绕过错误文本读取');
+            await handleErrorResponse(401, '{"error":"Unauthorized"}');
+            return;
+          }
+          
+          // 如果不是401，再尝试读取错误文本
           try {
             const errorText = await response.text();
             console.error(`错误详情: ${errorText.substring(0, 1000)}`);
+            
+            // 将错误文本和状态码传递给错误处理函数
+            await handleErrorResponse(response.status, errorText);
           } catch (e) {
             console.error('无法获取错误详情:', e);
+            // 如果无法读取错误详情，仍然需要处理错误状态
+            await handleErrorResponse(response.status, '');
           }
-          
-          await handleErrorResponse(response)
-          return
+          return;
         }
 
         // 获取信件ID并跳转到结果页
@@ -579,11 +737,6 @@ export default function LoveLetterForm() {
     ]
   )
   
-  // 登录对话框关闭逻辑
-  const handleLoginDialogClose = useCallback(() => {
-    setShowLoginDialog(false)
-  }, [])
-
   // 提取恢复表单数据的逻辑为单独函数
   const restoreFormDataAfterLogin = useCallback(() => {
     try {
@@ -608,23 +761,24 @@ export default function LoveLetterForm() {
       if (parsedData.loverName) updatedFormData.loverName = parsedData.loverName;
       if (parsedData.story) updatedFormData.story = parsedData.story;
       
-      // 恢复图片数据（如果有）
+      // 恢复压缩的照片数据（如果有）
+      let hasRestoredPhoto = false;
       if (parsedData.photoInfo && parsedData.photoInfo.dataURL) {
         try {
-          console.log('Restoring photo from dataURL');
-          // 从Base64数据URL创建Blob
-          const dataURLParts = parsedData.photoInfo.dataURL.split(',');
-          const mime = dataURLParts[0].match(/:(.*?);/)[1];
-          const binaryString = atob(dataURLParts[1]);
-          const binaryLen = binaryString.length;
-          const bytes = new Uint8Array(binaryLen);
+          console.log('Restoring compressed photo from dataURL');
+          // 从DataURL创建Blob
+          const dataURL = parsedData.photoInfo.dataURL;
+          const byteString = atob(dataURL.split(',')[1]);
+          const mimeType = dataURL.split(',')[0].split(':')[1].split(';')[0];
           
-          for (let i = 0; i < binaryLen; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
           }
           
           // 创建Blob
-          const blob = new Blob([bytes], { type: mime });
+          const blob = new Blob([ab], { type: mimeType });
           
           // 从Blob创建File对象
           const restoredFile = new File(
@@ -636,11 +790,16 @@ export default function LoveLetterForm() {
             }
           );
           
+          // 将File对象添加自定义属性，标记为从压缩数据恢复的
+          // @ts-ignore - 添加自定义属性
+          restoredFile.isRestoredFromCompressed = true;
+          
           // 将恢复的File对象设置到表单数据中
           updatedFormData.photo = restoredFile;
-          console.log('Photo successfully restored');
+          console.log('Photo successfully restored from compressed data');
+          hasRestoredPhoto = true;
         } catch (err) {
-          console.error('Failed to restore photo from dataURL:', err);
+          console.error('Failed to restore photo from compressed data:', err);
         }
       }
       
@@ -653,38 +812,64 @@ export default function LoveLetterForm() {
       // 清除localStorage中的数据
       localStorage.removeItem('pendingFormData');
       
-      // 根据是否已恢复照片决定跳转到哪一步
+      // 根据是否成功恢复照片决定跳转步骤
       setTimeout(() => {
-        if (updatedFormData.photo instanceof File) {
-          // 如果照片已恢复，直接跳到第四步（故事/生成按钮页面）
+        if (hasRestoredPhoto) {
+          // 照片已恢复，直接跳到第四步（故事页面）
           setCurrentStep(3);
           toast({
-            title: language === 'en' ? 'Form data restored' : '表单数据已恢复',
-            description: language === 'en' 
-              ? 'Your form has been fully recovered. You can now generate your letter!' 
-              : '您的表单已完全恢复。现在可以生成您的信件了！',
+            title: language === 'en' ? 'Form data fully restored' : '表单数据已完全恢复',
+            description: language === 'en'
+              ? 'Your form and photo have been restored. You can now generate your letter!'
+              : '您的表单数据和照片已完全恢复。现在可以生成您的信件了！',
             variant: 'default',
           });
-          
-          // 标记恢复流程完成
-          setIsRestoringAfterLogin(false);
         } else {
-          // 如果没有恢复照片，跳到第二步（照片上传）
+          // 照片未恢复，跳到第二步（照片上传页面）
           setCurrentStep(1);
           toast({
-            title: language === 'en' ? 'Please upload your photo again' : '请重新上传照片',
-            description: language === 'en' 
-              ? 'We couldn\'t save your photo during login. Please select it again.' 
-              : '登录过程中无法保存您的照片，请重新选择。',
+            title: language === 'en' ? 'Please upload a photo' : '请上传照片',
+            description: language === 'en'
+              ? 'Your form data has been restored. Please upload a photo to continue.'
+              : '您的表单数据已恢复。请上传照片后继续。',
             variant: 'default',
           });
         }
       }, 500);
+      
+      // 给用户上传照片的时间后，标记恢复流程完成
+      setTimeout(() => {
+        setIsRestoringAfterLogin(false);
+      }, 2000);
     } catch (error) {
-      console.error('Error restoring form data:', error);
+      console.error('Failed to restore form data:', error);
+      setIsRestoringAfterLogin(false);
     }
-  }, [formData, language, toast, setCurrentStep, setFormData, setIsRestoringAfterLogin]);
-  
+  }, [formData, language, toast]);
+
+  // 登录对话框关闭逻辑
+  const handleLoginDialogClose = useCallback(() => {
+    setShowLoginDialog(false);
+    
+    // 检查是否有存储的数据且用户已登录
+    const hasPendingData = localStorage.getItem('hasFormDataPending') === 'true';
+    if (hasPendingData && session) {
+      console.log('Login dialog closed with pending form data, attempting to restore...');
+      // 尝试恢复表单数据
+      restoreFormDataAfterLogin();
+      
+      // 清除标记
+      localStorage.removeItem('hasFormDataPending');
+      
+      // 清理URL参数，避免刷新页面时重复处理
+      const newUrl = new URL(window.location.href);
+      if (newUrl.searchParams.has('returnFrom')) {
+        newUrl.searchParams.delete('returnFrom');
+        window.history.replaceState({}, document.title, newUrl.toString());
+      }
+    }
+  }, [session, restoreFormDataAfterLogin]);
+
   // 检测用户是否从登录返回
   useEffect(() => {
     // 检查组件是否已挂载且用户已登录
@@ -749,6 +934,16 @@ export default function LoveLetterForm() {
 
   useEffect(() => {
     console.log('showCreditsAlert state changed:', showCreditsAlert)
+  }, [showCreditsAlert])
+
+  // 监控showCreditsAlert状态变化
+  useEffect(() => {
+    console.log('showCreditsAlert状态变化:', showCreditsAlert)
+    
+    // 如果状态为true，额外打印一些调试信息
+    if (showCreditsAlert) {
+      console.log('检测到积分不足，CreditsAlert已触发显示')
+    }
   }, [showCreditsAlert])
 
   // 修改键盘事件处理，在移动端不处理
@@ -845,27 +1040,173 @@ export default function LoveLetterForm() {
     }
   }, [isRestoringAfterLogin, currentStep, formData.photo, language, toast])
 
-  // 处理错误响应
-  const handleErrorResponse = useCallback(async (response: Response) => {
-    if (response.status === 401) {
-      // 用户未登录，保存当前表单数据并弹出登录框
-      localStorage.setItem('pendingFormData', JSON.stringify(formData));
-      setShowLoginDialog(true);
-      setIsSubmitting(false);
-    } else if (response.status === 402) {
+  // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
+  const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
+    console.log(`处理错误响应: 状态码=${statusCode}, 错误文本=${errorText}`);
+    
+    if (statusCode === 401) {
+      console.log('检测到401未授权错误，准备显示登录弹窗');
+      // 用户未登录，尝试保存表单数据（包括缩小后的照片）
+      try {
+        // 创建一个用于存储的数据对象
+        interface SavedFormData {
+          name?: string;
+          loverName?: string;
+          story?: string;
+          photoInfo?: {
+            name: string;
+            type: string;
+            lastModified: number;
+            dataURL: string;
+            isCompressed: boolean;
+          } | null;
+        }
+        
+        // 首先设置为true，确保状态更新
+        console.log('先设置showLoginDialog为true，让React渲染循环开始');
+        setShowLoginDialog(true);
+        
+        const dataToSave: SavedFormData = {
+          name: formData.name,
+          loverName: formData.loverName,
+          story: formData.story,
+          photoInfo: null
+        };
+        
+        // 尝试处理照片数据
+        if (formData.photo instanceof File) {
+          try {
+            // 创建一个新的canvas来压缩图片
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              // 从File创建图片对象
+              const img = new Image();
+              const imageUrl = URL.createObjectURL(formData.photo);
+              
+              // 等待图片加载
+              await new Promise((resolve) => {
+                img.onload = resolve;
+                img.src = imageUrl;
+              });
+              
+              URL.revokeObjectURL(imageUrl);
+              
+              // 设置压缩后的图片尺寸（将图片缩小到最大宽度300px）
+              const MAX_WIDTH = 300;
+              const scaleFactor = MAX_WIDTH / img.width;
+              const width = MAX_WIDTH;
+              const height = img.height * scaleFactor;
+              
+              // 设置canvas尺寸并绘制图片
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // 将canvas转换为低质量的JPEG DataURL
+              const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+              
+              // 检查DataURL大小是否超过3MB限制
+              const estimatedSize = (dataURL.length * 3) / 4; // Base64编码后的大致字节数
+              
+              if (estimatedSize < 3 * 1024 * 1024) { // 小于3MB
+                // 保存图片信息和DataURL
+                dataToSave.photoInfo = {
+                  name: formData.photo.name,
+                  type: 'image/jpeg', // 强制使用JPEG格式
+                  lastModified: formData.photo.lastModified,
+                  dataURL: dataURL,
+                  isCompressed: true
+                };
+                console.log(`照片已压缩并保存，压缩后大小: ${(estimatedSize/1024/1024).toFixed(2)}MB`);
+              } else {
+                console.log(`压缩后的照片仍然太大 (${(estimatedSize/1024/1024).toFixed(2)}MB)，只保存基本表单数据`);
+              }
+            }
+          } catch (photoError) {
+            console.error('处理照片时出错:', photoError);
+            // 照片处理失败，仅保存基本数据
+          }
+        }
+        
+        // 保存处理后的表单数据
+        localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
+        // 设置标记，指示有表单数据等待恢复
+        localStorage.setItem('hasFormDataPending', 'true');
+        console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
+        
+        // 弹出登录框
+        console.log('即将设置showLoginDialog为true');
+        setShowLoginDialog(true);
+        console.log('已设置showLoginDialog为true');
+        setIsSubmitting(false);
+        
+        // 强制更新UI以确保对话框显示
+        setTimeout(() => {
+          if (!showLoginDialog) {
+            console.log('检测到showLoginDialog仍为false，再次尝试设置');
+            setShowLoginDialog(true);
+          }
+        }, 100);
+      } catch (err) {
+        console.error('无法保存表单数据:', err);
+        // 清除可能部分写入的数据
+        localStorage.removeItem('pendingFormData');
+        // 仍然弹出登录框
+        console.log('遇到错误，但仍设置showLoginDialog为true');
+        setShowLoginDialog(true);
+        setIsSubmitting(false);
+        
+        // 强制更新UI以确保对话框显示
+        setTimeout(() => {
+          if (!showLoginDialog) {
+            console.log('遇到错误后检测到showLoginDialog仍为false，再次尝试设置');
+            setShowLoginDialog(true);
+          }
+        }, 100);
+      }
+    } else if (statusCode === 402) {
       // 积分不足
+      console.log('收到402状态码，显示积分不足提示');
       setShowCreditsAlert(true);
       setIsSubmitting(false);
     } else {
       // 其他错误
       try {
-        const errorData = await response.json();
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
-          variant: "destructive"
-        });
+        console.log('错误响应内容:', errorText);
+        
+        // 尝试解析JSON
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch(e) {
+          errorData = { message: errorText };
+        }
+        
+        // 检查错误信息中是否包含积分不足的关键词
+        const errorMessage = errorData.message || errorText;
+        const isCreditsError = 
+          errorMessage.includes('insufficient credits') || 
+          errorMessage.includes('配额不足') || 
+          errorMessage.includes('创作次数') ||
+          errorMessage.includes('credits') ||
+          errorMessage.toLowerCase().includes('quota') || 
+          errorMessage.includes('Failed to consume credits'); // 添加新的错误消息匹配
+        
+        if (isCreditsError || errorData.code === 'INSUFFICIENT_CREDITS' || 
+            (errorData.details && errorData.details.includes('consume credits'))) {
+          console.log('检测到积分不足错误消息，显示积分不足提示');
+          setShowCreditsAlert(true);
+        } else {
+          toast({
+            title: language === 'en' ? 'Error' : '错误',
+            description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
+            variant: "destructive"
+          });
+        }
       } catch (e) {
+        console.error('解析错误响应失败:', e);
         toast({
           title: language === 'en' ? 'Error' : '错误',
           description: language === 'en' ? 'Failed to generate letter' : '生成信件失败',
@@ -1027,15 +1368,57 @@ export default function LoveLetterForm() {
       <CreditsAlert
         open={showCreditsAlert}
         onOpenChange={(open: boolean) => {
-          console.log('CreditsAlert onOpenChange:', open)
+          console.log('CreditsAlert onOpenChange:', open, '当前状态:', showCreditsAlert)
           setShowCreditsAlert(open)
         }}
       />
 
       <LoginDialog
         isOpen={showLoginDialog}
-        onClose={handleLoginDialogClose}
+        onClose={() => {
+          console.log('LoginDialog onClose被调用');
+          handleLoginDialogClose();
+        }}
       />
+      
+      {/* 当401错误发生时，强制显示另一个登录弹窗 */}
+      {showLoginDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70" 
+             onClick={(e) => {
+               // 仅当点击了背景层时才关闭
+               if (e.target === e.currentTarget) {
+                 console.log('背景层被点击，关闭登录弹窗');
+                 handleLoginDialogClose();
+               }
+             }}>
+          <div className="bg-background rounded-lg p-4 w-[425px] shadow-xl" 
+               onClick={(e) => e.stopPropagation()}>
+            <div className="text-xl font-bold mb-4">
+              {language === 'en' ? 'Login Required' : '需要登录'}
+            </div>
+            <div className="mb-6">
+              {language === 'en' 
+                ? 'You need to login to generate a love letter. Your information will be preserved.' 
+                : '您需要登录才能生成情书。您的信息将被保留。'}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                console.log('取消按钮被点击');
+                handleLoginDialogClose();
+              }}>
+                {language === 'en' ? 'Cancel' : '取消'}
+              </Button>
+              <Button onClick={() => {
+                console.log('登录按钮被点击，准备使用Google登录');
+                // 使用Google登录
+                signIn('google', { callbackUrl: `${window.location.origin}/?returnFrom=login` });
+              }}>
+                {language === 'en' ? 'Login with Google' : '使用Google登录'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
