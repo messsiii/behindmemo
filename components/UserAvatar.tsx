@@ -13,7 +13,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext'
 import { signOut, useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import useSWR from 'swr'
 
 interface CreditsInfo {
@@ -55,6 +55,17 @@ export function UserAvatar() {
     }
   )
 
+  // 根据用户邮箱生成默认头像URL
+  const getDefaultAvatar = useCallback(() => {
+    if (!session?.user?.email) return undefined;
+    
+    // 使用 DiceBear 的 Avatars API 生成头像
+    // 这会基于用户邮箱生成一个稳定的头像
+    const emailHash = encodeURIComponent(session.user.email);
+    // 可选的风格：adventurer, avataaars, bottts, identicon, initials, micah 等
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${emailHash}&backgroundColor=4F46E5,0DA2E9,059669,D97706,DC2626&textColor=fff`;
+  }, [session?.user?.email]);
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -82,8 +93,13 @@ export function UserAvatar() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={session.user.image || undefined} alt={session.user.name || ''} />
-            <AvatarFallback>{session.user.name?.[0]}</AvatarFallback>
+            <AvatarImage 
+              src={session.user.image || getDefaultAvatar()} 
+              alt={session.user.name || session.user.email || ''} 
+            />
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {(session.user.name?.[0] || session.user.email?.[0] || '?').toUpperCase()}
+            </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
