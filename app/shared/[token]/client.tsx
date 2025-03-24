@@ -63,7 +63,7 @@ const TEMPLATES = {
     style: {
       width: 1173,
       padding: 49,
-      background: 'url(/images/zion-lee-6YEHirZfEj0-unsplash.jpg) no-repeat center center / cover',
+      background: 'url(/images/artisan-red-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
       contentFont: '"Source Serif Pro", serif',
     },
@@ -73,7 +73,7 @@ const TEMPLATES = {
     style: {
       width: 1173,
       padding: 49,
-      background: 'url(/images/sixteen-miles-out-h2i6xJbBaao-unsplash.jpg) no-repeat center center / cover',
+      background: 'url(/images/natural-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
       contentFont: '"Source Serif Pro", serif',
     },
@@ -83,7 +83,7 @@ const TEMPLATES = {
     style: {
       width: 1173,
       padding: 49,
-      background: 'url(/images/luis-rojas-EBNlxtDkgbM-unsplash.jpg) no-repeat center center / cover',
+      background: 'url(/images/dark-wine-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
       contentFont: '"Source Serif Pro", serif',
     },
