@@ -1,10 +1,29 @@
-import { authConfig } from '@/auth'
-import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { NextRequest, NextResponse } from 'next/server'
+import { authConfig } from '@/auth';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextRequest, NextResponse } from 'next/server';
+
+// 获取完整的应用URL
+function getAppBaseUrl(req: NextRequest): string {
+  // 首选环境变量中的URL
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
+  // 如果环境变量未设置，从请求中构建URL
+  const protocol = req.headers.get('x-forwarded-proto') || 'https';
+  const host = req.headers.get('host') || req.headers.get('x-forwarded-host');
+  
+  if (!host) {
+    // 如果无法从请求中获取主机信息，使用默认域名
+    return 'https://behindmemory.com';
+  }
+  
+  return `${protocol}://${host}`;
+}
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authConfig)
@@ -26,8 +45,8 @@ export async function GET(
     })
 
     if (existingShare) {
-      // 添加回退逻辑 - 如果环境变量不存在，使用相对路径
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+      // 获取完整的基础URL
+      const baseUrl = getAppBaseUrl(req);
       const shareUrl = `${baseUrl}/shared/${existingShare.accessToken}`;
       
       return NextResponse.json({

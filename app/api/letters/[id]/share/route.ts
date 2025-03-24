@@ -4,6 +4,25 @@ import { nanoid } from 'nanoid'
 import { getServerSession } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
+// 获取完整的应用URL
+function getAppBaseUrl(req: NextRequest): string {
+  // 首选环境变量中的URL
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
+  // 如果环境变量未设置，从请求中构建URL
+  const protocol = req.headers.get('x-forwarded-proto') || 'https';
+  const host = req.headers.get('host') || req.headers.get('x-forwarded-host');
+  
+  if (!host) {
+    // 如果无法从请求中获取主机信息，使用默认域名
+    return 'https://behindmemory.com';
+  }
+  
+  return `${protocol}://${host}`;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -77,6 +96,9 @@ export async function POST(
       // 出错时继续使用默认值
     }
 
+    // 获取应用基础URL
+    const baseUrl = getAppBaseUrl(req);
+
     // 检查是否已经存在分享记录
     let existingShare = await prisma.sharedLetter.findFirst({
       where: {
@@ -110,8 +132,7 @@ export async function POST(
           hideWatermark: updatedShare.hideWatermark
         });
         
-        // 添加回退逻辑
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+        // 使用完整的URL
         const shareUrl = `${baseUrl}/shared/${existingShare.accessToken}`;
         
         return NextResponse.json({
@@ -168,12 +189,15 @@ export async function POST(
       }
     }
 
+    // 使用完整的URL
+    const shareUrl = `${baseUrl}/shared/${existingShare.accessToken}`;
+
     return NextResponse.json({
       id: existingShare.id,
       accessToken: existingShare.accessToken,
       templateStyle: existingShare.templateStyle,
       hideWatermark: existingShare.hideWatermark,
-      shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/shared/${existingShare.accessToken}`,
+      shareUrl,
     })
   } catch (error) {
     console.error('[SHARE_LETTER_ERROR]', error instanceof Error ? error.message : String(error))
