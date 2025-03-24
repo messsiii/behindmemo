@@ -195,57 +195,50 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
   
   // 发送验证码
   const handleSendCode = async () => {
-    // 重置错误
+    // 重置错误状态
     setEmailError('');
-    setLoginError('');
     
-    // 验证邮箱
-    try {
-      emailSchema.parse(email);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        setEmailError(error.errors[0].message);
-        return;
-      }
+    // 验证邮箱格式
+    if (!emailSchema.safeParse(email).success) {
+      setEmailError(content[language].invalidEmail);
+      return;
     }
     
     setIsSendingCode(true);
     
     try {
-      const response = await fetch('/api/auth/email-code', {
+      const response = await fetch('/api/auth/send-verification-code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, language }),
+        body: JSON.stringify({ email }),
       });
-      
-      const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || content[language].sending);
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send verification code');
       }
       
-      // 成功发送验证码
+      // 设置倒计时60秒
+      setCountdown(60);
       setIsCodeSent(true);
-      setCountdown(60); // 60秒倒计时
       
+      // 显示成功提示
       toast({
         title: language === 'en' ? 'Code Sent' : '验证码已发送',
-        description: content[language].codeSent
+        description: language === 'en' ? 'Please check your email' : '请查看您的邮箱'
       });
       
-      // 聚焦到第一个验证码输入框
-      const firstInput = codeInputRefs.current[0];
-      if (firstInput) {
-        firstInput.focus();
+      // 移动焦点到第一个验证码输入框
+      if (codeInputRefs.current[0]) {
+        codeInputRefs.current[0].focus();
       }
     } catch (error) {
-      console.error('发送验证码错误:', error);
       toast({
         title: language === 'en' ? 'Error' : '错误',
-        description: error instanceof Error ? error.message : '发送验证码失败，请稍后重试',
-        variant: "destructive"
+        description: error instanceof Error ? error.message : 'Failed to send code',
+        variant: "destructive",
       });
     } finally {
       setIsSendingCode(false);
@@ -529,20 +522,22 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
                   <Label htmlFor="code" className="text-sm font-medium">
                     {content[language].codeLabel}
                   </Label>
-                  <div className="flex justify-between gap-2">
-                    {Array.from({ length: CODE_LENGTH }).map((_, index) => (
+                  <div className="grid grid-cols-6 gap-2 mt-2">
+                    {verificationCode.map((digit, index) => (
                       <Input
                         key={index}
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         maxLength={1}
-                        value={verificationCode[index]}
+                        className="text-center"
+                        value={digit}
                         onChange={(e) => handleCodeChange(index, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(index, e)}
-                        onPaste={index === 0 ? handlePaste : undefined}
-                        ref={(el) => (codeInputRefs.current[index] = el)}
-                        className="w-10 h-10 text-center text-lg"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
+                        ref={(el) => {
+                          codeInputRefs.current[index] = el;
+                          return undefined; // 明确返回undefined以符合React类型要求
+                        }}
                       />
                     ))}
                   </div>
