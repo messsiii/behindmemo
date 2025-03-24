@@ -47,12 +47,26 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
   const codeInputRefs = useRef<Array<HTMLInputElement | null>>(Array(CODE_LENGTH).fill(null))
   const emailInputRef = useRef<HTMLInputElement>(null)
   
+  // 记录组件状态变化
+  useEffect(() => {
+    console.log('LoginDialog 状态变化：isOpen =', isOpen);
+  }, [isOpen]);
+  
   // 检测不安全的浏览器环境
   useEffect(() => {
     if (isOpen) {
+      console.log('LoginDialog 已打开，检查浏览器环境');
       checkBrowserEnvironment()
     }
   }, [isOpen])
+  
+  // 组件挂载和卸载日志
+  useEffect(() => {
+    console.log('LoginDialog 组件已挂载');
+    return () => {
+      console.log('LoginDialog 组件已卸载');
+    };
+  }, []);
   
   // 倒计时效果
   useEffect(() => {
@@ -389,6 +403,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
+      console.log('Dialog onOpenChange 被触发：', open);
       if (!open) onClose()
     }}>
       <DialogContent className="sm:max-w-[425px]">

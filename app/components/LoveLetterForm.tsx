@@ -9,7 +9,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useSession } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ImageUploadPreview } from './ImageUploadPreview'
@@ -1034,7 +1034,10 @@ export default function LoveLetterForm() {
 
   // 处理错误响应 - 修改函数签名，接收状态码和错误文本，而不是Response对象
   const handleErrorResponse = useCallback(async (statusCode: number, errorText: string) => {
+    console.log(`处理错误响应: 状态码=${statusCode}, 错误文本=${errorText}`);
+    
     if (statusCode === 401) {
+      console.log('检测到401未授权错误，准备显示登录弹窗');
       // 用户未登录，尝试保存表单数据（包括缩小后的照片）
       try {
         // 创建一个用于存储的数据对象
@@ -1117,18 +1120,39 @@ export default function LoveLetterForm() {
         
         // 保存处理后的表单数据
         localStorage.setItem('pendingFormData', JSON.stringify(dataToSave));
-        console.log('表单数据已保存到localStorage');
+        // 设置标记，指示有表单数据等待恢复
+        localStorage.setItem('hasFormDataPending', 'true');
+        console.log('表单数据已保存到localStorage，设置hasFormDataPending=true');
         
         // 弹出登录框
+        console.log('即将设置showLoginDialog为true');
         setShowLoginDialog(true);
+        console.log('已设置showLoginDialog为true');
         setIsSubmitting(false);
+        
+        // 强制更新UI以确保对话框显示
+        setTimeout(() => {
+          if (!showLoginDialog) {
+            console.log('检测到showLoginDialog仍为false，再次尝试设置');
+            setShowLoginDialog(true);
+          }
+        }, 100);
       } catch (err) {
         console.error('无法保存表单数据:', err);
         // 清除可能部分写入的数据
         localStorage.removeItem('pendingFormData');
         // 仍然弹出登录框
+        console.log('遇到错误，但仍设置showLoginDialog为true');
         setShowLoginDialog(true);
         setIsSubmitting(false);
+        
+        // 强制更新UI以确保对话框显示
+        setTimeout(() => {
+          if (!showLoginDialog) {
+            console.log('遇到错误后检测到showLoginDialog仍为false，再次尝试设置');
+            setShowLoginDialog(true);
+          }
+        }, 100);
       }
     } else if (statusCode === 402) {
       // 积分不足
@@ -1339,8 +1363,50 @@ export default function LoveLetterForm() {
 
       <LoginDialog
         isOpen={showLoginDialog}
-        onClose={handleLoginDialogClose}
+        onClose={() => {
+          console.log('LoginDialog onClose被调用');
+          handleLoginDialogClose();
+        }}
       />
+      
+      {/* 当401错误发生时，强制显示另一个登录弹窗 */}
+      {showLoginDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70" 
+             onClick={(e) => {
+               // 仅当点击了背景层时才关闭
+               if (e.target === e.currentTarget) {
+                 console.log('背景层被点击，关闭登录弹窗');
+                 handleLoginDialogClose();
+               }
+             }}>
+          <div className="bg-background rounded-lg p-4 w-[425px] shadow-xl" 
+               onClick={(e) => e.stopPropagation()}>
+            <div className="text-xl font-bold mb-4">
+              {language === 'en' ? 'Login Required' : '需要登录'}
+            </div>
+            <div className="mb-6">
+              {language === 'en' 
+                ? 'You need to login to generate a love letter. Your information will be preserved.' 
+                : '您需要登录才能生成情书。您的信息将被保留。'}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                console.log('取消按钮被点击');
+                handleLoginDialogClose();
+              }}>
+                {language === 'en' ? 'Cancel' : '取消'}
+              </Button>
+              <Button onClick={() => {
+                console.log('登录按钮被点击，准备使用Google登录');
+                // 使用Google登录
+                signIn('google', { callbackUrl: `${window.location.origin}/?returnFrom=login` });
+              }}>
+                {language === 'en' ? 'Login with Google' : '使用Google登录'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
