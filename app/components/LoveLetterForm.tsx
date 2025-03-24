@@ -126,7 +126,6 @@ export default function LoveLetterForm() {
   const debounceRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const [isRestoringAfterLogin, setIsRestoringAfterLogin] = useState(false)
 
   const currentQuestion = useMemo(() => questions[currentStep], [currentStep])
@@ -1382,46 +1381,6 @@ export default function LoveLetterForm() {
       window.removeEventListener('keydown', handleKeyPress)
     }
   }, [handleKeyPress])
-
-  useEffect(() => {
-    setMounted(true)
-    return () => {
-      setMounted(false)
-    }
-  }, [])
-
-  // 监听照片上传状态，从登录恢复后用户上传照片时自动跳转到后续步骤
-  useEffect(() => {
-    // 只有当处于恢复模式且当前在照片上传步骤，且有照片数据时才处理
-    const hasRestoredPhoto = isRestoringAfterLogin && 
-                            currentStep === 1 && 
-                            formData.photo instanceof File
-    
-    if (hasRestoredPhoto) {
-      // 照片已上传，直接跳转到最后一步
-      toast.success(language === 'en' ? 'Photo uploaded successfully!' : '照片上传成功！', {
-        description: language === 'en' 
-          ? 'Taking you to the final step...' 
-          : '正在跳转到最后一步...'
-      });
-      
-      // 延迟跳转，让用户看到提示
-      setTimeout(() => {
-        // 直接跳到第四步（故事/生成页面）
-        setCurrentStep(3)
-        
-        // 提示用户准备生成
-        toast(language === 'en' ? 'Ready to generate' : '准备就绪', {
-          description: language === 'en' 
-            ? 'You can now generate your letter!' 
-            : '现在您可以生成您的信件了！'
-        });
-        
-        // 标记恢复完成
-        setIsRestoringAfterLogin(false)
-      }, 800)
-    }
-  }, [isRestoringAfterLogin, currentStep, formData.photo, language, setCurrentStep, setIsRestoringAfterLogin]);
 
   return (
     <div className="w-full max-w-2xl">
