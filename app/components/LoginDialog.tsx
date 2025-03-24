@@ -216,12 +216,16 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       const requestBody = { email, language };
       console.log('请求体:', JSON.stringify(requestBody));
       
+      // 针对社交媒体浏览器优化请求配置
       const response = await fetch('/api/auth/email-code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache', // 防止缓存
+          'Pragma': 'no-cache'
         },
         body: JSON.stringify(requestBody),
+        credentials: 'same-origin' // 确保包含cookies
       });
       
       console.log('API响应状态:', response.status);
@@ -367,14 +371,19 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       const callbackUrl = prepareLoginCallback();
       
       const code = verificationCode.join('');
+      // 确保参数名称与 auth.ts 中定义的完全匹配
+      console.log('开始登录，参数:', { email, code, callbackUrl });
       const result = await signIn('email-login', {
         email,
-        verificationCode: code,
+        code, // 正确的参数名称是 'code'，与auth.ts中保持一致
         redirect: false,
         callbackUrl,
       });
       
+      console.log('登录结果:', result);
+      
       if (result?.error) {
+        console.error('登录错误:', result.error);
         setLoginError(result.error);
         toast.error(language === 'en' ? 'Error' : '错误', {
           description: result.error
