@@ -37,6 +37,21 @@ export async function POST(req: Request) {
 
     const { name, loverName, story, blobUrl, metadata } = body
 
+    // 添加请求体大小分析
+    const requestJson = JSON.stringify(body);
+    const totalSizeInBytes = new TextEncoder().encode(requestJson).length;
+    const totalSizeInKB = totalSizeInBytes / 1024;
+    const totalSizeInMB = totalSizeInKB / 1024;
+    
+    console.log('=== 匿名生成请求体大小分析 ===');
+    console.log(`总请求大小: ${totalSizeInBytes} 字节 (${totalSizeInKB.toFixed(2)} KB, ${totalSizeInMB.toFixed(2)} MB)`);
+    console.log(`元数据大小: ${new TextEncoder().encode(JSON.stringify(metadata)).length} 字节`);
+    
+    if (totalSizeInMB > 1) {
+      console.warn(`警告: 匿名生成请求大小 ${totalSizeInMB.toFixed(2)} MB 可能导致413错误!`);
+      console.log('元数据内容:', metadata);
+    }
+
     // 验证所有必填字段
     const requiredFields = {
       name: name?.trim(),

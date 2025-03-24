@@ -474,6 +474,48 @@ export default function LoveLetterForm() {
         // 4. 生成请求 ID
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+        // 添加计算请求大小的日志
+        const requestBody = {
+          name: formData.name || '',
+          loverName: formData.loverName || '',
+          story: formData.story || '',
+          blobUrl: uploadResult.blobUrl,
+          metadata: {
+            ...updatedMetadata,
+            name: formData.name || '',
+            loverName: formData.loverName || '',
+          },
+        };
+        
+        // 计算整个请求体的大小
+        const requestJson = JSON.stringify(requestBody);
+        const totalSizeInBytes = new TextEncoder().encode(requestJson).length;
+        const totalSizeInKB = totalSizeInBytes / 1024;
+        const totalSizeInMB = totalSizeInKB / 1024;
+        
+        // 计算各部分大小
+        const nameSizeBytes = new TextEncoder().encode(JSON.stringify(requestBody.name)).length;
+        const loverNameSizeBytes = new TextEncoder().encode(JSON.stringify(requestBody.loverName)).length;
+        const storySizeBytes = new TextEncoder().encode(JSON.stringify(requestBody.story)).length;
+        const blobUrlSizeBytes = new TextEncoder().encode(JSON.stringify(requestBody.blobUrl)).length;
+        const metadataSizeBytes = new TextEncoder().encode(JSON.stringify(requestBody.metadata)).length;
+        
+        // 输出详细的请求大小信息
+        console.log('=== 请求体大小分析 ===');
+        console.log(`总请求大小: ${totalSizeInBytes} 字节 (${totalSizeInKB.toFixed(2)} KB, ${totalSizeInMB.toFixed(2)} MB)`);
+        console.log(`name 大小: ${nameSizeBytes} 字节`);
+        console.log(`loverName 大小: ${loverNameSizeBytes} 字节`);
+        console.log(`story 大小: ${storySizeBytes} 字节`);
+        console.log(`blobUrl 大小: ${blobUrlSizeBytes} 字节`);
+        console.log(`metadata 大小: ${metadataSizeBytes} 字节`);
+        console.log('=== 元数据详细信息 ===');
+        console.log('metadata:', requestBody.metadata);
+        
+        // 判断请求大小是否可能导致问题
+        if (totalSizeInMB > 1) {
+          console.warn(`警告: 请求大小 ${totalSizeInMB.toFixed(2)} MB 可能导致413错误!`);
+        }
+
         // 5. 创建信件记录
         const response = await fetch('/api/generate-letter', {
           method: 'POST',
@@ -481,17 +523,7 @@ export default function LoveLetterForm() {
             'Content-Type': 'application/json',
             'X-Request-Id': requestId,
           },
-          body: JSON.stringify({
-            name: formData.name || '',
-            loverName: formData.loverName || '',
-            story: formData.story || '',
-            blobUrl: uploadResult.blobUrl,
-            metadata: {
-              ...updatedMetadata,
-              name: formData.name || '',
-              loverName: formData.loverName || '',
-            },
-          }),
+          body: requestJson, // 使用已经计算过大小的JSON
           credentials: 'include',
         })
 

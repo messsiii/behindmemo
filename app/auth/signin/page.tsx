@@ -1,7 +1,6 @@
 'use client'
 
 import LoginWithEmail from '@/components/auth/LoginWithEmail'
-import { ResetRateLimit } from '@/components/dev/ResetRateLimit'
 import { Button } from '@/components/ui/button'
 import {
     Card,
@@ -28,7 +27,7 @@ export default function SignIn() {
   const callbackUrl = searchParams?.get('callbackUrl') || '/write'
   const error = searchParams?.get('error')
   const [mounted, setMounted] = useState(false)
-  const [tab, setTab] = useState('email') // 默认显示邮箱登录
+  const [tab, setTab] = useState('google') // 默认显示谷歌登录
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -75,9 +74,9 @@ export default function SignIn() {
   if (!mounted) return null
 
   return (
-    <div className="container relative min-h-screen flex items-center justify-center py-10 px-4 md:px-8">
-      {/* 背景层 */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 -z-10" />
+    <div className="relative min-h-screen w-full flex items-center justify-center py-10 px-4 md:px-8">
+      {/* 背景层 - 使用fixed定位确保完全覆盖屏幕 */}
+      <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 -z-10" />
 
       {/* 内容层 */}
       <div className="w-full max-w-md mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-xl shadow-lg p-6 md:p-8">
@@ -87,7 +86,7 @@ export default function SignIn() {
           </h1>
         </div>
 
-        <Tabs defaultValue="email" className="w-full" value={tab} onValueChange={setTab}>
+        <Tabs defaultValue="google" className="w-full" value={tab} onValueChange={setTab}>
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="email">{content.emailTab}</TabsTrigger>
             <TabsTrigger value="google">{content.googleTab}</TabsTrigger>
@@ -138,12 +137,6 @@ export default function SignIn() {
           .
         </p>
       </div>
-
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="absolute bottom-4 left-0 right-0 max-w-md mx-auto">
-          <ResetRateLimit />
-        </div>
-      )}
     </div>
   );
 }

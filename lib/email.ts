@@ -29,13 +29,13 @@ export async function sendVerificationCode(
   }
 
   try {
-    // 创建SMTP传输器
+    // 创建SMTP传输器 - 使用Google Workspace邮箱
     const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_SERVER_HOST,
+      host: process.env.EMAIL_SERVER_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.EMAIL_SERVER_PORT || '587'),
       secure: parseInt(process.env.EMAIL_SERVER_PORT || '587') === 465,
       auth: {
-        user: process.env.EMAIL_SERVER_USER,
+        user: process.env.EMAIL_SERVER_USER || 'sean@behindmemory.com',
         pass: process.env.EMAIL_SERVER_PASSWORD,
       }
     });
@@ -45,7 +45,7 @@ export async function sendVerificationCode(
 
     // 构建邮件选项
     const mailOptions = {
-      from: process.env.EMAIL_FROM || 'noreply@behindmemory.com',
+      from: process.env.EMAIL_FROM || 'sean@behindmemory.com', // 使用Google Workspace邮箱作为发件人
       to,
       subject: language === 'en' ? 'Your Verification Code' : '您的验证码',
       html: emailTemplate,

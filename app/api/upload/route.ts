@@ -17,6 +17,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     const metadataStr = formData.get('metadata') as string
     const userMetadata = metadataStr ? JSON.parse(metadataStr) : null
 
+    // 添加日志记录请求大小
+    console.log('=== 图片上传请求分析 ===');
+    console.log(`原始文件名: ${file?.name}`);
+    console.log(`原始文件大小: ${file?.size / 1024 / 1024} MB`);
+    console.log(`元数据字符串大小: ${metadataStr?.length || 0} 字符`);
+    
+    if (metadataStr && metadataStr.length > 10000) {
+      console.warn('警告: 元数据字符串过大，可能导致问题');
+      console.log('元数据内容:', userMetadata);
+    }
+
     if (!file) {
       return NextResponse.json(
         { error: 'No file uploaded' },
@@ -95,7 +106,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         format: optimizedInfo.format,
       })
 
-      return NextResponse.json({
+      // 添加额外的日志信息
+      console.log('=== 图片处理后分析 ===');
+      console.log(`Blob URL长度: ${blob.url.length} 字符`);
+      
+      // 创建返回数据
+      const responseData = {
         success: true,
         url: blob.url,
         size: optimizedBuffer.length,
@@ -108,7 +124,18 @@ export async function POST(request: Request): Promise<NextResponse> {
           compressionRatio,
         },
         metadata: userMetadata || {},
-      })
+      };
+      
+      // 计算响应大小
+      const responseJson = JSON.stringify(responseData);
+      const responseSizeBytes = new TextEncoder().encode(responseJson).length;
+      console.log(`响应大小: ${responseSizeBytes} 字节 (${(responseSizeBytes/1024).toFixed(2)} KB)`);
+      
+      if (responseSizeBytes > 500000) {
+        console.warn('警告: 响应数据大小超过500KB，后续请求可能出现问题');
+      }
+
+      return NextResponse.json(responseData)
     } catch (error) {
       console.error('Image processing failed:', error)
       return NextResponse.json(
