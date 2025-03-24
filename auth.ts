@@ -208,8 +208,9 @@ export const authConfig = {
           
           // 检查账户是否被锁定
           const locked = await isAccountLocked(email)
-          if (locked) {
-            console.warn(`账户 ${email} 已被锁定，拒绝登录尝试`)
+          console.log(`登录检查: 邮箱=${email}, 锁定状态=${JSON.stringify(locked)}`)
+          if (locked.locked) {
+            console.warn(`账户 ${email} 已被锁定，拒绝登录尝试，剩余锁定时间: ${locked.remainingTime} 秒`)
             recordLoginAttempt(email, clientIp, false)
             return null
           }
@@ -224,8 +225,83 @@ export const authConfig = {
             }
           })
           
+          // 如果没有找到，尝试直接通过code字段查询
+          if (!verificationToken) {
+            console.log(`未找到使用identifier_token复合键的验证码记录，尝试通过code字段直接查询`)
+            
+            const tokenByCode = await prisma.verificationToken.findFirst({
+              where: {
+                identifier: email,
+                code: code,
+                expires: {
+                  gt: new Date() // 只查找未过期的验证码
+                }
+              }
+            })
+            
+            if (tokenByCode) {
+              console.log(`找到有效的验证码记录: ${email}`)
+              
+              // 验证通过后删除验证码
+              await prisma.verificationToken.delete({
+                where: {
+                  identifier_token: {
+                    identifier: tokenByCode.identifier,
+                    token: tokenByCode.token
+                  }
+                }
+              })
+              
+              // 重置失败次数
+              await resetFailedLoginAttempts(email)
+              
+              // 查找或创建用户
+              let user = await prisma.user.findUnique({
+                where: { email }
+              })
+              
+              if (!user) {
+                // 创建新用户
+                user = await prisma.user.create({
+                  data: {
+                    email,
+                    name: email.split('@')[0], // 使用邮箱前缀作为默认名称
+                    emailVerified: new Date(),
+                    credits: 30, // 初始积分
+                    totalUsage: 0,
+                    lastLoginAt: new Date(),
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    isVIP: false,
+                  }
+                })
+                console.log(`新用户已创建: ${email}`)
+              } else {
+                // 更新现有用户的登录时间和邮箱验证时间
+                await prisma.user.update({
+                  where: { id: user.id },
+                  data: {
+                    lastLoginAt: new Date(),
+                    emailVerified: user.emailVerified || new Date()
+                  }
+                })
+              }
+              
+              // 记录成功登录
+              recordLoginAttempt(email, clientIp, true)
+              
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                image: user.image,
+                credits: user.credits
+              }
+            }
+          }
+          
           // 验证码不存在或已过期
-          if (!verificationToken || new Date() > verificationToken.expires) {
+          if (!verificationToken) {
             console.log('验证码无效或已过期')
             // 增加失败计数
             await recordFailedLoginAttempt(email)

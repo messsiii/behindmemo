@@ -19,6 +19,7 @@ export function generateVerificationCode(): string {
 export async function getVerificationCode(email: string): Promise<string> {
   // 生成6位验证码
   const code = generateVerificationCode();
+  console.log(`为邮箱 ${email} 生成验证码: ${code}`);
   
   // 计算过期时间
   const expires = new Date();
@@ -26,20 +27,47 @@ export async function getVerificationCode(email: string): Promise<string> {
   
   try {
     // 先尝试删除已有的记录
-    await prisma.verificationToken.deleteMany({
+    const deletedTokens = await prisma.verificationToken.deleteMany({
       where: {
         identifier: email,
       }
     });
+    console.log(`已删除旧验证码记录: ${deletedTokens.count} 条`);
+    
+    // 使用时间戳确保token唯一性
+    const tokenValue = `email-login-${Date.now()}`;
     
     // 创建新的验证码记录
-    await prisma.verificationToken.create({
+    const newToken = await prisma.verificationToken.create({
       data: {
         identifier: email,
-        token: `email-login-${Date.now()}`, // 使用时间戳确保唯一性
+        token: tokenValue,
         expires,
         code
       }
+    });
+    
+    console.log(`已创建新的验证码记录:`, {
+      identifier: newToken.identifier,
+      tokenCreated: !!newToken.token,
+      codeSet: !!newToken.code,
+      expiresAt: newToken.expires.toISOString()
+    });
+    
+    // 验证记录是否正确保存
+    const savedToken = await prisma.verificationToken.findUnique({
+      where: {
+        identifier_token: {
+          identifier: email,
+          token: tokenValue
+        }
+      }
+    });
+    
+    console.log(`验证保存的记录:`, {
+      found: !!savedToken,
+      codeMatches: savedToken?.code === code,
+      tokenMatches: savedToken?.token === tokenValue
     });
     
     return code;

@@ -93,15 +93,29 @@ export async function lockAccount(email: string, duration: number = ACCOUNT_LOCK
  */
 export async function isAccountLocked(email: string): Promise<{ locked: boolean; remainingTime?: number }> {
   const key = `locked:account:${email}`;
+  
+  // 添加日志，记录检查的键
+  console.log(`检查账户锁定状态: 邮箱=${email}, Redis键=${key}`);
+  
   const isLocked = await redis.get(key);
+  
+  // 添加详细日志，显示Redis的返回结果
+  console.log(`Redis锁定状态查询结果: ${isLocked ? '已锁定' : '未锁定'}`);
   
   if (isLocked) {
     const ttl = await redis.ttl(key);
+    console.log(`账户锁定剩余时间: ${ttl}秒`);
+    
     return {
       locked: true,
       remainingTime: ttl > 0 ? ttl : ACCOUNT_LOCK_TIME
     };
   }
+  
+  // 检查失败计数
+  const failedKey = `failed:login:${email}`;
+  const failedCount = await redis.get(failedKey);
+  console.log(`账户失败登录次数: ${failedCount || 0}`);
   
   return { locked: false };
 }
