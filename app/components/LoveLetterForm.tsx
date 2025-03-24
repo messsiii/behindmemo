@@ -118,6 +118,7 @@ export default function LoveLetterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState('classic')
   const debounceRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
@@ -413,7 +414,11 @@ export default function LoveLetterForm() {
           console.log('上传照片完成')
         } catch (error) {
           console.error('上传照片失败:', error)
-          toast.error(language === 'en' ? 'Failed to upload photo' : '上传照片失败')
+          toast({
+            title: language === 'en' ? 'Upload Failed' : '上传失败',
+            description: language === 'en' ? 'Failed to upload photo' : '上传照片失败',
+            variant: "destructive"
+          })
           setIsSubmitting(false)
           return
         }
@@ -839,6 +844,37 @@ export default function LoveLetterForm() {
       }, 800)
     }
   }, [isRestoringAfterLogin, currentStep, formData.photo, language, toast])
+
+  // 处理错误响应
+  const handleErrorResponse = useCallback(async (response: Response) => {
+    if (response.status === 401) {
+      // 用户未登录，保存当前表单数据并弹出登录框
+      localStorage.setItem('pendingFormData', JSON.stringify(formData));
+      setShowLoginDialog(true);
+      setIsSubmitting(false);
+    } else if (response.status === 402) {
+      // 积分不足
+      setShowCreditsAlert(true);
+      setIsSubmitting(false);
+    } else {
+      // 其他错误
+      try {
+        const errorData = await response.json();
+        toast({
+          title: language === 'en' ? 'Error' : '错误',
+          description: errorData.message || (language === 'en' ? 'Failed to generate letter' : '生成信件失败'),
+          variant: "destructive"
+        });
+      } catch (e) {
+        toast({
+          title: language === 'en' ? 'Error' : '错误',
+          description: language === 'en' ? 'Failed to generate letter' : '生成信件失败',
+          variant: "destructive"
+        });
+      }
+      setIsSubmitting(false);
+    }
+  }, [formData, language, toast]);
 
   return (
     <div className="w-full max-w-2xl">
