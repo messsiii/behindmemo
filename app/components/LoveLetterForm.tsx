@@ -884,9 +884,26 @@ export default function LoveLetterForm() {
         setIsSubmitting(false);
       }
     } else if (response.status === 402) {
-      // 积分不足
-      setShowCreditsAlert(true);
+      // 积分不足，弹出购买引导
+      console.log('检测到402响应，积分不足，准备显示付费引导...');
+      
+      // 在显示积分警告前确保先重置提交状态
       setIsSubmitting(false);
+      
+      // 延迟一帧再设置弹窗状态，避免状态更新被批处理优化掉
+      setTimeout(() => {
+        console.log('设置showCreditsAlert为true');
+        setShowCreditsAlert(true);
+      }, 0);
+      
+      // 显示Toast提示用户
+      toast({
+        title: language === 'en' ? 'Credits Exceeded' : '创作配额不足',
+        description: language === 'en' 
+          ? 'You need more credits to generate letters.' 
+          : '您需要更多点数来生成信件。',
+        variant: "default"
+      });
     } else {
       // 其他错误
       try {
@@ -1058,8 +1075,13 @@ export default function LoveLetterForm() {
       <CreditsAlert
         open={showCreditsAlert}
         onOpenChange={(open: boolean) => {
-          console.log('CreditsAlert onOpenChange:', open)
-          setShowCreditsAlert(open)
+          console.log('CreditsAlert onOpenChange:', open);
+          setShowCreditsAlert(open);
+          
+          // 如果关闭了弹窗，且用户需要购买积分，可以导航到定价页面
+          if (!open) {
+            console.log('积分弹窗被关闭');
+          }
         }}
       />
 
