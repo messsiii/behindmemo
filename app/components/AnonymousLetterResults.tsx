@@ -1511,7 +1511,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     
     toast({
       title: "Success",
-      description: "Your love letter has been downloaded!",
+      description: "Your letter has been downloaded!",
     })
   }
 

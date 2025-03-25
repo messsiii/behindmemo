@@ -1679,7 +1679,7 @@ export default function ResultsPage({ id }: { id: string }) {
     
     toast({
       title: "Success",
-      description: "Your love letter has been downloaded!",
+      description: "Your letter has been downloaded!",
     })
   }
 
@@ -1833,7 +1833,7 @@ export default function ResultsPage({ id }: { id: string }) {
                           : "bg-clip-text text-transparent bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1]"
                       )}
                     >
-                      Your Love Letter
+                      Your Letter
                     </motion.h1>
                     <motion.div
                       className={cn(

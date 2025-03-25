@@ -1,15 +1,15 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@/lib/utils'
-import { ArrowLeft, Home } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { cn } from '@/lib/utils'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowLeft, Home } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 
 // 定义 metadata 类型
 interface Metadata {
@@ -303,7 +303,7 @@ export default function ResultContent({ initialData }: ResultContentProps) {
                     transition={{ delay: 0.3, duration: 0.8 }}
                     className="text-5xl md:text-6xl font-bold text-white text-center font-serif tracking-wide"
                   >
-                    Your Love Letter
+                    Your Letter
                   </motion.h1>
 
                   {/* 图片容器 */}

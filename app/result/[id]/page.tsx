@@ -9,8 +9,8 @@ interface Props {
 
 export async function generateMetadata(_props: Props): Promise<Metadata> {
   return {
-    title: 'Your Love Letter - Behind Memory',
-    description: 'View your personalized love letter',
+    title: 'Your Letter - Behind Memory',
+    description: 'View your personalized letter',
   }
 }
 
