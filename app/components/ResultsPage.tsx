@@ -221,16 +221,30 @@ export default function ResultsPage({ id }: { id: string }) {
           
           // 然后尝试从API获取服务器存储的设置
           const res = await fetch(`/api/letters/${id}/template-preferences`);
+          // 仅当请求成功时才处理响应
           if (res.ok) {
-            const data = await res.json();
-            if (data.templateId && Object.keys(TEMPLATES).includes(data.templateId)) {
-              setSelectedTemplate(data.templateId as keyof typeof TEMPLATES);
-              // 更新localStorage以同步设置
-              localStorage.setItem(`template_${id}`, data.templateId);
+            try {
+              const responseText = await res.text();
+              // 确保响应不为空
+              if (responseText && responseText.trim()) {
+                const data = JSON.parse(responseText);
+                if (data.templateId && Object.keys(TEMPLATES).includes(data.templateId)) {
+                  setSelectedTemplate(data.templateId as keyof typeof TEMPLATES);
+                  // 更新localStorage以同步设置
+                  localStorage.setItem(`template_${id}`, data.templateId);
+                }
+              }
+            } catch (parseError) {
+              console.error('Error parsing template preferences response:', parseError);
+              // 解析错误时，使用缓存的数据，无需特别处理
             }
+          } else {
+            // 请求失败时记录错误，但继续使用localStorage中的值
+            console.warn(`Failed to fetch template preferences: ${res.status}`);
           }
         } catch (error) {
           console.error('Error fetching template preferences', error);
+          // 错误不影响UI流程，使用localStorage中的值作为备份
         }
       };
       
@@ -253,15 +267,28 @@ export default function ResultsPage({ id }: { id: string }) {
           try {
             const res = await fetch(`/api/letters/${id}/template-preferences`);
             if (res.ok) {
-              const data = await res.json();
-              if (data.hideWatermark !== undefined) {
-                setHideWatermark(data.hideWatermark);
-                // 更新localStorage以同步设置
-                localStorage.setItem(`watermark_${id}`, String(data.hideWatermark));
+              try {
+                const responseText = await res.text();
+                // 确保响应不为空
+                if (responseText && responseText.trim()) {
+                  const data = JSON.parse(responseText);
+                  if (data.hideWatermark !== undefined) {
+                    setHideWatermark(data.hideWatermark);
+                    // 更新localStorage以同步设置
+                    localStorage.setItem(`watermark_${id}`, String(data.hideWatermark));
+                  }
+                }
+              } catch (parseError) {
+                console.error('Error parsing watermark preference response:', parseError);
+                // 解析错误时使用localStorage备份值
               }
+            } else {
+              // 请求失败，记录错误但继续使用localStorage中的值
+              console.warn(`Failed to fetch watermark preferences: ${res.status}`);
             }
           } catch (error) {
             console.error('Error fetching watermark preferences', error);
+            // 错误不影响UI流程
           }
         };
         
@@ -313,29 +340,104 @@ export default function ResultsPage({ id }: { id: string }) {
   // 获取信件详情
   useEffect(() => {
     const fetchLetter = async () => {
-      try {
-        const res = await fetch(`/api/letters/${id}`)
-        const data = await res.json()
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      // 检查是否是从匿名信件页保存后跳转过来的
+      const isFromAnonymousSave = typeof window !== 'undefined' && 
+        (window.location.search.includes('from=anonymous_save') || 
+        localStorage.getItem('from_anonymous_claim') === 'true');
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to fetch letter')
-        }
-
-        setLetter(data.letter)
-      } catch (error) {
-        console.error('[FETCH_LETTER_ERROR]', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch letter details',
-          variant: 'destructive',
-        })
-      } finally {
-        setIsLoading(false)
+      // 如果是从匿名信件跳转过来的，增加延迟等待数据库同步
+      if (isFromAnonymousSave) {
+        console.log('[DEBUG] 检测到从匿名信件保存跳转，添加额外延迟以等待数据库同步');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 清除标记
+        localStorage.removeItem('from_anonymous_claim');
       }
-    }
+      
+      // 使用递归进行重试
+      const attemptFetch = async (): Promise<void> => {
+        try {
+          const res = await fetch(`/api/letters/${id}`)
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`[API_ERROR] 获取信件失败, 状态码: ${res.status}, 错误: ${errorText}`);
+            
+            // 如果是从匿名信件保存跳转来的，并且是服务器错误，自动重试
+            if (res.status >= 500 && isFromAnonymousSave && retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[DEBUG] 获取信件失败，第 ${retryCount} 次重试 (共${maxRetries}次)...`);
+              // 延迟后重试
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+              return attemptFetch();
+            }
+            
+            throw new Error(`API返回错误: ${res.status}`);
+          }
 
-    fetchLetter()
-  }, [id])
+          // 确保响应内容是有效的JSON
+          let data;
+          try {
+            const responseText = await res.text();
+            if (!responseText.trim()) {
+              throw new Error('API返回空响应');
+            }
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error('[JSON_PARSE_ERROR]', parseError);
+            
+            // 如果是从匿名信件保存跳转来的，自动重试
+            if (isFromAnonymousSave && retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[DEBUG] JSON解析失败，第 ${retryCount} 次重试 (共${maxRetries}次)...`);
+              // 延迟后重试
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+              return attemptFetch();
+            }
+            
+            throw new Error('无法解析API响应');
+          }
+
+          if (!data.letter) {
+            throw new Error('API响应中缺少信件数据');
+          }
+
+          setLetter(data.letter);
+        } catch (error) {
+          console.error('[FETCH_LETTER_ERROR]', error);
+          
+          // 如果是从匿名信件保存跳转来的，自动重试
+          if (isFromAnonymousSave && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`[DEBUG] 获取信件出错，第 ${retryCount} 次重试 (共${maxRetries}次)...`);
+            // 延迟后重试
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            return attemptFetch();
+          }
+          
+          toast({
+            title: language === 'en' ? 'Error' : '错误',
+            description: language === 'en' 
+              ? 'Failed to fetch letter details. Please try refreshing the page.' 
+              : '获取信件详情失败，请尝试刷新页面。',
+            variant: 'destructive',
+          });
+        }
+      };
+      
+      try {
+        setIsLoading(true);
+        await attemptFetch();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLetter();
+  }, [id, language]);
 
   // 获取用户信息，包括积分和VIP状态
   useEffect(() => {
@@ -1561,6 +1663,7 @@ export default function ResultsPage({ id }: { id: string }) {
 
   // 获取水印HTML
   const getWatermarkHTML = (type: 'light' | 'dark') => {
+    // 直接使用当前的hideWatermark状态而不是任何可能的缓存值
     if (hideWatermark) return '';
     return `<img src="/watermark-${type}.svg" style="height: 35px;" alt="watermark" />`;
   }

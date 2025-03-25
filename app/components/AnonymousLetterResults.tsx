@@ -1558,8 +1558,16 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
       // 保存成功后重定向到常规结果页（使用新的letterId）
       if (data.newLetterId) {
         console.log(`[DEBUG] 匿名信件认领成功，跳转到常规结果页: /result/${data.newLetterId}`);
+        
+        // 修改：在跳转前等待一段时间，确保数据同步完成
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // 设置localStorage标记，告知结果页这是从匿名信件跳转过来的
+        localStorage.setItem('from_anonymous_claim', 'true');
+        
         // 使用replace而不是push，防止浏览器回退到匿名页面
-        router.replace(`/result/${data.newLetterId}`);
+        // 添加查询参数，表明是从匿名信件保存跳转过来的
+        router.replace(`/result/${data.newLetterId}?from=anonymous_save&t=${Date.now()}`);
       }
     } catch (error) {
       console.error('[SAVE_ANONYMOUS_LETTER_ERROR]', error);
@@ -1572,7 +1580,10 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
       // 隐藏全屏加载
       setIsClaimingAfterLogin(false);
     } finally {
-      setIsSavingAnonymous(false);
+      // 延迟关闭保存状态，确保用户看到过渡效果
+      setTimeout(() => {
+        setIsSavingAnonymous(false);
+      }, 500);
     }
   };
 

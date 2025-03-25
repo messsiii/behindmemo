@@ -188,6 +188,14 @@ export function ShareLetterDialog({
       // 更新本地状态
       setSharedTemplateStyle(data.templateStyle);
       setSharedHideWatermark(updatedHideWatermark);
+      
+      // 更新父组件中的共享状态
+      setShareStatus(prev => ({
+        ...prev,
+        templateStyle: data.templateStyle,
+        hideWatermark: updatedHideWatermark
+      }));
+      
       setNeedsTemplateUpdate(false);
       setNeedsWatermarkUpdate(false);
       

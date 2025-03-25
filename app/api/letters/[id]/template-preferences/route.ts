@@ -53,11 +53,12 @@ export async function GET(
       hideWatermark: pref.hideWatermark || false,
     })
   } catch (error) {
-    console.error('[GET_TEMPLATE_PREFERENCE_ERROR]', error)
+    console.error('[GET_TEMPLATE_PREFERENCE_ERROR]', error ? error : 'Unknown error');
+    
     return NextResponse.json(
       { error: 'Failed to get template preference' },
       { status: 500 }
-    )
+    );
   }
 }
 

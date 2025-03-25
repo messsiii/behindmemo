@@ -190,7 +190,7 @@ export function LoginDialog({ isOpen, onClose, callbackType = 'write', letterId 
       const callbackUrl = prepareLoginCallback();
       console.log('使用的回调URL:', callbackUrl);
       
-      // 确保redirect设为true，让浏览器完成完整的重定向过程
+      // 使用正确的provider ID "google"，与NextAuth配置匹配
       signIn('google', { 
         redirect: true,
         callbackUrl
