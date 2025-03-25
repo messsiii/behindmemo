@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 // 不需要登录的路由
-const publicRoutes = ['/', '/auth/signin', '/about', '/terms', '/privacy', '/pricing', '/checkout/success', '/write']
+const publicRoutes = ['/', '/auth/signin', '/about', '/terms', '/privacy', '/pricing', '/checkout/success', '/write', '/blog']
 
 // 添加一个函数来检查路径是否匹配公开规则，包括前缀匹配
 const isPublicPath = (path: string) => {
@@ -14,6 +14,11 @@ const isPublicPath = (path: string) => {
   
   // 检查匿名结果页路径
   if (path.startsWith('/anonymous/')) {
+    return true
+  }
+  
+  // 博客文章页面也是公开的
+  if (path.startsWith('/blog/')) {
     return true
   }
   
