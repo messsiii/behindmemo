@@ -9,25 +9,20 @@ declare global {
 
 import PaddleScript from '@/components/PaddleScript';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription, DialogHeader,
-    DialogTitle
-} from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import { Download, Home, LogIn } from 'lucide-react';
-import { signIn, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
+import { LoginDialog } from './LoginDialog'; // 导入LoginDialog组件
 import { StyleDrawer } from './StyleDrawer';
 
 interface Letter {
@@ -280,13 +275,45 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     
     console.log('[DEBUG] 启动匿名信件状态轮询检查');
     
+    // 记录重试次数
+    let retryCount = 0;
+    const maxRetries = 20; // 最大重试次数
+    
     // 定义查询函数
     const checkLetterStatus = async () => {
       try {
         const apiUrl = `/api/anonymous/letters/${id}`;
         const res = await fetch(apiUrl);
         
-        if (!res.ok) return;
+        if (!res.ok) {
+          // 如果请求失败，增加重试计数
+          retryCount++;
+          console.warn(`[DEBUG] 轮询请求失败，状态码: ${res.status}，重试次数: ${retryCount}/${maxRetries}`);
+          
+          // 如果超过最大重试次数，停止轮询，显示错误
+          if (retryCount >= maxRetries) {
+            console.error('[DEBUG] 已达到最大重试次数，停止轮询');
+            setLetter(prev => ({
+              ...prev!,
+              status: 'failed'
+            }));
+            
+            toast({
+              title: language === 'en' ? 'Connection Error' : '连接错误',
+              description: language === 'en' 
+                ? 'Unable to retrieve letter status. Please try refreshing the page.' 
+                : '无法获取信件状态，请尝试刷新页面。',
+              variant: 'destructive',
+            });
+            
+            return;
+          }
+          
+          return;
+        }
+        
+        // 请求成功，重置重试计数
+        retryCount = 0;
         
         const data = await res.json();
         console.log(`[DEBUG] 轮询获取信件状态:`, data.letter.status);
@@ -300,7 +327,26 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
           });
         }
       } catch (error) {
-        console.error('[POLL_LETTER_ERROR]', error);
+        // 如果捕获到错误，增加重试计数
+        retryCount++;
+        console.error('[POLL_LETTER_ERROR]', error, `重试次数: ${retryCount}/${maxRetries}`);
+        
+        // 如果超过最大重试次数，停止轮询，显示错误
+        if (retryCount >= maxRetries) {
+          console.error('[DEBUG] 已达到最大重试次数，停止轮询');
+          setLetter(prev => ({
+            ...prev!,
+            status: 'failed'
+          }));
+          
+          toast({
+            title: language === 'en' ? 'Connection Error' : '连接错误',
+            description: language === 'en' 
+              ? 'Unable to retrieve letter status. Please try refreshing the page.' 
+              : '无法获取信件状态，请尝试刷新页面。',
+            variant: 'destructive',
+          });
+        }
       }
     };
     
@@ -314,7 +360,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     return () => {
       clearInterval(intervalId);
     };
-  }, [id, letter, isAnonymous]);
+  }, [id, letter, isAnonymous, language]);
 
   // 或者，当检测到信件有内容但状态不是completed时，强制更新状态
   useEffect(() => {
@@ -473,9 +519,15 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     generateContent()
   }, [letter, isAnonymous])
 
-  // 修改saveAsImage函数 - 直接使用当前选中的模板
+  // 保存为图片功能
   const saveAsImage = async () => {
     if (!contentRef.current || isSaving) return
+    
+    // 如果是匿名模式且用户未登录，显示登录弹窗
+    if (isAnonymous && !session) {
+      setShowLoginPrompt(true);
+      return;
+    }
     
     try {
       setIsSaving(true)
@@ -1446,6 +1498,12 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
   const downloadImage = () => {
     if (!previewImage) return
     
+    // 如果是匿名模式且用户未登录，显示登录弹窗
+    if (isAnonymous && !session) {
+      setShowLoginPrompt(true);
+      return;
+    }
+    
     const link = document.createElement('a')
     link.download = `love-letter-${id}.png`
     link.href = previewImage
@@ -1460,17 +1518,8 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
   // 保存匿名信件到用户账户
   const saveAnonymousLetter = async () => {
     if (!session) {
-      // 保存信件ID到localStorage，以便登录后使用
-      try {
-        localStorage.setItem('anonymous_letter_to_claim', id);
-        console.log('[DEBUG] 将匿名信件ID保存到localStorage:', id);
-      } catch (err) {
-        console.error('[DEBUG] 无法保存信件ID到localStorage:', err);
-      }
-      
-      // 简单地使用标准登录流程，不使用复杂的callbackUrl参数
-      console.log('[DEBUG] 使用标准登录流程，登录后会处理信件认领');
-      signIn('google');  // 使用默认回调URL，登录后会回到当前页面
+      // 显示登录弹窗，而不是直接调用signIn
+      setShowLoginPrompt(true);
       return;
     }
 
@@ -1478,6 +1527,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     setIsSavingAnonymous(true);
     console.log('[DEBUG] 开始保存匿名信件到用户账户:', id);
     
+    // 其余逻辑保持不变
     try {
       // 将匿名信件认领到用户账户
       const res = await fetch('/api/anonymous/claim-letter', {
@@ -2072,52 +2122,13 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
          </div>
        </div>
 
-      {/* 匿名信件登录提示对话框 */}
-      <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
-        <DialogContent className="sm:max-w-md bg-gray-900/90 backdrop-blur-md border border-white/10 shadow-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <LogIn className="h-5 w-5 text-blue-400" />
-              {language === 'en' ? 'Save Your Letter Permanently' : '永久保存您的信件'}
-            </DialogTitle>
-            <DialogDescription className="text-gray-300">
-              {language === 'en' 
-                ? `Anonymous letters expire in 24 hours. Login to save this letter to your account and access all premium features.` 
-                : `匿名信件将在24小时后过期。登录后可永久保存此信件到您的账户并解锁所有高级功能。`}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex items-center justify-center p-5 mb-2 bg-black/40 backdrop-blur-sm border border-white/5 rounded-lg">
-              <div className="flex flex-col items-center space-y-4">
-                <div className="grid grid-cols-3 gap-2">
-                  {/* 显示3个模板缩略图 */}
-                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-red-400/80 to-red-700/80 border border-white/10"></div>
-                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-blue-400/80 to-blue-700/80 border border-white/10"></div>
-                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-purple-400/80 to-purple-700/80 border border-white/10"></div>
-                </div>
-                <p className="text-center text-sm font-medium text-gray-200">
-                  {language === 'en' ? 'Premium Templates & Features' : '高级模板和功能'}
-                </p>
-                <p className="text-center text-xs text-gray-400 max-w-xs">
-                  {language === 'en' 
-                    ? 'Your letter will be saved to your account, never expire, and you can access 10+ premium templates, remove watermarks, and manage all your letters.' 
-                    : '您的信件将永久保存到账户中，并可使用10+种高级模板，移除水印，管理所有信件。'}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <Button 
-                onClick={saveAnonymousLetter}
-                className="rounded-full px-10 py-6 h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-700/20 border-none w-full sm:w-auto"
-              >
-                <LogIn className="h-4 w-4 mr-2" />
-                {language === 'en' ? 'Login & Save Forever' : '登录并永久保存'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* 匿名信件登录弹窗 */}
+      <LoginDialog
+        isOpen={showLoginPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+        callbackType="anonymous"
+        letterId={id}
+      />
 
       {/* Preview Dialog - 恢复模板切换功能 */}
       <ImagePreviewDialog

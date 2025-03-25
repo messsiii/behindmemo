@@ -21,12 +21,14 @@ import { z } from "zod"
 interface LoginDialogProps {
   isOpen: boolean
   onClose: () => void
+  callbackType?: 'write' | 'anonymous' // 增加callbackType参数，区分写作页和匿名信件场景
+  letterId?: string // 增加letterId参数，用于匿名信件认领
 }
 
 // 验证码长度
 const CODE_LENGTH = 6;
 
-export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
+export function LoginDialog({ isOpen, onClose, callbackType = 'write', letterId }: LoginDialogProps) {
   const { language } = useLanguage()
   const router = useRouter()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -141,43 +143,50 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     }
   }
 
-  // 设置登录成功后的回调和状态
+  // 修改准备登录回调的函数，支持匿名信件场景
   const prepareLoginCallback = () => {
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('returnFrom', 'login');
     
-    // 确保设置localStorage标记，用于登录后恢复表单数据
-    localStorage.setItem('hasFormDataPending', 'true');
-    
-    // 检查页面类型并确保导航到正确的页面
-    const isWritePage = window.location.pathname.includes('/write');
-    console.log(`准备登录回调URL，当前页面类型: ${isWritePage ? '写作页面' : '其他页面'}`);
-    
-    // 如果不是写作页面，确保回调到写作页面
-    if (!isWritePage) {
-      currentUrl.pathname = '/write';
-      console.log('设置回调到写作页面: /write');
+    // 根据不同场景设置不同的标记和回调URL
+    if (callbackType === 'write') {
+      // 写作页面的处理逻辑保持不变
+      localStorage.setItem('hasFormDataPending', 'true');
+      
+      // 检查页面类型并确保导航到正确的页面
+      const isWritePage = window.location.pathname.includes('/write');
+      console.log(`准备登录回调URL，当前页面类型: ${isWritePage ? '写作页面' : '其他页面'}`);
+      
+      // 如果不是写作页面，确保回调到写作页面
+      if (!isWritePage) {
+        currentUrl.pathname = '/write';
+        console.log('设置回调到写作页面: /write');
+      }
+    } else if (callbackType === 'anonymous' && letterId) {
+      // 匿名信件的处理逻辑
+      console.log('匿名信件登录流程，设置letterId到localStorage');
+      localStorage.setItem('anonymous_letter_to_claim', letterId);
+      
+      // 添加匿名信件认领标记到URL
+      currentUrl.searchParams.set('callbackParam', 'claimLetter');
+      
+      // 确保回调到当前匿名信件页面
+      if (!currentUrl.pathname.includes('/anonymous/')) {
+        console.error('无效的匿名信件页面路径:', currentUrl.pathname);
+      }
     }
     
     const callbackUrl = currentUrl.toString();
     console.log('设置登录回调URL:', callbackUrl);
     
-    // 检查是否已经保存了表单数据
-    const hasSavedFormData = !!localStorage.getItem('pendingFormData');
-    console.log('检查是否已保存表单数据:', hasSavedFormData);
-    
-    // 仅当有pendingFormData时才设置hasFormDataPending标记
-    if (!hasSavedFormData) {
-      console.log('警告: 没有找到已保存的表单数据，但仍然设置了hasFormDataPending标记');
-    }
-    
     return callbackUrl;
   }
 
+  // 更新Google登录处理，考虑callbackType
   const handleGoogleLogin = async () => {
     setIsLoggingIn(true)
     try {
-      console.log('准备Google登录，设置回调URL');
+      console.log(`准备Google登录，场景: ${callbackType}`);
       const callbackUrl = prepareLoginCallback();
       console.log('使用的回调URL:', callbackUrl);
       
@@ -353,7 +362,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     }
   };
 
-  // 处理邮箱登录
+  // 修改邮箱登录处理，考虑callbackType
   const handleEmailLogin = async () => {
     // 重置登录错误
     setLoginError('');
@@ -367,7 +376,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     setIsLoggingIn(true);
     
     try {
-      // 设置回调URL
+      // 在登录前准备回调URL和状态
       const callbackUrl = prepareLoginCallback();
       
       const code = verificationCode.join('');
@@ -382,14 +391,29 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       
       console.log('登录结果:', result);
       
-      if (result?.error) {
+      if (!result) {
+        // 处理null的情况，显示一个通用错误
+        console.error('登录返回结果为null');
+        const errorMessage = language === 'en' 
+          ? 'Server error. Please try again later.' 
+          : '服务器错误，请稍后重试。';
+        
+        setLoginError(errorMessage);
+        toast.error(language === 'en' ? 'Error' : '错误', {
+          description: errorMessage
+        });
+        setIsLoggingIn(false);
+        return;
+      }
+      
+      if (result.error) {
         console.error('登录错误:', result.error);
         setLoginError(result.error);
         toast.error(language === 'en' ? 'Error' : '错误', {
           description: result.error
         });
         setIsLoggingIn(false);
-      } else if (result?.url) {
+      } else if (result.url) {
         toast.success(language === 'en' ? 'Success' : '成功', {
           description: content[language].loginSuccess
         });
@@ -401,8 +425,18 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
         router.push(result.url);
       }
     } catch (error) {
-      console.error('登录错误:', error);
-      setLoginError(error instanceof Error ? error.message : '登录失败，请稍后重试');
+      console.error('登录过程中发生异常:', error);
+      // 确保错误信息是字符串
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : language === 'en' 
+          ? 'Login failed. Please try again later.' 
+          : '登录失败，请稍后重试。';
+      
+      setLoginError(errorMessage);
+      toast.error(language === 'en' ? 'Error' : '错误', {
+        description: errorMessage
+      });
       setIsLoggingIn(false);
     }
   };
