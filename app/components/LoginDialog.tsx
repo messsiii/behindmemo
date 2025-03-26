@@ -89,10 +89,25 @@ export function LoginDialog({ isOpen, onClose, callbackType = 'write', letterId 
     const isWeChat = userAgent.includes('micromessenger')
     const isLineApp = userAgent.includes('line/')
     const isSnapchat = userAgent.includes('snapchat')
-    const isInAppBrowser = userAgent.includes('wv') || 
-                         /mozilla\/[\d\.]+ \((?:iphone|ipad|ipod|android).*applewebkit\/[\d\.]+.*mobile.*safari\/[\d\.]+(?!.+chrome)/i.test(userAgent)
+    const isTwitterApp = userAgent.includes('twitter') || userAgent.includes('twitterrific')
     
-    const isUnsafe = isInstagram || isFacebook || isWeChat || isLineApp || isSnapchat || isInAppBrowser
+    // 检测Android内嵌WebView
+    const isAndroidWebView = userAgent.includes('wv')
+    
+    // 仅检测确定的社交媒体内嵌浏览器，不再使用过于宽泛的正则表达式
+    const isUnsafe = isInstagram || isFacebook || isWeChat || isLineApp || isSnapchat || isTwitterApp || isAndroidWebView
+    
+    console.log('浏览器环境检测:', { 
+      userAgent, 
+      isUnsafe,
+      isInstagram, 
+      isFacebook, 
+      isWeChat, 
+      isLineApp, 
+      isSnapchat,
+      isTwitterApp,
+      isAndroidWebView
+    })
     
     // 在社交媒体浏览器中强制使用邮箱登录
     if (isUnsafe) {
