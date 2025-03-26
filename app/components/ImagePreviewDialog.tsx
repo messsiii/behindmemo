@@ -2,13 +2,12 @@
 
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Download, Save, Smartphone, X } from 'lucide-react'
@@ -49,8 +48,6 @@ type FullscreenPreviewProps = {
 };
 
 const FullscreenPreview = ({ isOpen, imageUrl, alt, onClose, language, onDownload, handleImageSaved }: FullscreenPreviewProps) => {
-  const { toast } = useToast()
-  
   return (
     <AnimatePresence>
       {isOpen && (
@@ -141,7 +138,6 @@ export function ImagePreviewDialog({
   isGenerating,
 }: ImagePreviewDialogProps) {
   const { language } = useLanguage()
-  const { toast } = useToast()
   const [isMobile, setIsMobile] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
