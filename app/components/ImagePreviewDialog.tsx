@@ -37,54 +37,20 @@ interface ImagePreviewDialogProps {
   isGenerating: boolean
 }
 
-function FullscreenPreview({
-  isOpen,
-  onClose,
-  imageUrl,
-  onDownload,
-  language,
-}: {
-  isOpen: boolean
-  onClose: () => void
-  imageUrl: string
-  onDownload: () => void
-  language: string
-}) {
+// 全屏预览组件
+type FullscreenPreviewProps = {
+  isOpen: boolean;
+  imageUrl: string;
+  alt: string;
+  onClose: () => void;
+  language: string;
+  onDownload: () => void;
+  handleImageSaved: () => void;
+};
+
+const FullscreenPreview = ({ isOpen, imageUrl, alt, onClose, language, onDownload, handleImageSaved }: FullscreenPreviewProps) => {
   const { toast } = useToast()
-  const [touchStartTime, setTouchStartTime] = useState<number | null>(null)
-  const [longPressDetected, setLongPressDetected] = useState(false)
-
-  // 图片保存成功提示
-  const handleImageSaved = () => {
-    toast({
-      title: language === 'en' ? "Image Saved" : "图片已保存",
-      description: language === 'en' ? "The image has been saved to your device." : "图片已成功保存到您的设备。",
-      variant: "default"
-    })
-  }
   
-  // 处理触摸开始事件
-  const handleTouchStart = () => {
-    setTouchStartTime(Date.now());
-    setLongPressDetected(false);
-  };
-  
-  // 处理触摸结束事件
-  const handleTouchEnd = () => {
-    if (touchStartTime && !longPressDetected) {
-      const touchDuration = Date.now() - touchStartTime;
-      // 如果触摸时间超过700毫秒，判定为长按，可能是用户保存了图片
-      if (touchDuration > 700) {
-        setLongPressDetected(true);
-        // 用户可能通过长按菜单保存了图片，显示成功提示
-        setTimeout(() => {
-          handleImageSaved();
-        }, 500);
-      }
-    }
-    setTouchStartTime(null);
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -105,18 +71,15 @@ function FullscreenPreview({
           {/* 图片容器 */}
           <div className="absolute inset-[40px] sm:inset-[60px] md:inset-[80px]">
             <div 
-              className="relative w-full h-full" 
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
+              className="relative w-full h-full"
               onContextMenu={(e) => {
                 // 右键菜单事件，可能是PC端保存图片
                 e.preventDefault()
-                handleImageSaved()
               }}
             >
               <Image
                 src={imageUrl}
-                alt="Full Preview"
+                alt={alt}
                 fill
                 className="object-contain"
                 quality={100}
@@ -181,8 +144,6 @@ export function ImagePreviewDialog({
   const { toast } = useToast()
   const [isMobile, setIsMobile] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [touchStartTime, setTouchStartTime] = useState<number | null>(null)
-  const [longPressDetected, setLongPressDetected] = useState(false)
 
   // 检测移动设备
   useEffect(() => {
@@ -206,41 +167,10 @@ export function ImagePreviewDialog({
     }
   }
 
-  // 处理下载并显示成功提示
+  // 保留下载处理函数，但移除模拟的成功提示
   const handleDownloadWithToast = () => {
     onDownload()
-    toast({
-      title: language === 'en' ? "Image Saved" : "图片已保存",
-      description: language === 'en' ? "The image has been saved to your device." : "图片已成功保存到您的设备。",
-      variant: "default"
-    })
   }
-  
-  // 处理触摸开始事件
-  const handleTouchStart = () => {
-    setTouchStartTime(Date.now());
-    setLongPressDetected(false);
-  };
-  
-  // 处理触摸结束事件
-  const handleTouchEnd = () => {
-    if (touchStartTime && !longPressDetected) {
-      const touchDuration = Date.now() - touchStartTime;
-      // 如果触摸时间超过700毫秒，判定为长按，可能是用户保存了图片
-      if (touchDuration > 700) {
-        setLongPressDetected(true);
-        // 用户可能通过长按菜单保存了图片，显示成功提示
-        setTimeout(() => {
-          toast({
-            title: language === 'en' ? "Image Saved" : "图片已保存",
-            description: language === 'en' ? "The image has been saved to your device." : "图片已成功保存到您的设备。",
-            variant: "default"
-          })
-        }, 500);
-      }
-    }
-    setTouchStartTime(null);
-  };
 
   return (
     <>
@@ -309,28 +239,26 @@ export function ImagePreviewDialog({
                           fill
                           className="object-contain"
                           unoptimized
-                          onTouchStart={handleTouchStart}
-                          onTouchEnd={handleTouchEnd}
                         />
                         
-                        {/* 移动端保存指引图标 - 更加明显 */}
+                        {/* 保留移动端保存指引图标 */}
                         {isMobile && (
                           <motion.div
-                            initial={{ opacity: 0.7, y: 0 }}
-                            animate={{ opacity: 1, y: [-5, 0, -5] }}
+                            initial={{ opacity: 0.7 }}
+                            animate={{ opacity: [0.7, 1, 0.7] }}
                             transition={{ 
                               repeat: Infinity, 
-                              duration: 3
+                              duration: 2,
+                              ease: "easeInOut"
                             }}
-                            className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center"
+                            className="absolute bottom-4 right-4 flex flex-col items-center pointer-events-none"
                           >
-                            <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-black/70 border border-white/30 shadow-lg">
+                            <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-black/60 border border-white/20 shadow-lg backdrop-blur-sm">
                               <Save className="w-4 h-4 text-white" />
                               <span className="text-white font-medium text-sm">
                                 {language === 'en' ? 'Press & hold to save' : '长按保存图片'}
                               </span>
                             </div>
-                            <div className="w-px h-14 bg-gradient-to-b from-white/50 to-transparent mt-1"></div>
                           </motion.div>
                         )}
                       </div>
@@ -374,13 +302,18 @@ export function ImagePreviewDialog({
         </DialogContent>
       </Dialog>
 
-      <FullscreenPreview
-        isOpen={isFullscreen}
-        onClose={() => setIsFullscreen(false)}
-        imageUrl={imageUrl}
-        onDownload={onDownload}
-        language={language}
-      />
+      {/* 全屏预览模式 */}
+      {isFullscreen && (
+        <FullscreenPreview
+          isOpen={isFullscreen}
+          imageUrl={imageUrl}
+          alt="Full Preview"
+          onClose={() => setIsFullscreen(false)}
+          language={language}
+          onDownload={onDownload}
+          handleImageSaved={handleDownloadWithToast}
+        />
+      )}
     </>
   )
 } 
