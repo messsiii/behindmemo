@@ -11,7 +11,7 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Download, Info, X } from 'lucide-react'
+import { Download, Save, Smartphone, X } from 'lucide-react'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
@@ -51,13 +51,8 @@ function FullscreenPreview({
   language: string
 }) {
   const { toast } = useToast()
-  const [showSaveTip, setShowSaveTip] = useState(false)
-
-  // 显示移动端保存提示
-  const showMobileSaveTip = () => {
-    setShowSaveTip(true)
-    setTimeout(() => setShowSaveTip(false), 3500)
-  }
+  const [touchStartTime, setTouchStartTime] = useState<number | null>(null)
+  const [longPressDetected, setLongPressDetected] = useState(false)
 
   // 图片保存成功提示
   const handleImageSaved = () => {
@@ -67,6 +62,28 @@ function FullscreenPreview({
       variant: "default"
     })
   }
+  
+  // 处理触摸开始事件
+  const handleTouchStart = () => {
+    setTouchStartTime(Date.now());
+    setLongPressDetected(false);
+  };
+  
+  // 处理触摸结束事件
+  const handleTouchEnd = () => {
+    if (touchStartTime && !longPressDetected) {
+      const touchDuration = Date.now() - touchStartTime;
+      // 如果触摸时间超过700毫秒，判定为长按，可能是用户保存了图片
+      if (touchDuration > 700) {
+        setLongPressDetected(true);
+        // 用户可能通过长按菜单保存了图片，显示成功提示
+        setTimeout(() => {
+          handleImageSaved();
+        }, 500);
+      }
+    }
+    setTouchStartTime(null);
+  };
 
   return (
     <AnimatePresence>
@@ -85,30 +102,12 @@ function FullscreenPreview({
             <X className="w-6 h-6" />
           </button>
 
-          {/* 移动端保存提示 */}
-          <AnimatePresence>
-            {showSaveTip && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="absolute top-20 left-1/2 -translate-x-1/2 z-[101] bg-white/15 backdrop-blur-md px-5 py-3 rounded-full border border-white/20 shadow-lg"
-              >
-                <div className="flex items-center gap-2">
-                  <Info className="w-4 h-4 text-white/90" />
-                  <p className="text-white/90 text-sm">
-                    {language === 'en' ? 'Press and hold to save image' : '长按图片可保存至相册'}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* 图片容器 */}
           <div className="absolute inset-[40px] sm:inset-[60px] md:inset-[80px]">
             <div 
               className="relative w-full h-full" 
-              onClick={showMobileSaveTip}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
               onContextMenu={(e) => {
                 // 右键菜单事件，可能是PC端保存图片
                 e.preventDefault()
@@ -123,10 +122,6 @@ function FullscreenPreview({
                 quality={100}
                 priority
                 sizes="100vw"
-                onTouchStart={() => {
-                  // 显示保存提示
-                  showMobileSaveTip()
-                }}
               />
             </div>
           </div>
@@ -155,13 +150,17 @@ function FullscreenPreview({
             </Button>
           </div>
 
-          {/* 移动端底部提示 */}
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-white/80 text-xs border border-white/10 pointer-events-none">
+          {/* 移动端底部提示 - 持久显示 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/90 text-sm border border-white/20 shadow-lg"
+          >
             <div className="flex items-center gap-2">
-              <Info className="w-3 h-3" />
-              {language === 'en' ? 'Tap to show save options' : '点击屏幕查看保存选项'}
+              <Smartphone className="w-4 h-4" />
+              {language === 'en' ? 'Press and hold to save image' : '长按图片可保存至相册'}
             </div>
-          </div>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -182,7 +181,8 @@ export function ImagePreviewDialog({
   const { toast } = useToast()
   const [isMobile, setIsMobile] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showMobileTip, setShowMobileTip] = useState(false)
+  const [touchStartTime, setTouchStartTime] = useState<number | null>(null)
+  const [longPressDetected, setLongPressDetected] = useState(false)
 
   // 检测移动设备
   useEffect(() => {
@@ -190,12 +190,6 @@ export function ImagePreviewDialog({
       const userAgent = navigator.userAgent.toLowerCase()
       const isMobileDevice = /iphone|ipad|ipod|android|mobile/.test(userAgent)
       setIsMobile(isMobileDevice)
-      
-      // 在移动设备上自动显示提示
-      if (isMobileDevice && isOpen) {
-        setShowMobileTip(true)
-        setTimeout(() => setShowMobileTip(false), 5000)
-      }
     }
 
     checkMobile()
@@ -221,6 +215,32 @@ export function ImagePreviewDialog({
       variant: "default"
     })
   }
+  
+  // 处理触摸开始事件
+  const handleTouchStart = () => {
+    setTouchStartTime(Date.now());
+    setLongPressDetected(false);
+  };
+  
+  // 处理触摸结束事件
+  const handleTouchEnd = () => {
+    if (touchStartTime && !longPressDetected) {
+      const touchDuration = Date.now() - touchStartTime;
+      // 如果触摸时间超过700毫秒，判定为长按，可能是用户保存了图片
+      if (touchDuration > 700) {
+        setLongPressDetected(true);
+        // 用户可能通过长按菜单保存了图片，显示成功提示
+        setTimeout(() => {
+          toast({
+            title: language === 'en' ? "Image Saved" : "图片已保存",
+            description: language === 'en' ? "The image has been saved to your device." : "图片已成功保存到您的设备。",
+            variant: "default"
+          })
+        }, 500);
+      }
+    }
+    setTouchStartTime(null);
+  };
 
   return (
     <>
@@ -267,26 +287,6 @@ export function ImagePreviewDialog({
               <X className="w-4 h-4" />
             </button>
 
-            {/* 移动端保存提示 */}
-            <AnimatePresence>
-              {showMobileTip && isMobile && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-xl"
-                >
-                  <div className="flex items-center gap-2">
-                    <Info className="w-4 h-4 text-white" />
-                    <p className="text-white text-sm">
-                      {language === 'en' ? 'Press and hold to save image' : '长按图片可保存至相册'}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             {/* 图片预览 */}
             <div className="flex-grow flex items-center justify-center p-4 sm:p-6">
               <div className="relative w-full h-full">
@@ -309,32 +309,29 @@ export function ImagePreviewDialog({
                           fill
                           className="object-contain"
                           unoptimized
-                          onClick={() => {
-                            if (isMobile) {
-                              setShowMobileTip(true)
-                              setTimeout(() => setShowMobileTip(false), 3500)
-                            }
-                          }}
+                          onTouchStart={handleTouchStart}
+                          onTouchEnd={handleTouchEnd}
                         />
                         
-                        {/* 移动端保存指引图标 */}
+                        {/* 移动端保存指引图标 - 更加明显 */}
                         {isMobile && (
-                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-black/60 border border-white/10 pointer-events-none animate-pulse">
-                            <motion.div
-                              initial={{ scale: 1 }}
-                              animate={{ scale: 1.1 }}
-                              transition={{ 
-                                repeat: Infinity, 
-                                repeatType: "reverse", 
-                                duration: 1.5 
-                              }}
-                            >
-                              <Download className="w-4 h-4 text-white/90" />
-                            </motion.div>
-                            <span className="text-white/90 text-xs">
-                              {language === 'en' ? 'Long press to save' : '长按保存'}
-                            </span>
-                          </div>
+                          <motion.div
+                            initial={{ opacity: 0.7, y: 0 }}
+                            animate={{ opacity: 1, y: [-5, 0, -5] }}
+                            transition={{ 
+                              repeat: Infinity, 
+                              duration: 3
+                            }}
+                            className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center"
+                          >
+                            <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-black/70 border border-white/30 shadow-lg">
+                              <Save className="w-4 h-4 text-white" />
+                              <span className="text-white font-medium text-sm">
+                                {language === 'en' ? 'Press & hold to save' : '长按保存图片'}
+                              </span>
+                            </div>
+                            <div className="w-px h-14 bg-gradient-to-b from-white/50 to-transparent mt-1"></div>
+                          </motion.div>
                         )}
                       </div>
                     )}
