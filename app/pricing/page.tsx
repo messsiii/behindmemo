@@ -11,6 +11,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { openCreditsCheckout, openSubscriptionCheckout } from '@/lib/paddle'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
+import { signIn, useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
@@ -415,6 +416,7 @@ function FAQList({ questions, language }: { questions: Question[]; language: str
 
 export default function Pricing() {
   const { language } = useLanguage()
+  const { data: session } = useSession()
   const allQuestions = content[language].faqSections.reduce<Question[]>((acc, section) => [...acc, ...section.questions], [])
   const [isVIP, setIsVIP] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -441,6 +443,24 @@ export default function Pricing() {
 
   // Paddle 相关处理函数
   const handleSubscribe = async () => {
+    // 检查用户是否已登录
+    if (!session?.user) {
+      // 添加友好提示
+      toast({
+        title: language === 'en' ? 'Login Required' : '需要登录',
+        description: language === 'en' 
+          ? 'Redirecting to login page...' 
+          : '正在跳转到登录页面...',
+      });
+      
+      // 延迟跳转，让用户看到提示
+      setTimeout(() => {
+        // 未登录，引导用户登录，并设置回调地址为当前页面
+        signIn(undefined, { callbackUrl: window.location.href })
+      }, 1000);
+      return
+    }
+
     try {
       setIsLoading(true)
       
@@ -507,6 +527,24 @@ export default function Pricing() {
 
   // 积分购买处理函数
   const handleBuyCredits = async (credits: number) => {
+    // 检查用户是否已登录
+    if (!session?.user) {
+      // 添加友好提示
+      toast({
+        title: language === 'en' ? 'Login Required' : '需要登录',
+        description: language === 'en' 
+          ? 'Redirecting to login page...' 
+          : '正在跳转到登录页面...',
+      });
+      
+      // 延迟跳转，让用户看到提示
+      setTimeout(() => {
+        // 未登录，引导用户登录，并设置回调地址为当前页面
+        signIn(undefined, { callbackUrl: window.location.href })
+      }, 1000);
+      return
+    }
+
     try {
       setIsCheckoutLoading(credits)
       // 调用积分购买结账函数
