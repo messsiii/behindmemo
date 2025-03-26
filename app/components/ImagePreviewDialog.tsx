@@ -372,20 +372,6 @@ export function ImagePreviewDialog({
                   )}
                 </Button>
               )}
-              {isMobile && (
-                <Button
-                  variant="outline"
-                  className="rounded-full px-6 sm:px-8 py-1.5 sm:py-2 bg-white/5 text-white/90 border-white/10 hover:bg-white/10 hover:border-white/20 hover:text-white backdrop-blur-sm text-xs sm:text-sm transition-all duration-300 group shadow-sm hover:shadow-lg hover:shadow-black/20"
-                  onClick={() => {
-                    setShowMobileTip(true)
-                    setTimeout(() => setShowMobileTip(false), 3500)
-                  }}
-                  disabled={isGenerating}
-                >
-                  <Info className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                  {language === 'en' ? 'How to Save' : '如何保存'}
-                </Button>
-              )}
             </div>
           </motion.div>
         </DialogContent>
