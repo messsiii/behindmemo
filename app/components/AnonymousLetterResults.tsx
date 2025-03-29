@@ -562,12 +562,19 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
   useEffect(() => {
     if (!letter) return
     if (letter.status === 'completed' && letter.content) return
-    // 匿名信件不需要生成内容，它已经有内容了
-    if (isAnonymous) return
+    // 移除这一行，允许匿名信件也触发生成
+    // if (isAnonymous) return
 
     const generateContent = async () => {
       try {
-        const response = await fetch(`/api/letters/${letter.id}/generate`, {
+        // 根据是否为匿名信件选择不同的API端点
+        const apiUrl = isAnonymous 
+          ? `/api/anonymous/letters/${letter.id}/generate` 
+          : `/api/letters/${letter.id}/generate`;
+          
+        console.log(`[DEBUG] 开始生成信件内容，API: ${apiUrl}`);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           credentials: 'include',
         })
@@ -582,6 +589,8 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
           throw new Error('No content received from server')
         }
 
+        console.log('[DEBUG] 内容生成成功，更新信件状态');
+        
         // 更新信件内容
         setLetter(prev => ({
           ...prev!,
@@ -602,7 +611,13 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
       }
     }
 
-    generateContent()
+    console.log(`[DEBUG] 检查是否需要生成内容: 状态=${letter.status}, 内容长度=${letter.content?.length || 0}`);
+    
+    // 只有在状态是pending或generating且没有内容时才触发生成
+    if (letter.status === 'pending' || letter.status === 'generating' || !letter.content) {
+      console.log('[DEBUG] 触发内容生成');
+      generateContent()
+    }
   }, [letter, isAnonymous])
 
   // 保存为图片功能
