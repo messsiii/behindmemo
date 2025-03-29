@@ -350,7 +350,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     
     // 记录重试次数
     let retryCount = 0;
-    const maxRetries = 20; // 最大重试次数
+    const maxRetries = 40; // 从20增加到40，延长总轮询时间
     
     // 定义查询函数
     const checkLetterStatus = async () => {
@@ -1748,7 +1748,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
     if (!letter.content && letter.status === 'generating') {
       console.log('[DEBUG] 检测到信件正在生成中，设置超时检查');
       
-      // 设置超时计时器 - 15秒后如果状态还是generating且没有内容，尝试重新获取
+      // 设置超时计时器 - 从15秒延长到30秒后检查
       const timeoutId = setTimeout(async () => {
         if (!letter.content && letter.status === 'generating') {
           console.log('[DEBUG] 生成超时，尝试重新获取信件');
@@ -1760,13 +1760,39 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
             if (res.ok) {
               const data = await res.json();
               
-              // 检查重新获取的数据
-              if (data.letter && (data.letter.content || data.letter.status === 'completed')) {
-                console.log('[DEBUG] 重新获取成功，更新信件内容');
-                setLetter({
-                  ...data.letter,
-                  status: 'completed'
-                });
+              // 更宽容的状态处理
+              if (data.letter) {
+                if (data.letter.content || data.letter.status === 'completed') {
+                  // 如果有内容或状态是completed，立即更新
+                  console.log('[DEBUG] 重新获取成功，信件已生成完成');
+                  setLetter({
+                    ...data.letter,
+                    status: 'completed'
+                  });
+                } else {
+                  // 即使没有内容，也先更新状态，再给多一些时间
+                  console.log('[DEBUG] 重新获取成功，但内容可能仍在生成');
+                  setLetter(data.letter);
+                  
+                  // 再次延迟检查，最后决定是否失败
+                  setTimeout(() => {
+                    if (letter?.status === 'generating' && !letter.content) {
+                      console.log('[DEBUG] 最终检查仍无内容，标记为失败');
+                      setLetter(prev => ({
+                        ...prev!,
+                        status: 'failed'
+                      }));
+                      
+                      toast({
+                        title: language === 'en' ? 'Generation Timeout' : '生成超时',
+                        description: language === 'en' 
+                          ? 'Letter generation is taking longer than expected. Please refresh the page to check again.' 
+                          : '信件生成时间超过预期。请刷新页面重新检查。',
+                        variant: 'destructive',
+                      });
+                    }
+                  }, 10000); // 再给10秒钟
+                }
               } else if (data.letter && data.letter.status === 'failed') {
                 console.log('[DEBUG] 信件生成失败');
                 setLetter(data.letter);
@@ -1792,11 +1818,30 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
             console.error('[TIMEOUT_RETRY_ERROR]', error);
           }
         }
-      }, 15000); // 15秒超时
+      }, 30000); // 从15秒增加到30秒超时
       
       return () => clearTimeout(timeoutId);
     }
   }, [letter, isAnonymous, isLoading, id, language]);
+
+  // 添加自动重试功能，当标记为失败时自动尝试重新加载
+  useEffect(() => {
+    if (letter?.status === 'failed' && !letter.content) {
+      // 短暂延迟后自动重试一次
+      const retryTimer = setTimeout(() => {
+        console.log('[DEBUG] 自动重试获取信件');
+        window.location.reload();
+      }, 3000);
+      
+      return () => clearTimeout(retryTimer);
+    }
+  }, [letter]);
+
+  // 添加清晰的重试按钮组件
+  const handleRetryGeneration = () => {
+    console.log('[DEBUG] 用户手动触发重试');
+    window.location.reload();
+  };
 
   if (isLoading) {
     return (
@@ -1839,6 +1884,55 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
 
   // 添加调试输出
   console.log(`[DEBUG] 当前信件状态: ${letter.status}, 是否匿名: ${isAnonymous}, 是否有内容: ${Boolean(letter.content)}, 是否显示已完成: ${letter.status === 'completed'}`)
+
+  // 在状态为failed时显示内容
+  if (letter?.status === 'failed') {
+    return (
+      <div className="container max-w-3xl py-8 px-4 mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-center"
+        >
+          <div className="mb-8">
+            <Image
+              src="/images/error-illustration.svg"
+              alt="Error"
+              width={200}
+              height={200}
+              className="mx-auto mb-4"
+              onError={() => <div className="w-[200px] h-[200px] bg-gray-200 rounded-full mx-auto mb-4" />}
+            />
+            <h1 className="text-2xl font-bold mb-2">
+              {language === 'en' ? 'Letter Generation Failed' : '信件生成失败'}
+            </h1>
+            <p className="text-gray-600 mb-6">
+              {language === 'en' 
+                ? 'We encountered an issue while generating your letter.' 
+                : '在生成您的信件时遇到了问题。'}
+            </p>
+            
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Button 
+                onClick={handleRetryGeneration}
+                className="flex items-center justify-center gap-2"
+              >
+                <span>{language === 'en' ? 'Try Again' : '重试'}</span>
+              </Button>
+              
+              <Link href="/" passHref>
+                <Button variant="outline" className="flex items-center justify-center gap-2">
+                  <Home className="w-4 h-4" />
+                  <span>{language === 'en' ? 'Return Home' : '返回首页'}</span>
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <>
