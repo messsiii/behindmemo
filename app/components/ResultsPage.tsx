@@ -21,7 +21,7 @@ import { openSubscriptionCheckout } from "@/lib/paddle";
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
-import { Crown, Download, EyeOff, Home, Infinity, Send } from 'lucide-react';
+import { Crown, Download, EyeOff, Home, Infinity, Share2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -2141,8 +2141,8 @@ export default function ResultsPage({ id }: { id: string }) {
                             onClick={() => setShowShareDialog(true)}
                           >
                             <span className="flex items-center justify-center gap-2">
-                              <Send className="w-4 h-4" />
-                              {language === 'en' ? 'Send' : '送信'}
+                              <Share2 className="w-4 h-4" />
+                              {language === 'en' ? 'Share' : '分享'}
                             </span>
                           </Button>
                         </motion.div>

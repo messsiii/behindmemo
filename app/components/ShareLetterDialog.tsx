@@ -278,7 +278,7 @@ export function ShareLetterDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {language === 'en' ? 'Send Letter' : '送出信件'}
+            {language === 'en' ? 'Share Letter' : '分享信件'}
           </DialogTitle>
         </DialogHeader>
         
