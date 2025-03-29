@@ -227,42 +227,108 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
   useEffect(() => {
     async function fetchLetter() {
       setIsLoading(true)
-      try {
-        // 根据是否为匿名信件选择不同的API端点
-        const apiUrl = isAnonymous 
-          ? `/api/anonymous/letters/${id}`
-          : `/api/letters/${id}`
-
-        console.log(`[DEBUG] 开始获取信件 (匿名: ${isAnonymous}): ${apiUrl}`)
-        const res = await fetch(apiUrl)
-        const data = await res.json()
-
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to fetch letter')
-        }
-
-        console.log(`[DEBUG] 信件内容获取成功:`, data.letter)
-        
-        // 确保匿名信件的状态被设置为completed
-        if (isAnonymous && data.letter && data.letter.content) {
-          console.log('[DEBUG] 强制将匿名信件状态设置为completed')
-          setLetter({
-            ...data.letter,
-            status: 'completed'  // 强制匿名信件状态为completed
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      const attemptFetch = async () => {
+        try {
+          // 根据是否为匿名信件选择不同的API端点
+          const apiUrl = isAnonymous 
+            ? `/api/anonymous/letters/${id}`
+            : `/api/letters/${id}`
+  
+          console.log(`[DEBUG] 开始获取信件 (匿名: ${isAnonymous}): ${apiUrl}`)
+          const res = await fetch(apiUrl)
+          
+          if (!res.ok) {
+            // 服务器错误，可能需要重试
+            if (res.status >= 500 && retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[DEBUG] 服务器错误 (${res.status})，第 ${retryCount} 次重试...`);
+              // 指数退避策略，延迟增加
+              await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
+              return attemptFetch();
+            }
+            
+            // 客户端错误或重试次数用尽
+            const errorText = await res.text();
+            throw new Error(`API错误 (${res.status}): ${errorText}`);
+          }
+          
+          // 解析响应
+          let data;
+          try {
+            const text = await res.text();
+            data = text ? JSON.parse(text) : {};
+          } catch (parseError) {
+            console.error('[DEBUG] 解析响应失败:', parseError);
+            
+            // 如果解析失败且未达到最大重试次数，重试
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`[DEBUG] 解析失败，第 ${retryCount} 次重试...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
+              return attemptFetch();
+            }
+            
+            throw new Error('无法解析API响应');
+          }
+  
+          if (!data.letter) {
+            throw new Error('API响应中缺少信件数据');
+          }
+  
+          console.log(`[DEBUG] 信件内容获取成功:`, data.letter)
+          
+          // 确保匿名信件的状态被设置为completed
+          if (isAnonymous && data.letter) {
+            console.log('[DEBUG] 检查匿名信件状态')
+            
+            // 只要信件有内容，无论状态如何，都强制设置为completed
+            if (data.letter.content && data.letter.content.trim()) {
+              console.log('[DEBUG] 信件有内容，强制设置状态为completed')
+              setLetter({
+                ...data.letter,
+                status: 'completed'  // 强制匿名信件状态为completed
+              })
+            } else if (data.letter.status === 'completed') {
+              // 状态已经是completed但可能没有内容
+              console.log('[DEBUG] 信件状态为completed，保持状态')
+              setLetter(data.letter)
+            } else {
+              // 没有内容且状态不是completed
+              console.log('[DEBUG] 信件没有内容且状态不是completed:', data.letter.status)
+              setLetter(data.letter)
+            }
+          } else {
+            setLetter(data.letter)
+          }
+          
+          // 加载成功，清除loading状态
+          setIsLoading(false)
+        } catch (error) {
+          console.error('[FETCH_LETTER_ERROR]', error)
+          
+          // 如果是网络错误且未达到最大重试次数，重试
+          if (error instanceof TypeError && error.message.includes('network') && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`[DEBUG] 网络错误，第 ${retryCount} 次重试...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
+            return attemptFetch();
+          }
+          
+          // 所有重试都失败或不需要重试的错误
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch letter details',
+            variant: 'destructive',
           })
-        } else {
-          setLetter(data.letter)
+          setIsLoading(false)
         }
-      } catch (error) {
-        console.error('[FETCH_LETTER_ERROR]', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch letter details',
-          variant: 'destructive',
-        })
-      } finally {
-        setIsLoading(false)
-      }
+      };
+      
+      // 开始尝试获取
+      await attemptFetch();
     }
 
     fetchLetter()
@@ -270,10 +336,17 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
 
   // 添加轮询机制，定期检查匿名信件状态
   useEffect(() => {
-    // 只有在匿名信件且状态为generating时才启动轮询
-    if (!isAnonymous || !letter || letter.status !== 'generating') return;
+    // 只有在匿名信件且状态不是"completed"或"failed"时才启动轮询
+    if (!isAnonymous || !letter) return;
     
-    console.log('[DEBUG] 启动匿名信件状态轮询检查');
+    // 如果信件已经有内容或状态已经是completed或failed，不需要轮询
+    if (letter.content && letter.content.trim() || 
+        letter.status === 'completed' || 
+        letter.status === 'failed') {
+      return;
+    }
+    
+    console.log('[DEBUG] 启动匿名信件状态轮询检查，当前状态:', letter.status);
     
     // 记录重试次数
     let retryCount = 0;
@@ -312,19 +385,32 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
           return;
         }
         
-        // 请求成功，重置重试计数
-        retryCount = 0;
-        
-        const data = await res.json();
-        console.log(`[DEBUG] 轮询获取信件状态:`, data.letter.status);
-        
-        // 如果服务端状态已更新为completed或有内容了，则更新本地状态
-        if (data.letter.status === 'completed' || data.letter.content) {
-          console.log('[DEBUG] 匿名信件已完成，更新状态');
-          setLetter({
-            ...data.letter,
-            status: 'completed'  // 强制设为completed
-          });
+        try {
+          // 请求成功，重置重试计数
+          retryCount = 0;
+          
+          const data = await res.json();
+          console.log(`[DEBUG] 轮询获取信件状态:`, data.letter?.status, '内容长度:', data.letter?.content?.length || 0);
+          
+          // 如果服务端信件有内容或状态是completed，更新本地状态
+          if (data.letter && (data.letter.status === 'completed' || (data.letter.content && data.letter.content.trim()))) {
+            console.log('[DEBUG] 匿名信件已完成或有内容，更新状态');
+            setLetter({
+              ...data.letter,
+              status: 'completed'  // 强制设为completed
+            });
+          } 
+          // 如果状态是failed，也更新本地状态
+          else if (data.letter && data.letter.status === 'failed') {
+            console.log('[DEBUG] 匿名信件生成失败');
+            setLetter({
+              ...data.letter,
+              status: 'failed'
+            });
+          }
+        } catch (parseError) {
+          console.error('[DEBUG] 解析轮询响应出错:', parseError);
+          retryCount++;
         }
       } catch (error) {
         // 如果捕获到错误，增加重试计数
@@ -1640,6 +1726,77 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
         )
       : null;
   };
+
+  // 添加额外的安全措施，确保在初始加载后检查并修正信件状态
+  useEffect(() => {
+    // 如果不是匿名信件或还在加载中，则不需要这个检查
+    if (!isAnonymous || isLoading) return;
+    
+    // 如果信件为空，可能是还未获取到数据
+    if (!letter) return;
+    
+    // 检查状态：如果信件有内容但状态不是completed，则修正状态
+    if (letter.content && letter.content.trim() && letter.status !== 'completed') {
+      console.log('[DEBUG] 初始加载后检测到信件有内容但状态不是completed，修正状态');
+      setLetter(prev => ({
+        ...prev!,
+        status: 'completed'
+      }));
+    }
+    
+    // 处理信件内容获取超时情况
+    if (!letter.content && letter.status === 'generating') {
+      console.log('[DEBUG] 检测到信件正在生成中，设置超时检查');
+      
+      // 设置超时计时器 - 15秒后如果状态还是generating且没有内容，尝试重新获取
+      const timeoutId = setTimeout(async () => {
+        if (!letter.content && letter.status === 'generating') {
+          console.log('[DEBUG] 生成超时，尝试重新获取信件');
+          
+          try {
+            const apiUrl = `/api/anonymous/letters/${id}`;
+            const res = await fetch(apiUrl);
+            
+            if (res.ok) {
+              const data = await res.json();
+              
+              // 检查重新获取的数据
+              if (data.letter && (data.letter.content || data.letter.status === 'completed')) {
+                console.log('[DEBUG] 重新获取成功，更新信件内容');
+                setLetter({
+                  ...data.letter,
+                  status: 'completed'
+                });
+              } else if (data.letter && data.letter.status === 'failed') {
+                console.log('[DEBUG] 信件生成失败');
+                setLetter(data.letter);
+              } else {
+                console.log('[DEBUG] 重新获取后仍无内容，标记为失败');
+                setLetter(prev => ({
+                  ...prev!,
+                  status: 'failed'
+                }));
+                
+                toast({
+                  title: language === 'en' ? 'Error' : '错误',
+                  description: language === 'en' 
+                    ? 'Failed to generate letter content. Please try refreshing the page.' 
+                    : '生成信件内容失败，请尝试刷新页面。',
+                  variant: 'destructive',
+                });
+              }
+            } else {
+              console.error('[DEBUG] 重新获取请求失败:', res.status);
+            }
+          } catch (error) {
+            console.error('[TIMEOUT_RETRY_ERROR]', error);
+          }
+        }
+      }, 15000); // 15秒超时
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [letter, isAnonymous, isLoading, id, language]);
 
   if (isLoading) {
     return (
