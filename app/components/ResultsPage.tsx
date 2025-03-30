@@ -10,10 +10,10 @@ declare global {
 import PaddleScript from '@/components/PaddleScript';
 import { Button } from '@/components/ui/button';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription, DialogHeader,
-    DialogTitle
+  Dialog,
+  DialogContent,
+  DialogDescription, DialogHeader,
+  DialogTitle
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -21,7 +21,7 @@ import { openSubscriptionCheckout } from "@/lib/paddle";
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
-import { Crown, Download, EyeOff, Home, Infinity, Share2 } from 'lucide-react';
+import { Crown, EyeOff, Home, Infinity, Share2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -49,7 +49,7 @@ const TEMPLATES = {
   classic: {
     name: 'Classic Dark',
     style: {
-      width: 1200,
+      width: 800,
       padding: 80,
       background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)',
       titleFont: '"Cormorant Garamond", serif',
@@ -60,7 +60,7 @@ const TEMPLATES = {
   postcard: {
     name: 'Postcard',
     style: {
-      width: 1200,
+      width: 800,
       padding: 60,
       background: 'linear-gradient(to right, #f9f7f7 0%, #ffffff 100%)',
       titleFont: '"Playfair Display", serif',
@@ -71,7 +71,7 @@ const TEMPLATES = {
   magazine: {
     name: 'Magazine',
     style: {
-      width: 1200,
+      width: 800,
       padding: 80,
       background: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)',
       titleFont: '"Playfair Display", serif',
@@ -82,7 +82,7 @@ const TEMPLATES = {
   artisan: {
     name: 'Artisan Red',
     style: {
-      width: 1200,
+      width: 800,
       padding: 60,
       background: 'url(/images/artisan-red-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -93,7 +93,7 @@ const TEMPLATES = {
   natural: {
     name: 'Natural Parchment',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/natural-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -104,7 +104,7 @@ const TEMPLATES = {
   darkWine: {
     name: 'Dark Wine',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/dark-wine-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -115,7 +115,7 @@ const TEMPLATES = {
   paperMemo: {
     name: 'Paper Memoir',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/annie-spratt-fDghTk7Typw-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -126,7 +126,7 @@ const TEMPLATES = {
   oceanBreeze: {
     name: 'Ocean Breeze',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -137,7 +137,7 @@ const TEMPLATES = {
   darkCrimson: {
     name: 'Dark Crimson',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/sufyan-eRpeXTJEgMw-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -148,7 +148,7 @@ const TEMPLATES = {
   purpleDream: {
     name: 'Purple Dream',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -159,7 +159,7 @@ const TEMPLATES = {
   elegantPaper: {
     name: 'Elegant Paper',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/lunelle-B-9i06FP0SI-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -170,7 +170,7 @@ const TEMPLATES = {
   roseParchment: {
     name: 'Rose Parchment',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -1747,30 +1747,44 @@ export default function ResultsPage({ id }: { id: string }) {
                           : "bg-gradient-to-b from-black via-gray-900 to-black"
       )}
       style={{
-        '--bg-url': `url(${TEMPLATES[selectedTemplate].style.background.includes('url') ? 
-          TEMPLATES[selectedTemplate].style.background.match(/url\((.*?)\)/)?.[1] : ''})`
-      } as React.CSSProperties}
-      >
-        {/* 返回首页按钮 */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="fixed top-[14px] left-4 z-50"
-        >
-          <Link href="/">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 p-0 text-white/70 hover:text-white hover:bg-transparent"
-            >
-              <Home className="h-[18px] w-[18px]" />
-            </Button>
-          </Link>
-        </motion.div>
+        backgroundImage: selectedTemplate === 'classic' 
+          ? 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)'
+          : selectedTemplate === 'postcard'
+            ? 'linear-gradient(to right, #f9f7f7 0%, #ffffff 100%)'
+            : selectedTemplate === 'magazine' 
+              ? 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)'
+              : undefined
+      }}>
+        {/* 导航栏 - 三个图标按钮并排 */}
+        <div className="fixed top-0 left-0 right-0 z-50 py-4 px-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between">
+              {/* 左侧导航图标组 */}
+              <div className="flex items-center space-x-2 bg-black/40 backdrop-blur-md p-2 rounded-full border border-white/10 shadow-lg">
+                <Link href="/" className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">
+                  <Home className="w-5 h-5 text-white" />
+                </Link>
+                
+                <Link href="/history" className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white">
+                    <path d="M12 8V12L15 15M3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </Link>
+                
+                <Link href="/write" className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white">
+                    <path d="M12 4H6C4.89543 4 4 4.89543 4 6V18C4 19.1046 4.89543 20 6 20H18C19.1046 20 20 19.1046 20 18V12M9 15H12L20.5 6.5C21.3284 5.67157 21.3284 4.32843 20.5 3.5C19.6716 2.67157 18.3284 2.67157 17.5 3.5L9 12V15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </Link>
+              </div>
+              
+              {/* 移除右侧样式按钮 */}
+            </div>
+          </div>
+        </div>
 
         <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
-          <div className="relative min-h-screen">
+          <div className="relative min-h-screen flex flex-col items-center justify-center py-10">
             {/* 背景效果 */}
             <div className={cn(
               "fixed inset-0",
@@ -1794,7 +1808,7 @@ export default function ResultsPage({ id }: { id: string }) {
 
             {/* 内容部分 */}
             <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-10">
-              <div className="w-full max-w-4xl">
+              <div className="w-full max-w-[800px]">
                 <AnimatePresence mode="wait">
                   <motion.div
                     ref={contentRef}
@@ -1803,67 +1817,7 @@ export default function ResultsPage({ id }: { id: string }) {
                     transition={{ duration: 0.8, ease: 'easeOut' }}
                     className="space-y-12"
                   >
-                    {/* 标题 */}
-                    <motion.h1
-                      initial={{ opacity: 0, y: -20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3, duration: 0.8 }}
-                      className={cn(
-                        "text-5xl md:text-6xl font-bold text-center font-display tracking-wide",
-                        TEMPLATES[selectedTemplate].style.background.includes('url')
-                          ? selectedTemplate === 'artisan'
-                            ? "text-[#B00702] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
-                            : selectedTemplate === 'natural'
-                              ? "text-[#5E4027] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
-                              : selectedTemplate === 'darkWine'
-                                ? "text-[#F4F4F4] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
-                                : selectedTemplate === 'paperMemo'
-                                  ? "text-[#151212] drop-shadow-[0_1px_2px_rgba(255,255,255,0.5)]"
-                                  : selectedTemplate === 'oceanBreeze'
-                                    ? "text-[#0B5A6B] drop-shadow-[0_1px_2px_rgba(173,216,230,0.5)]"
-                                    : selectedTemplate === 'darkCrimson'
-                                      ? "text-[#FF1100] drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]"
-                                      : selectedTemplate === 'purpleDream'
-                                        ? "text-[#E83DEE] drop-shadow-[0_0_12px_rgba(255,105,244,0.6)]"
-                                        : selectedTemplate === 'elegantPaper'
-                                          ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
-                                          : selectedTemplate === 'roseParchment'
-                                            ? "text-[#FFFFFF] drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-                                            : "text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]"
-                          : "bg-clip-text text-transparent bg-gradient-to-r from-[#738fbd] via-[#db88a4] to-[#cc8eb1]"
-                      )}
-                    >
-                      Your Letter
-                    </motion.h1>
-                    <motion.div
-                      className={cn(
-                        "mt-8 w-20 h-1 mx-auto", 
-                        TEMPLATES[selectedTemplate].style.background.includes('url')
-                          ? selectedTemplate === 'artisan'
-                            ? "bg-[#B00702]"
-                            : selectedTemplate === 'natural'
-                              ? "bg-[#5E4027]"
-                              : selectedTemplate === 'darkWine'
-                                ? "bg-[#F4F4F4]"
-                                : selectedTemplate === 'paperMemo'
-                                  ? "bg-[#151212]"
-                                  : selectedTemplate === 'oceanBreeze'
-                                    ? "bg-[#0B5A6B]"
-                                    : selectedTemplate === 'darkCrimson'
-                                      ? "bg-[#FF1100]"
-                                      : selectedTemplate === 'purpleDream'
-                                        ? "bg-[#E83DEE]"
-                                        : selectedTemplate === 'elegantPaper'
-                                          ? "bg-[#E75C31]"
-                                          : selectedTemplate === 'roseParchment'
-                                            ? "bg-[#E358A2]"
-                                            : "bg-white/80 shadow-md"
-                          : "bg-gradient-to-r from-[#738fbd] to-[#cc8eb1]"
-                      )}
-                      initial={{ width: 0 }}
-                      animate={{ width: 80 }}
-                      transition={{ duration: 0.8, delay: 0.5 }}
-                    />
+                    {/* 移除标题和分隔线 */}
 
                     {/* 图片容器 */}
                     {letter.imageUrl && (
@@ -1872,7 +1826,7 @@ export default function ResultsPage({ id }: { id: string }) {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: 0.4, duration: 0.8 }}
                       >
-                        <div className="relative w-full rounded-xl bg-black/40 overflow-hidden">
+                        <div className="relative w-full rounded-xl overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.3)] border border-white/30">
                           <div
                             className={cn(
                               'relative w-full pt-[56.25%]', // 16:9 默认比例
@@ -1881,6 +1835,7 @@ export default function ResultsPage({ id }: { id: string }) {
                               imageLoaded ? 'opacity-100' : 'opacity-0'
                             )}
                           >
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10"></div>
                             <Image
                               src={imageError ? '/placeholder.svg' : letter.imageUrl}
                               alt="Your special moment"
@@ -1926,38 +1881,48 @@ export default function ResultsPage({ id }: { id: string }) {
                       className={cn(
                         "backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border transition-all duration-500",
                         selectedTemplate === 'classic' 
-                          ? "bg-black/40 border-white/10" 
+                          ? "bg-black/60 border-white/20" 
                           : selectedTemplate === 'postcard'
-                            ? "bg-[#f9f7f7]/90 border-black/5"
+                            ? "bg-[#f9f7f7]/95 border-black/10"
                             : selectedTemplate === 'artisan'
-                              ? "bg-[#CFCFCC] border-[#B00702]/10 relative"
+                              ? "bg-[#CFCFCC]/90 border-[#B00702]/20 relative"
                               : selectedTemplate === 'natural'
-                                ? "bg-[#FFFFF2] border-[#5E4027]/10 relative"
+                                ? "bg-[#FFFFF2]/95 border-[#5E4027]/20 relative"
                                 : selectedTemplate === 'darkWine'
-                                  ? "bg-[#430311] border-[#F4F4F4]/10 relative"
+                                  ? "bg-[#430311]/90 border-[#F4F4F4]/20 relative"
                                   : selectedTemplate === 'paperMemo'
-                                    ? "bg-[#C9C9C9] border-[#151212]/10 relative"
+                                    ? "bg-[#C9C9C9]/95 border-[#151212]/20 relative"
                                     : selectedTemplate === 'oceanBreeze'
-                                      ? "bg-[#F5F5EF] border-[#4A90A2]/10 relative"
+                                      ? "bg-[#F5F5EF]/95 border-[#4A90A2]/20 relative"
                                       : selectedTemplate === 'darkCrimson'
-                                        ? "bg-[#000000] border-[#FF1100]/20 relative"
+                                        ? "bg-[#000000]/90 border-[#FF1100]/30 relative"
                                         : selectedTemplate === 'purpleDream'
-                                          ? "bg-[#E7F5F9] border-[#E83DEE]/20 relative"
+                                          ? "bg-[#E7F5F9]/95 border-[#E83DEE]/30 relative"
                                           : selectedTemplate === 'elegantPaper'
-                                            ? "bg-[#EFE9DB] border-[#E75C31]/20 relative"
-                                            : "bg-white/90 border-black/5" // magazine样式
+                                            ? "bg-[#EFE9DB]/95 border-[#E75C31]/30 relative"
+                                            : "bg-white/95 border-black/10" // magazine样式
                       )}
                     >
+                      {/* 添加额外的内容背景遮罩 */}
+                      <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                        <div className={cn(
+                          "absolute inset-0",
+                          selectedTemplate === 'classic' || selectedTemplate === 'darkWine' || selectedTemplate === 'darkCrimson' || selectedTemplate === 'purpleDream'
+                            ? "bg-gradient-to-b from-white/5 to-transparent"
+                            : "bg-gradient-to-b from-black/5 to-transparent"
+                        )}></div>
+                      </div>
+                      
                       <motion.div 
                         layout
                         transition={{ duration: 0.5, type: "spring", damping: 20 }}
                         className={cn(
-                          "prose prose-lg max-w-none transition-all duration-300",
-                          selectedTemplate === 'classic' || selectedTemplate === 'darkWine'
-                            ? "prose-invert" 
+                          "prose prose-lg max-w-none transition-all duration-300 relative z-10",
+                          selectedTemplate === 'classic' || selectedTemplate === 'darkWine' || selectedTemplate === 'darkCrimson'
+                            ? "prose-invert prose-p:text-white/90 prose-headings:text-white" 
                             : selectedTemplate === 'artisan' || selectedTemplate === 'natural'
-                              ? "prose-slate"
-                              : "prose-slate",
+                              ? "prose-slate prose-p:text-slate-900 prose-headings:text-slate-900"
+                              : "prose-slate prose-p:text-slate-900 prose-headings:text-slate-900",
                           // 杂志模板添加双列布局
                           selectedTemplate === 'magazine' && "sm:columns-2 sm:gap-8"
                         )}
@@ -2089,7 +2054,7 @@ export default function ResultsPage({ id }: { id: string }) {
                       {/* 按钮 - 只在文本完全渲染后显示 */}
                       {letter.status === 'completed' && (
                         <motion.div
-                          initial={{ opacity: 0, y: 10 }}
+                          initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{
                             duration: 0.5,
@@ -2097,51 +2062,15 @@ export default function ResultsPage({ id }: { id: string }) {
                             type: 'spring',
                             bounce: 0.3,
                           }}
-                          className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full px-4 sm:px-0"
+                          className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full px-4 sm:px-0 mt-6"
                         >
                           <Button
                             variant="outline"
-                            className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
-                            onClick={() => saveAsImage()}
-                            disabled={isSaving}
-                          >
-                            <span className="flex items-center justify-center gap-2">
-                              {isSaving ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  {language === 'en' ? 'Generating...' : '生成中...'}
-                                </>
-                              ) : (
-                                <>
-                                  <Download className="w-4 h-4" />
-                                  {language === 'en' ? 'Save as Image' : '保存为图片'}
-                                </>
-                              )}
-                            </span>
-                          </Button>
-                          <Link href="/history" className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full"
-                            >
-                              {language === 'en' ? 'View History' : '查看历史'}
-                            </Button>
-                          </Link>
-                          <Link href="/write" className="w-full sm:w-auto">
-                            <Button
-                              variant="outline"
-                              className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full"
-                            >
-                              {language === 'en' ? 'Write Another' : '再写一封'}
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="outline"
-                            className="rounded-full px-8 py-2 bg-black/60 text-white border-white/10 hover:bg-white/20 hover:border-white/40 hover:text-white hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] backdrop-blur-sm text-sm transition-all duration-300 w-full sm:w-auto"
+                            className="rounded-full px-8 py-6 bg-black/60 text-white border-white/30 hover:bg-black/80 hover:border-white/50 hover:text-white hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] backdrop-blur-md text-base font-medium transition-all duration-300 w-full sm:w-auto"
                             onClick={() => setShowShareDialog(true)}
                           >
-                            <span className="flex items-center justify-center gap-2">
-                              <Share2 className="w-4 h-4" />
+                            <span className="flex items-center justify-center gap-3">
+                              <Share2 className="w-5 h-5" />
                               {language === 'en' ? 'Share' : '分享'}
                             </span>
                           </Button>
@@ -2336,6 +2265,8 @@ export default function ResultsPage({ id }: { id: string }) {
         currentTemplate={selectedTemplate}
         isVIP={isVIP}
         currentHideWatermark={hideWatermark}
+        onSaveAsImage={saveAsImage}
+        isSaving={isSaving}
       />
     </>
   )

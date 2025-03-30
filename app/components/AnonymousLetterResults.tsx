@@ -44,7 +44,7 @@ const TEMPLATES = {
   classic: {
     name: 'Classic Dark',
     style: {
-      width: 1200,
+      width: 800,
       padding: 80,
       background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)',
       titleFont: '"Cormorant Garamond", serif',
@@ -55,7 +55,7 @@ const TEMPLATES = {
   postcard: {
     name: 'Postcard',
     style: {
-      width: 1200,
+      width: 800,
       padding: 60,
       background: 'linear-gradient(to right, #f9f7f7 0%, #ffffff 100%)',
       titleFont: '"Playfair Display", serif',
@@ -66,7 +66,7 @@ const TEMPLATES = {
   magazine: {
     name: 'Magazine',
     style: {
-      width: 1200,
+      width: 800,
       padding: 80,
       background: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)',
       titleFont: '"Playfair Display", serif',
@@ -77,7 +77,7 @@ const TEMPLATES = {
   artisan: {
     name: 'Artisan Red',
     style: {
-      width: 1200,
+      width: 800,
       padding: 60,
       background: 'url(/images/artisan-red-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -88,7 +88,7 @@ const TEMPLATES = {
   natural: {
     name: 'Natural Parchment',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/natural-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -99,7 +99,7 @@ const TEMPLATES = {
   darkWine: {
     name: 'Dark Wine',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/dark-wine-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -110,7 +110,7 @@ const TEMPLATES = {
   paperMemo: {
     name: 'Paper Memoir',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/annie-spratt-fDghTk7Typw-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -121,7 +121,7 @@ const TEMPLATES = {
   oceanBreeze: {
     name: 'Ocean Breeze',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -132,7 +132,7 @@ const TEMPLATES = {
   darkCrimson: {
     name: 'Dark Crimson',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/sufyan-eRpeXTJEgMw-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -143,7 +143,7 @@ const TEMPLATES = {
   purpleDream: {
     name: 'Purple Dream',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -154,7 +154,7 @@ const TEMPLATES = {
   elegantPaper: {
     name: 'Elegant Paper',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/lunelle-B-9i06FP0SI-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -165,7 +165,7 @@ const TEMPLATES = {
   roseParchment: {
     name: 'Rose Parchment',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -1864,7 +1864,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
       <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black overflow-x-hidden">
         <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
           <div className="relative min-h-screen flex flex-col items-center justify-center py-10">
-            <div className="w-full max-w-4xl space-y-12">
+            <div className="w-full max-w-[800px] space-y-12">
               {/* 标题占位 */}
               <div className="h-16 w-96 mx-auto bg-white/5 rounded-lg animate-pulse" />
               
@@ -1974,7 +1974,7 @@ export default function AnonymousLetterResults({ id, isAnonymous = false }: { id
 
              {/* 内容部分 */}
              <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-10">
-               <div className="w-full max-w-4xl">
+               <div className="w-full max-w-[800px] space-y-12">
                  <AnimatePresence mode="wait">
                    <motion.div
                      ref={contentRef}

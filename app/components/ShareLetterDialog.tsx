@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Check, Copy, Loader2, RefreshCw } from 'lucide-react'
+import { Check, Copy, Download, Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface ShareStatus {
@@ -27,14 +27,18 @@ export function ShareLetterDialog({
   letterId, 
   currentTemplate,
   isVIP = false,
-  currentHideWatermark = false
+  currentHideWatermark = false,
+  onSaveAsImage,
+  isSaving = false
 }: { 
   isOpen: boolean,
   onClose: () => void,
   letterId: string,
   currentTemplate: string,
   isVIP?: boolean,
-  currentHideWatermark?: boolean
+  currentHideWatermark?: boolean,
+  onSaveAsImage?: () => void,
+  isSaving?: boolean
 }) {
   const { language } = useLanguage()
   const [shareUrl, setShareUrl] = useState('')
@@ -376,6 +380,34 @@ export function ShareLetterDialog({
                 ? 'Anyone with this link can view your letter' 
                 : '任何人都可以通过此链接查看你的信件'}
             </p>
+            
+            <div className="pt-4 mt-4 border-t">
+              <p className="text-sm text-muted-foreground mb-3">
+                {language === 'en' 
+                  ? 'Save your letter as an image' 
+                  : '将你的信件保存为图片'}
+              </p>
+              <Button
+                variant="outline"
+                className="w-full rounded-full px-4 py-2 bg-white/20 text-primary border-primary/30 hover:bg-primary/10 hover:border-primary/50 hover:text-primary hover:shadow-md backdrop-blur-md transition-all duration-300"
+                onClick={onSaveAsImage}
+                disabled={isSaving}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  {isSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      {language === 'en' ? 'Generating...' : '生成中...'}
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      {language === 'en' ? 'Save as Image' : '保存为图片'}
+                    </>
+                  )}
+                </span>
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

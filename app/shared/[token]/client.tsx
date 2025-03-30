@@ -31,7 +31,7 @@ const TEMPLATES = {
   classic: {
     name: 'Classic Dark',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'linear-gradient(180deg, #000000 0%, #1c1c1c 50%, #000000 100%)',
       titleFont: '"Source Serif Pro", serif',
@@ -41,7 +41,7 @@ const TEMPLATES = {
   postcard: {
     name: 'Postcard',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: '#f9f7f7',
       titleFont: '"Source Serif Pro", serif',
@@ -51,7 +51,7 @@ const TEMPLATES = {
   magazine: {
     name: 'Magazine',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: '#ffffff',
       titleFont: '"Source Serif Pro", serif',
@@ -61,7 +61,7 @@ const TEMPLATES = {
   artisan: {
     name: 'Artisan',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/artisan-red-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -71,7 +71,7 @@ const TEMPLATES = {
   natural: {
     name: 'Natural',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/natural-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -81,7 +81,7 @@ const TEMPLATES = {
   darkWine: {
     name: 'Dark Wine',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/dark-wine-bg.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -91,7 +91,7 @@ const TEMPLATES = {
   paperMemo: {
     name: 'Paper Memoir',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/annie-spratt-fDghTk7Typw-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -101,7 +101,7 @@ const TEMPLATES = {
   oceanBreeze: {
     name: 'Ocean Breeze',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/pawel-czerwinski-YUGf6Hs1F3A-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -111,7 +111,7 @@ const TEMPLATES = {
   darkCrimson: {
     name: 'Dark Crimson',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/sufyan-eRpeXTJEgMw-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -121,7 +121,7 @@ const TEMPLATES = {
   purpleDream: {
     name: 'Purple Dream',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/efe-kurnaz-RnCPiXixooY-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -131,7 +131,7 @@ const TEMPLATES = {
   elegantPaper: {
     name: 'Elegant Paper',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/lunelle-B-9i06FP0SI-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -141,7 +141,7 @@ const TEMPLATES = {
   roseParchment: {
     name: 'Rose Parchment',
     style: {
-      width: 1173,
+      width: 800,
       padding: 49,
       background: 'url(/images/andrei-j-castanha-V8GVT2XQ5oc-unsplash.jpg) no-repeat center center / cover',
       titleFont: '"Source Serif Pro", serif',
@@ -267,7 +267,7 @@ export default function SharedLetterClient({ token }: Props) {
         >
           <div className="max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8">
             <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-10">
-              <div className="w-full max-w-4xl space-y-12">
+              <div className="w-full max-w-[800px] space-y-12">
                 {/* 标题占位 */}
                 <div className="h-16 w-96 mx-auto bg-white/5 rounded-lg animate-pulse" />
                 
@@ -392,7 +392,7 @@ export default function SharedLetterClient({ token }: Props) {
           <div className="relative min-h-screen">
             {/* 内容部分 */}
             <div className="relative z-10 min-h-screen flex flex-col items-center justify-center py-10">
-              <div className="w-full max-w-4xl">
+              <div className="w-full max-w-[800px]">
                 <AnimatePresence mode="wait">
                   <motion.div
                     ref={contentRef}
