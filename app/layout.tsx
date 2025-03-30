@@ -11,7 +11,66 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Behind Memory - AI Memory Generator',
-  description: 'Turn Photos into Letters, Memories into Words',
+  description: 'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
+  keywords: 'AI letter writing, memory generator, photo to letter, express feelings, heartfelt letter, love letter, personal letter',
+  authors: [{ name: 'Behind Memory Team' }],
+  generator: 'Next.js',
+  applicationName: 'Behind Memory',
+  referrer: 'origin-when-cross-origin',
+  creator: 'Behind Memory',
+  publisher: 'Behind Memory',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://behindmemo.com'),
+  alternates: {
+    canonical: '/',
+    languages: {
+      'en-US': '/',
+      'zh-CN': '/zh'
+    },
+  },
+  openGraph: {
+    title: 'Behind Memory - AI Memory Generator',
+    description: 'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
+    url: 'https://behindmemo.com',
+    siteName: 'Behind Memory',
+    images: [
+      {
+        url: 'https://behindmemo.com/images/og-image.jpg', // 替换为实际OG图片
+        width: 1200,
+        height: 630,
+        alt: 'Behind Memory - Turn Photos into Letters',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Behind Memory - AI Memory Generator',
+    description: 'Turn Photos into Letters, Memories into Words',
+    images: ['https://behindmemo.com/images/og-image.jpg'], // 替换为实际Twitter卡片图片
+  },
+  robots: {
+    index: true,
+    follow: true,
+    nocache: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: [
+      { url: '/apple-icon.png' }, // 需要添加实际图标
+    ],
+  },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

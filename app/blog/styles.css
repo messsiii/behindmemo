@@ -1,45 +1,61 @@
-/* 博客统一样式 */
+/* 博客统一样式 - Medium风格 */
+
+/* 导入适合的字体 */
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
 
 /* 主要文本样式 */
 .blog-content {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #333;
-  line-height: 1.8;
+  font-family: 'Source Serif Pro', Georgia, Cambria, "Times New Roman", Times, serif;
+  color: #242424;
+  line-height: 1.58;
+  letter-spacing: -0.004em;
+  word-break: break-word;
+  word-wrap: break-word;
+  font-weight: 400;
+  font-style: normal;
 }
 
 /* 段落样式 */
 .blog-content p {
-  margin-bottom: 1.5rem;
-  font-size: 1.125rem;
-  line-height: 1.8;
+  margin-bottom: 2rem;
+  font-size: 20px;
+  line-height: 1.58;
+  letter-spacing: -0.003em;
+  font-family: 'Source Serif Pro', Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 /* 标题样式 */
 .blog-content h1 {
   font-size: 2.5rem;
   font-weight: 700;
-  margin-top: 2.5rem;
-  margin-bottom: 1.5rem;
+  margin-top: 3.5rem;
+  margin-bottom: 1.2rem;
   line-height: 1.3;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: -0.015em;
+  font-family: medium-content-sans-serif-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  color: rgba(0, 0, 0, 0.84);
 }
 
 .blog-content h2 {
-  font-size: 2rem;
+  font-size: 1.9rem;
   font-weight: 700;
-  margin-top: 2.5rem;
-  margin-bottom: 1.25rem;
-  line-height: 1.4;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  margin-top: 3.5rem;
+  margin-bottom: 1.2rem;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  font-family: medium-content-sans-serif-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  color: rgba(0, 0, 0, 0.84);
 }
 
 .blog-content h3 {
   font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 2rem;
+  font-weight: 600;
+  margin-top: 2.5rem;
   margin-bottom: 1rem;
-  line-height: 1.5;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.4;
+  letter-spacing: -0.009em;
+  font-family: medium-content-sans-serif-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  color: rgba(0, 0, 0, 0.84);
 }
 
 /* 强调文本 */
@@ -50,50 +66,67 @@
 .blog-content em.highlight {
   font-style: normal;
   font-weight: 600;
-  color: #3b82f6;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: rgba(0, 0, 0, 0.84);
+  font-family: 'Source Serif Pro', Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 /* 列表样式 */
 .blog-content ul, .blog-content ol {
-  margin-bottom: 1.5rem;
-  padding-left: 1.5rem;
+  margin-bottom: 2rem;
+  padding-left: 2rem;
 }
 
 .blog-content li {
-  margin-bottom: 0.5rem;
-  line-height: 1.7;
+  margin-bottom: 0.75rem;
+  line-height: 1.58;
+  font-size: 20px;
+  letter-spacing: -0.003em;
 }
 
 /* 链接样式 */
 .blog-content a {
-  color: #3b82f6;
-  font-weight: 500;
+  color: #1A8917;
   text-decoration: none;
-  transition: all 0.2s ease;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-image: linear-gradient(transparent, transparent 4px, #1A8917 4px, #1A8917);
+  background-size: 0% 2px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.3s;
+  font-family: 'Source Serif Pro', Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
 .blog-content a:hover {
-  text-decoration: underline;
+  background-size: 100% 2px;
+  text-decoration: none;
 }
 
 /* 引用样式 */
 .blog-content blockquote {
-  border-left: 4px solid #3b82f6;
-  padding-left: 1rem;
-  margin-left: 0;
+  border-left: 3px solid rgba(0, 0, 0, 0.84);
+  padding-left: 20px;
+  margin-left: -23px;
+  padding-bottom: 2px;
   margin-right: 0;
   font-style: italic;
-  color: #4b5563;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: rgba(0, 0, 0, 0.68);
+  font-family: 'Source Serif Pro', Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+.blog-content blockquote p {
+  margin-bottom: 0;
+  font-size: 20px;
 }
 
 /* 图片容器 */
 .blog-content .image-container {
-  margin: 2rem 0;
-  border-radius: 0.5rem;
-  overflow: hidden;
+  margin: 2.5rem auto;
+  max-width: 700px;
+  width: 100%;
+}
+
+.blog-content .image-container img {
+  width: 100%;
+  height: auto;
 }
 
 /* 文章元数据 */
@@ -102,24 +135,53 @@
   align-items: center;
   gap: 1rem;
   font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 2rem;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: rgba(0, 0, 0, 0.54);
+  margin-bottom: 3rem;
+  font-family: medium-content-sans-serif-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 }
 
 /* 文章标题 */
 .blog-title {
-  font-size: 2.5rem;
-  font-weight: 800;
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 0.8rem;
+  color: rgba(0, 0, 0, 0.84);
+  letter-spacing: -0.015em;
+  font-family: medium-content-sans-serif-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
+
+/* 文章副标题 */
+.blog-subtitle {
+  font-size: 1.5rem;
+  line-height: 1.4;
+  color: rgba(0, 0, 0, 0.68);
+  margin-bottom: 2rem;
+  font-weight: 400;
+  font-family: 'Source Serif Pro', Georgia, Cambria, "Times New Roman", Times, serif;
+  letter-spacing: -0.004em;
+}
+
+/* 首个字母放大 */
+.blog-content p:first-of-type::first-letter {
+  font-size: 1.875em;
   line-height: 1.2;
-  margin-bottom: 1rem;
-  color: #111827;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 600;
+  float: left;
+  margin-right: 0.3em;
 }
 
 @media (max-width: 768px) {
   .blog-title {
-    font-size: 2rem;
+    font-size: 2.2rem;
+  }
+  
+  .blog-subtitle {
+    font-size: 1.3rem;
+  }
+  
+  .blog-content p, .blog-content li {
+    font-size: 18px;
   }
   
   .blog-content h1 {
@@ -127,10 +189,10 @@
   }
   
   .blog-content h2 {
-    font-size: 1.75rem;
+    font-size: 1.7rem;
   }
   
   .blog-content h3 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
 } 
