@@ -11,7 +11,6 @@ interface GpsData {
 
 interface ImageMetadata {
   location?: string
-  uploadTime?: string
   orientation?: string
   gps?: GpsData
   context?: {
@@ -66,17 +65,9 @@ Name of recipient: "${metadata?.loverName || 'My Love'}"
 Our story:
 ${prompt}`
 
-  // 添加照片信息，确保原始拍摄时间和地点被包含
+  // 添加照片信息，确保原始拍摄地点被包含
   if (metadata) {
     const photoInfo = []
-
-    // 添加拍摄时间（如果有）
-    if (metadata.uploadTime) {
-      const date = new Date(metadata.uploadTime)
-      if (!isNaN(date.getTime())) {
-        photoInfo.push(`Time: ${date.toISOString()}`)
-      }
-    }
 
     // 添加地理位置信息（保留原始地址）
     if (metadata.location) {

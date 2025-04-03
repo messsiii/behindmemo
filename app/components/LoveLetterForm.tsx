@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { reverseGeocode } from '@/lib/geocode'
 import { cn } from '@/lib/utils'
 import exifr from 'exifr'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -407,18 +408,41 @@ export default function LoveLetterForm() {
       // @ts-expect-error - File对象不支持自定义属性，标记照片来源
       const isRestoredPhoto = !!file.isRestoredFromCompressed;
       
+      // 获取GPS坐标的明文地址信息
+      let locationInfo = null;
+      if (exifData?.gps?.latitude && exifData?.gps?.longitude) {
+        try {
+          console.log(`尝试将GPS坐标转换为地址信息...`);
+          locationInfo = await reverseGeocode(
+            exifData.gps.latitude, 
+            exifData.gps.longitude,
+            language // 使用当前语言获取地址信息
+          );
+          
+          if (locationInfo) {
+            console.log(`地址转换成功: ${locationInfo.address}`);
+          } else {
+            console.log(`地址转换未返回结果`);
+          }
+        } catch (geoError) {
+          console.error('地址转换失败:', geoError);
+        }
+      }
+      
       const metadata = {
-        // 只保留方向信息和时间信息
+        // 只保留方向信息
         orientation: exifData?.Orientation,
-        // GPS信息做最小化处理，只保留坐标
+        // GPS信息包含坐标和明文地址
         gps: exifData?.gps?.latitude && exifData?.gps?.longitude ? {
           coordinates: {
             latitude: exifData.gps.latitude,
             longitude: exifData.gps.longitude,
-          }
+          },
+          // 添加明文地址信息
+          address: locationInfo?.address || '',
+          components: locationInfo?.components || {},
         } : undefined,
-        // 只保留日期时间，不包含其他EXIF信息
-        uploadTime: exifData?.DateTimeOriginal || new Date().toISOString(),
+        // 移除日期时间信息，只保留位置信息
         // 简化上下文信息，减少传输数据量
         context: {
           // 只保留简化的设备信息
@@ -470,7 +494,7 @@ export default function LoveLetterForm() {
       console.error('Upload error:', error)
       throw error
     }
-  }, [])
+  }, [language])
 
   const handleSubmitSuccess = useCallback(() => {
     // 清除临时表单数据
