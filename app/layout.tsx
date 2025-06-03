@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/react'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { Inter } from 'next/font/google'
+import StagewiseWrapper from './components/StagewiseWrapper'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -89,6 +90,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers session={session}>{children}</Providers>
         <Analytics />
         <GoogleAnalytics />
+        <StagewiseWrapper />
       </body>
     </html>
   )

@@ -42,6 +42,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: '**.googleusercontent.com',
       },
+      {
+        protocol: 'https',
+        hostname: '**.replicate.delivery',
+      },
     ],
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',

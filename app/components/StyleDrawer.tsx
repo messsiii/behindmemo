@@ -178,8 +178,9 @@ export function StyleDrawer({
             stiffness: 200,
             mass: 0.8 
           }}
-          className="bg-gradient-to-b from-black/90 to-black/80 backdrop-blur-xl border-t border-l border-r border-white/10 rounded-t-xl overflow-hidden"
+          className="backdrop-blur-xl border-t border-l border-r border-white/10 rounded-t-xl overflow-hidden"
           style={{ 
+            background: 'rgba(0, 0, 0, 0.85)', // 使用内联样式确保背景色显示
             boxShadow: '0 -10px 25px rgba(0,0,0,0.2)',
             maxHeight: isMobile ? 'calc(75vh + 36px)' : 'calc(60vh + 36px)', // 移动设备上增加高度
             willChange: 'transform'
@@ -188,6 +189,7 @@ export function StyleDrawer({
           {/* 抽屉把手与标题区域 - 始终可见部分 */}
           <div 
             className="h-9 cursor-pointer flex items-center justify-center relative pointer-events-auto"
+            style={{ background: 'rgba(0, 0, 0, 0.85)' }} // 与内容区域保持一致的背景色
             onClick={(e) => {
               e.stopPropagation()
               onToggle()
@@ -230,7 +232,10 @@ export function StyleDrawer({
               "overflow-y-auto scrollbar-none",
               isShown ? "pointer-events-auto" : "pointer-events-none"
             )}
-            style={{ maxHeight: isMobile ? 'calc(75vh)' : 'calc(60vh)' }}
+            style={{ 
+              maxHeight: isMobile ? 'calc(75vh)' : 'calc(60vh)',
+              background: 'rgba(0, 0, 0, 0.85)' // 确保内容区域也有背景色
+            }}
           >
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden opacity-10 pointer-events-none">
@@ -553,10 +558,7 @@ export function StyleDrawer({
                           
                           {/* 模板标题 */}
                           <div
-                            className={cn(
-                              "absolute top-2 left-0 right-0 text-center px-2 font-semibold",
-                              (key === 'classic' || key === 'darkWine' || key === 'paperMemo' || key === 'oceanBreeze' || key === 'darkCrimson' || key === 'purpleDream') ? "text-white" : "text-black" 
-                            )}
+                            className="absolute top-2 left-0 right-0 text-center px-2 font-semibold text-white"
                             style={{
                               fontFamily: template.style.titleFont,
                               fontSize: '9px',

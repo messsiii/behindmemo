@@ -1,0 +1,102 @@
+import { put } from '@vercel/blob'
+import sharp from 'sharp'
+
+interface DownloadToBlobOptions {
+  filename?: string
+  optimize?: boolean
+  maxWidth?: number
+  maxHeight?: number
+  quality?: number
+}
+
+/**
+ * 下载外部图片URL并保存到Vercel Blob存储
+ * @param imageUrl 要下载的图片URL
+ * @param options 配置选项
+ * @returns Promise<string> 返回Blob存储的URL
+ */
+export async function downloadImageToBlob(
+  imageUrl: string,
+  options: DownloadToBlobOptions = {}
+): Promise<string> {
+  const {
+    filename = `image-${Date.now()}.jpg`,
+    optimize = false, // 默认不优化，加快处理速度
+    quality = 80,
+  } = options
+
+  try {
+    console.log(`下载图片: ${imageUrl}`)
+    
+    // 下载图片
+    const response = await fetch(imageUrl)
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    let finalBuffer = Buffer.from(arrayBuffer)
+    let contentType = response.headers.get('content-type') || 'image/jpeg'
+    
+    console.log(`下载完成，大小: ${(finalBuffer.length / 1024 / 1024).toFixed(2)}MB`)
+
+    // 简单优化（如果启用）
+    if (optimize && finalBuffer.length > 1024 * 1024) { // 只对大于1MB的图片优化
+      try {
+        finalBuffer = await sharp(finalBuffer)
+          .jpeg({ quality, progressive: true })
+          .toBuffer()
+        contentType = 'image/jpeg'
+        console.log(`优化完成，新大小: ${(finalBuffer.length / 1024 / 1024).toFixed(2)}MB`)
+      } catch (optimizeError) {
+        console.warn('优化失败，使用原始图片:', optimizeError)
+      }
+    }
+
+    // 上传到Vercel Blob
+    const blob = await put(filename, finalBuffer, {
+      access: 'public',
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+      contentType,
+      addRandomSuffix: true,
+    })
+
+    console.log(`上传成功: ${blob.url}`)
+    return blob.url
+
+  } catch (error) {
+    console.error('下载失败:', error)
+    throw new Error(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
+ * 批量下载图片到Blob存储
+ * @param imageUrls 图片URL数组
+ * @param options 配置选项
+ * @returns Promise<string[]> 返回Blob存储URL数组
+ */
+export async function downloadImagesToBlob(
+  imageUrls: string[],
+  options: DownloadToBlobOptions = {}
+): Promise<string[]> {
+  const results: string[] = []
+  
+  for (let i = 0; i < imageUrls.length; i++) {
+    const imageUrl = imageUrls[i]
+    try {
+      const blobUrl = await downloadImageToBlob(imageUrl, {
+        ...options,
+        filename: options.filename || `image-${Date.now()}-${i}.jpg`,
+      })
+      results.push(blobUrl)
+    } catch (error) {
+      console.error(`下载第${i + 1}张图片失败:`, error)
+      // 对于失败的图片，保留原始URL
+      results.push(imageUrl)
+    }
+  }
+  
+  return results
+} 

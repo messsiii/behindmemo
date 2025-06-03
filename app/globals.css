@@ -162,3 +162,34 @@ img {
   bottom: 0;
   left: 0;
 }
+
+/* 保护性样式 - 防止第三方插件覆盖关键的渐变效果 */
+@layer utilities {
+  /* 主要品牌渐变保护 */
+  .bg-gradient-to-r.from-\[\#738fbd\].to-\[\#cc8eb1\] {
+    background-image: linear-gradient(to right, #738fbd, #cc8eb1) !important;
+  }
+  
+  .bg-gradient-to-r.from-\[\#738fbd\].via-\[\#db88a4\].to-\[\#cc8eb1\] {
+    background-image: linear-gradient(to right, #738fbd, #db88a4, #cc8eb1) !important;
+  }
+  
+  /* 文字渐变保护 */
+  .bg-gradient-to-r.bg-clip-text.text-transparent {
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    color: transparent !important;
+  }
+  
+  /* 按钮渐变保护 */
+  .bg-gradient-to-r.from-\[\#738fbd\].to-\[\#cc8eb1\].text-white {
+    background-image: linear-gradient(to right, #738fbd, #cc8eb1) !important;
+    color: white !important;
+  }
+  
+  /* 标签渐变保护 */
+  span.bg-gradient-to-r.from-\[\#738fbd\].to-\[\#cc8eb1\].text-white {
+    background-image: linear-gradient(to right, #738fbd, #cc8eb1) !important;
+    color: white !important;
+  }
+}

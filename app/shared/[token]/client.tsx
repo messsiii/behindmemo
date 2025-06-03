@@ -33,7 +33,7 @@ const TEMPLATES = {
     style: {
       width: 800,
       padding: 49,
-      background: 'linear-gradient(180deg, #000000 0%, #1c1c1c 50%, #000000 100%)',
+      background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)',
       titleFont: '"Source Serif Pro", serif',
       contentFont: '"Source Serif Pro", serif',
     },
@@ -230,7 +230,7 @@ export default function SharedLetterClient({ token }: Props) {
       // 针对非图片背景模板
       switch(template) {
         case 'classic':
-          return "bg-gradient-to-b from-black via-gray-900 to-black";
+          return "bg-gradient-to-br from-black via-[#1a1a1a] to-black";
         case 'postcard':
           return "bg-[#f9f7f7]";
         case 'magazine':

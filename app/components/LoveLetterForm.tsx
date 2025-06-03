@@ -1407,7 +1407,7 @@ export default function LoveLetterForm() {
   }, [handleKeyPress])
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full max-w-[800px]">
       <form onSubmit={handleSubmit} className="relative" noValidate>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -1468,7 +1468,7 @@ export default function LoveLetterForm() {
                         } as any)
                       }}
                       selectedFile={formData[currentQuestion.field] instanceof File ? formData[currentQuestion.field] as File : null}
-                      className="w-full max-w-2xl mx-auto"
+                      className="w-full max-w-[800px] mx-auto"
                     />
                   </div>
                 ) : (

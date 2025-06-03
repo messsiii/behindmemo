@@ -30,6 +30,7 @@ export function Nav() {
 
   const links = [
     { href: '/write', label: language === 'en' ? 'Write' : '写信' },
+    { href: '/gen', label: language === 'en' ? 'AI Images' : 'AI 图像' },
     ...(status === 'authenticated' ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }] : []),
     { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
     { href: '/blog', label: language === 'en' ? 'Blog' : '博客' },
