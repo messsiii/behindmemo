@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
         
         // 直接上传到 Blob 存储
         const { put } = await import('@vercel/blob')
-        const blob = await put(`flux-generated-${generationRecord.id}.png`, imageBuffer, {
+        const blob = await put(`flux-generated-${generationRecord.id}.png`, Buffer.from(imageBuffer), {
           access: 'public',
           token: process.env.BLOB_READ_WRITE_TOKEN,
           contentType: 'image/png',
@@ -161,23 +161,26 @@ export async function POST(request: NextRequest) {
         blobUrl = blob.url
         console.log('Image uploaded to Blob storage:', blobUrl)
         
-      } else if (Array.isArray(output) && output.length > 0) {
-        // 如果是数组URL
-        const imageUrl = String(output[0])
-        console.log('Processing array output URL:', imageUrl)
+      } else {
+        // 处理其他类型的输出 - 使用类型断言
+        const outputData = output as any
+        let imageUrl: string
+        
+        if (Array.isArray(outputData) && outputData.length > 0) {
+          // 如果是数组URL
+          imageUrl = String(outputData[0])
+          console.log('Processing array output URL:', imageUrl)
+        } else if (typeof outputData === 'string' && String(outputData).startsWith('http')) {
+          // 如果是字符串URL
+          imageUrl = String(outputData)
+          console.log('Processing string URL:', outputData)
+        } else {
+          throw new Error(`Unsupported output format: ${typeof outputData}, value: ${JSON.stringify(outputData)}`)
+        }
+        
         blobUrl = await downloadImageToBlob(imageUrl, {
           filename: `flux-generated-${generationRecord.id}.jpg`,
         })
-        
-      } else if (typeof output === 'string' && output.startsWith('http')) {
-        // 如果是字符串URL
-        console.log('Processing string URL:', output)
-        blobUrl = await downloadImageToBlob(output, {
-          filename: `flux-generated-${generationRecord.id}.jpg`,
-        })
-        
-      } else {
-        throw new Error(`Unsupported output format: ${typeof output}`)
       }
 
       // 更新生成记录为完成状态
@@ -246,42 +249,5 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error' },
       { status: 500 }
     )
-  }
-}
-
-// 辅助函数：将base64图片上传到云存储
-async function uploadBase64ToCloud(base64Data: string): Promise<string> {
-  try {
-    // 如果您使用 Vercel Blob
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      const { put } = await import('@vercel/blob')
-      
-      // 解析base64数据
-      const matches = base64Data.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
-      if (!matches) {
-        throw new Error('Invalid base64 image format')
-      }
-      
-      const [, extension, data] = matches
-      const buffer = Buffer.from(data, 'base64')
-      
-      // 生成唯一文件名
-      const filename = `flux-input-${Date.now()}.${extension}`
-      
-      // 上传到Vercel Blob
-      const blob = await put(filename, buffer, {
-        access: 'public',
-      })
-      
-      return blob.url
-    }
-    
-    // 如果没有配置云存储，返回原始base64（可能有大小限制）
-    return base64Data
-    
-  } catch (error) {
-    console.error('Error uploading image to cloud:', error)
-    // 回退到原始base64
-    return base64Data
   }
 } 

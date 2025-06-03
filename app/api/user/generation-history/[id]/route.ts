@@ -4,8 +4,8 @@ import { getServerSession } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authConfig)
@@ -17,6 +17,7 @@ export async function DELETE(
       )
     }
 
+    const params = await context.params
     const recordId = params.id
 
     // 验证记录是否存在且属于当前用户
