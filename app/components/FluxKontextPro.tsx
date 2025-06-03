@@ -6,9 +6,25 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import {
+    formatFileSize,
+    getImageDimensions,
+    isValidImageFile,
+    resizeImageTo1080p
+} from '@/lib/imageUtils'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { Download, Home, Image as ImageIcon, Loader2, Sparkles, Upload, Wand2 } from 'lucide-react'
+import {
+    Download,
+    Home,
+    Image as ImageIcon,
+    Info,
+    Loader2,
+    Scissors,
+    Sparkles,
+    Upload,
+    Wand2
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -21,6 +37,14 @@ interface CreditsInfo {
   credits: number
   isVIP: boolean
   vipExpiresAt: string | null
+}
+
+// 图片信息接口
+interface ImageInfo {
+  originalDimensions?: { width: number; height: number }
+  processedDimensions?: { width: number; height: number }
+  originalSize?: number
+  processedSize?: number
 }
 
 // 数据获取函数
@@ -40,6 +64,9 @@ export default function FluxKontextPro() {
   const [outputImage, setOutputImage] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [isProcessingImage, setIsProcessingImage] = useState(false)
+  const [imageInfo, setImageInfo] = useState<ImageInfo>({})
+  const [isMobile, setIsMobile] = useState(false)
 
   // 获取用户积分信息
   const {
@@ -55,16 +82,35 @@ export default function FluxKontextPro() {
     }
   )
 
+  // 检测移动设备
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent))
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   // 页面加载时恢复保存的状态
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedPrompt = localStorage.getItem('flux_prompt')
       const savedInputImage = localStorage.getItem('flux_input_image')
       const savedOutputImage = localStorage.getItem('flux_output_image')
+      const savedImageInfo = localStorage.getItem('flux_image_info')
       
       if (savedPrompt) setPrompt(savedPrompt)
       if (savedInputImage) setInputImage(savedInputImage)
       if (savedOutputImage) setOutputImage(savedOutputImage)
+      if (savedImageInfo) {
+        try {
+          setImageInfo(JSON.parse(savedImageInfo))
+        } catch (e) {
+          setImageInfo({})
+        }
+      }
     }
   }, [])
 
@@ -74,34 +120,130 @@ export default function FluxKontextPro() {
       localStorage.setItem('flux_prompt', prompt)
       if (inputImage) localStorage.setItem('flux_input_image', inputImage)
       if (outputImage) localStorage.setItem('flux_output_image', outputImage)
+      localStorage.setItem('flux_image_info', JSON.stringify(imageInfo))
     }
-  }, [prompt, inputImage, outputImage])
+  }, [prompt, inputImage, outputImage, imageInfo])
 
   // 实时保存状态
   useEffect(() => {
     saveState()
   }, [saveState])
 
+  // 处理图片文件
+  const processImageFile = useCallback(async (file: File) => {
+    // 在开始新的处理前，清理之前的输出图片
+    setOutputImage(null)
+    setIsProcessingImage(true)
+    
+    // 清理可能存在的旧图片内存
+    if (typeof window !== 'undefined') {
+      // 强制垃圾回收（如果可用）
+      if (window.gc) {
+        window.gc()
+      }
+    }
+    
+    try {
+      // 验证文件格式
+      if (!isValidImageFile(file)) {
+        throw new Error(language === 'en' ? 'Please select a valid image file' : '请选择有效的图片文件')
+      }
+
+      // 获取原始尺寸
+      const originalDimensions = await getImageDimensions(file)
+      const originalSize = file.size
+
+      // 调整图片尺寸
+      const resizedBase64 = await resizeImageTo1080p(file)
+      
+      // 计算处理后的大小（base64大约比二进制大37%）
+      const processedSize = Math.round(resizedBase64.length / 1.37)
+      
+      // 计算处理后的尺寸（从base64获取）
+      const processedDimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        if (typeof window === 'undefined') {
+          // 服务器端无法处理图片，返回默认尺寸
+          resolve({ width: 1920, height: 1080 })
+          return
+        }
+        
+        const img = new window.Image()
+        
+        // 设置超时，避免永久挂起
+        const timeout = setTimeout(() => {
+          img.onload = null
+          img.onerror = null
+          reject(new Error('Image processing timeout'))
+        }, 10000) // 10秒超时
+        
+        img.onload = () => {
+          clearTimeout(timeout)
+          resolve({ width: img.width, height: img.height })
+          // 清理Image对象
+          img.onload = null
+          img.onerror = null
+          img.src = ''
+        }
+        img.onerror = () => {
+          clearTimeout(timeout)
+          img.onload = null
+          img.onerror = null
+          reject(new Error('Failed to load processed image'))
+        }
+        img.src = resizedBase64
+      })
+
+      const newImageInfo: ImageInfo = {
+        originalDimensions,
+        processedDimensions,
+        originalSize,
+        processedSize,
+      }
+
+      // 批量更新状态，避免多次渲染
+      setInputImage(resizedBase64)
+      setImageInfo(newImageInfo)
+
+      toast({
+        title: language === 'en' ? 'Image processed successfully!' : '图片处理成功！',
+        description: language === 'en' 
+          ? `Resized from ${originalDimensions.width}×${originalDimensions.height} to ${processedDimensions.width}×${processedDimensions.height}`
+          : `已从 ${originalDimensions.width}×${originalDimensions.height} 调整为 ${processedDimensions.width}×${processedDimensions.height}`,
+      })
+
+    } catch (error) {
+      console.error('Image processing error:', error)
+      
+      // 处理失败时清理状态
+      setInputImage(null)
+      setImageInfo({})
+      
+      toast({
+        title: language === 'en' ? 'Image processing failed' : '图片处理失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProcessingImage(false)
+    }
+  }, [language])
+
   // 文件上传处理
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB限制
+      if (file.size > 50 * 1024 * 1024) { // 50MB限制
         toast({
           title: language === 'en' ? 'File too large' : '文件过大',
-          description: language === 'en' ? 'Please select an image smaller than 10MB' : '请选择小于10MB的图片',
+          description: language === 'en' ? 'Please select an image smaller than 50MB' : '请选择小于50MB的图片',
           variant: 'destructive',
         })
         return
       }
 
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setInputImage(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+      processImageFile(file)
     }
-  }, [language])
+  }, [language, processImageFile])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -137,6 +279,8 @@ export default function FluxKontextPro() {
     setOutputImage(null)
 
     try {
+      console.log('Starting image generation...')
+      
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: {
@@ -146,12 +290,22 @@ export default function FluxKontextPro() {
           prompt: prompt.trim(),
           input_image: inputImage,
         }),
+        // 添加超时处理
+        signal: AbortSignal.timeout(300000), // 5分钟超时
       })
 
-      const data = await response.json()
+      console.log('API response status:', response.status)
 
       if (!response.ok) {
-        throw new Error(data.error || 'Generation failed')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown API error' }))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('Generation successful, received data')
+
+      if (!data.output) {
+        throw new Error('No output received from API')
       }
 
       setOutputImage(data.output)
@@ -166,19 +320,41 @@ export default function FluxKontextPro() {
     } catch (error) {
       console.error('Generation error:', error)
       
-      // 生成失败时自动刷新页面并保存状态
-      saveState()
+      // 根据错误类型提供不同的处理
+      const errorMessage = language === 'en' ? 'Generation failed' : '生成失败'
+      let errorDescription = language === 'en' ? 'Please try again' : '请重试'
+      let shouldRefresh = false
+      
+      if (error instanceof Error) {
+        if (error.name === 'TimeoutError') {
+          errorDescription = language === 'en' ? 'Request timed out. Please try again.' : '请求超时，请重试。'
+        } else if (error.message.includes('fetch')) {
+          errorDescription = language === 'en' ? 'Network error. Please check your connection.' : '网络错误，请检查连接。'
+        } else if (error.message.includes('memory') || error.message.includes('Memory')) {
+          errorDescription = language === 'en' ? 'Memory error. Page will refresh to free memory.' : '内存错误，页面将刷新以释放内存。'
+          shouldRefresh = true
+        } else {
+          errorDescription = error.message
+        }
+      }
       
       toast({
-        title: language === 'en' ? 'Generation failed' : '生成失败',
-        description: language === 'en' ? 'Credits have been refunded. The page will refresh.' : '积分已退还，页面将自动刷新。',
+        title: errorMessage,
+        description: errorDescription + (shouldRefresh ? (language === 'en' ? ' Refreshing...' : ' 正在刷新...') : ''),
         variant: 'destructive',
       })
 
-      // 延迟刷新页面，让用户看到错误消息
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
+      // 只在必要时刷新页面
+      if (shouldRefresh) {
+        // 保存状态
+        saveState()
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      } else {
+        // 刷新积分信息以防状态不一致
+        mutateCredits()
+      }
     } finally {
       setIsGenerating(false)
     }
@@ -197,16 +373,69 @@ export default function FluxKontextPro() {
   }
 
   // 清空所有内容
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
+    // 批量清理状态
     setInputImage(null)
     setPrompt('')
     setOutputImage(null)
+    setImageInfo({})
+    setIsProcessingImage(false)
+    setIsGenerating(false)
+    
+    // 清理localStorage
     if (typeof window !== 'undefined') {
       localStorage.removeItem('flux_prompt')
       localStorage.removeItem('flux_input_image')
       localStorage.removeItem('flux_output_image')
+      localStorage.removeItem('flux_image_info')
+      
+      // 强制垃圾回收
+      if (window.gc) {
+        window.gc()
+      }
     }
-  }
+    
+    toast({
+      title: language === 'en' ? 'All content cleared' : '已清空所有内容',
+      description: language === 'en' ? 'Ready for new image generation' : '准备进行新的图片生成',
+    })
+  }, [language])
+
+  // 添加内存监控和清理
+  useEffect(() => {
+    let memoryCheckInterval: NodeJS.Timeout
+
+    if (typeof window !== 'undefined' && 'performance' in window && 'memory' in window.performance) {
+      memoryCheckInterval = setInterval(() => {
+        const memory = (window.performance as any).memory
+        if (memory && memory.usedJSHeapSize > 100 * 1024 * 1024) { // 100MB
+          console.warn('High memory usage detected, suggesting cleanup')
+          // 不自动清理，只记录日志
+        }
+      }, 30000) // 每30秒检查一次
+    }
+
+    return () => {
+      if (memoryCheckInterval) {
+        clearInterval(memoryCheckInterval)
+      }
+    }
+  }, [])
+
+  // 页面卸载时清理
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // 清理可能的大对象
+      if (typeof window !== 'undefined' && window.gc) {
+        window.gc()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
@@ -297,7 +526,19 @@ export default function FluxKontextPro() {
                   )}
                 >
                   <input {...getInputProps()} />
-                  {inputImage ? (
+                  {isProcessingImage ? (
+                    <div className="space-y-4">
+                      <Scissors className="w-12 h-12 text-purple-400 mx-auto animate-pulse" />
+                      <div>
+                        <p className="text-purple-400 font-medium">
+                          {language === 'en' ? 'Processing image...' : '正在处理图片...'}
+                        </p>
+                        <p className="text-sm text-white/60 mt-2">
+                          {language === 'en' ? 'Resizing to 1080p and optimizing' : '正在调整为1080p并优化'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : inputImage ? (
                     <div className="space-y-4">
                       <div className="relative w-full h-48 rounded-lg overflow-hidden">
                         <Image
@@ -307,9 +548,29 @@ export default function FluxKontextPro() {
                           className="object-contain"
                         />
                       </div>
-                      <p className="text-sm text-green-400">
-                        {language === 'en' ? 'Image uploaded successfully' : '图片上传成功'}
-                      </p>
+                      <div className="text-left space-y-2">
+                        <p className="text-sm text-green-400 font-medium">
+                          {language === 'en' ? 'Image processed successfully' : '图片处理成功'}
+                        </p>
+                        {imageInfo.originalDimensions && imageInfo.processedDimensions && (
+                          <div className="text-xs text-white/60 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Info className="w-3 h-3" />
+                              <span>
+                                {language === 'en' ? 'Original:' : '原始:'} {imageInfo.originalDimensions.width}×{imageInfo.originalDimensions.height}
+                                {imageInfo.originalSize && ` (${formatFileSize(imageInfo.originalSize)})`}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Scissors className="w-3 h-3" />
+                              <span>
+                                {language === 'en' ? 'Processed:' : '处理后:'} {imageInfo.processedDimensions.width}×{imageInfo.processedDimensions.height}
+                                {imageInfo.processedSize && ` (${formatFileSize(imageInfo.processedSize)})`}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -319,7 +580,10 @@ export default function FluxKontextPro() {
                           {language === 'en' ? 'Drop an image here or click to upload' : '将图片拖放到此处或点击上传'}
                         </p>
                         <p className="text-sm text-white/60 mt-2">
-                          {language === 'en' ? 'Supports PNG, JPG, JPEG, WebP (max 10MB)' : '支持 PNG、JPG、JPEG、WebP（最大10MB）'}
+                          {language === 'en' ? 'Supports PNG, JPG, JPEG, WebP (max 50MB)' : '支持 PNG、JPG、JPEG、WebP（最大50MB）'}
+                        </p>
+                        <p className="text-xs text-purple-400 mt-1">
+                          {language === 'en' ? 'Auto-resize to 1080p for optimal processing' : '自动调整为1080p以优化处理'}
                         </p>
                       </div>
                     </div>
@@ -366,13 +630,18 @@ export default function FluxKontextPro() {
                 {/* 生成按钮 */}
                 <Button
                   onClick={generateImage}
-                  disabled={!inputImage || !prompt.trim() || isGenerating || (creditsInfo?.credits || 0) < 10}
+                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || (creditsInfo?.credits || 0) < 10}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       {language === 'en' ? 'Generating...' : '生成中...'}
+                    </>
+                  ) : isProcessingImage ? (
+                    <>
+                      <Scissors className="w-4 h-4 mr-2 animate-pulse" />
+                      {language === 'en' ? 'Processing Image...' : '处理图片中...'}
                     </>
                   ) : (
                     <>
@@ -432,13 +701,24 @@ export default function FluxKontextPro() {
                         unoptimized
                       />
                     </div>
-                    <Button
-                      onClick={downloadImage}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {language === 'en' ? 'Download Image' : '下载图片'}
-                    </Button>
+                    {isMobile ? (
+                      <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+                        <p className="text-sm text-white/80 mb-2">
+                          {language === 'en' ? 'To save image:' : '保存图片:'}
+                        </p>
+                        <p className="text-xs text-white/60">
+                          {language === 'en' ? 'Long press the image above and select "Save Image"' : '长按上方图片并选择"保存图片"'}
+                        </p>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={downloadImage}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        {language === 'en' ? 'Download Image' : '下载图片'}
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-64 space-y-4">
