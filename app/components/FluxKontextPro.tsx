@@ -67,6 +67,13 @@ export default function FluxKontextPro() {
   const [isProcessingImage, setIsProcessingImage] = useState(false)
   const [imageInfo, setImageInfo] = useState<ImageInfo>({})
   const [isMobile, setIsMobile] = useState(false)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [translationInfo, setTranslationInfo] = useState<{
+    originalText: string
+    translatedText: string
+    detectedLanguage: string
+    isTranslated: boolean
+  } | null>(null)
 
   // 获取用户积分信息
   const {
@@ -277,9 +284,52 @@ export default function FluxKontextPro() {
 
     setIsGenerating(true)
     setOutputImage(null)
+    setTranslationInfo(null)
 
     try {
-      console.log('Starting image generation...')
+      console.log('Starting prompt translation check...')
+      setIsTranslating(true)
+      
+      // 首先检测和翻译提示词
+      const translateResponse = await fetch('/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: prompt.trim(),
+        }),
+      })
+
+      if (!translateResponse.ok) {
+        console.warn('Translation failed, using original prompt')
+        // 翻译失败时继续使用原提示词
+      }
+
+      let finalPrompt = prompt.trim()
+      let translationData = null
+
+      try {
+        translationData = await translateResponse.json()
+        if (translationData && translationData.translatedText) {
+          finalPrompt = translationData.translatedText
+          setTranslationInfo(translationData)
+          
+          if (translationData.isTranslated) {
+            toast({
+              title: language === 'en' ? 'Prompt translated' : '提示词已翻译',
+              description: language === 'en' 
+                ? `Detected ${getLanguageName(translationData.detectedLanguage)} and translated to English`
+                : `检测到${getLanguageName(translationData.detectedLanguage)}并已翻译为英语`,
+            })
+          }
+        }
+      } catch (translateError) {
+        console.warn('Translation response parsing failed:', translateError)
+      }
+
+      setIsTranslating(false)
+      console.log('Starting image generation with prompt:', finalPrompt)
       
       const response = await fetch('/api/generate-image', {
         method: 'POST',
@@ -287,7 +337,7 @@ export default function FluxKontextPro() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: prompt.trim(),
+          prompt: finalPrompt,
           input_image: inputImage,
         }),
         // 添加超时处理
@@ -357,15 +407,103 @@ export default function FluxKontextPro() {
       }
     } finally {
       setIsGenerating(false)
+      setIsTranslating(false)
     }
   }
 
+  // 使用生成的图片作为输入
+  const useAsInput = () => {
+    if (!outputImage) return
+    
+    // 设置生成的图片为新的输入图片
+    setInputImage(outputImage)
+    // 清空输出图片和翻译信息
+    setOutputImage(null)
+    setTranslationInfo(null)
+    
+    // 重置图片信息为默认值
+    setImageInfo({
+      processedDimensions: { width: 1024, height: 1024 },
+      processedSize: 0,
+    })
+    
+    toast({
+      title: language === 'en' ? 'Image set as input' : '图片已设为输入',
+      description: language === 'en' ? 'Generated image is now ready for further transformation' : '生成的图片现在可以进行进一步转换',
+    })
+  }
+
+  // 获取语言名称的辅助函数
+  const getLanguageName = (langCode: string): string => {
+    const languageNames: { [key: string]: { en: string; zh: string } } = {
+      'zh': { en: 'Chinese', zh: '中文' },
+      'zh-cn': { en: 'Chinese (Simplified)', zh: '简体中文' },
+      'zh-tw': { en: 'Chinese (Traditional)', zh: '繁体中文' },
+      'ja': { en: 'Japanese', zh: '日语' },
+      'ko': { en: 'Korean', zh: '韩语' },
+      'es': { en: 'Spanish', zh: '西班牙语' },
+      'fr': { en: 'French', zh: '法语' },
+      'de': { en: 'German', zh: '德语' },
+      'ru': { en: 'Russian', zh: '俄语' },
+      'ar': { en: 'Arabic', zh: '阿拉伯语' },
+      'hi': { en: 'Hindi', zh: '印地语' },
+      'pt': { en: 'Portuguese', zh: '葡萄牙语' },
+      'it': { en: 'Italian', zh: '意大利语' },
+      'th': { en: 'Thai', zh: '泰语' },
+      'vi': { en: 'Vietnamese', zh: '越南语' },
+      'en': { en: 'English', zh: '英语' },
+    }
+    
+    const langInfo = languageNames[langCode.toLowerCase()]
+    if (langInfo) {
+      return language === 'en' ? langInfo.en : langInfo.zh
+    }
+    return langCode.toUpperCase()
+  }
+
   // 下载图片
-  const downloadImage = () => {
-    if (outputImage) {
+  const downloadImage = async () => {
+    if (!outputImage) return
+    
+    // 生成文件名：使用提示词前20个字符，去掉空格和特殊字符，加上时间戳
+    const generateFileName = () => {
+      const cleanPrompt = prompt
+        .slice(0, 20) // 取前20个字符
+        .replace(/\s+/g, '') // 去掉所有空格
+        .replace(/[^\w\u4e00-\u9fa5]/g, '') // 去掉特殊字符，保留字母数字和中文
+      
+      const timestamp = Date.now()
+      return cleanPrompt ? `${cleanPrompt}-${timestamp}.png` : `flux-generated-${timestamp}.png`
+    }
+    
+    const fileName = generateFileName()
+    
+    try {
+      // 获取图片数据
+      const response = await fetch(outputImage)
+      const blob = await response.blob()
+      
+      // 创建本地 URL
+      const url = URL.createObjectURL(blob)
+      
+      // 创建下载链接
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      
+      // 清理
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Download failed:', error)
+      // 降级到直接链接
       const link = document.createElement('a')
       link.href = outputImage
-      link.download = `flux-generated-${Date.now()}.png`
+      link.download = fileName
+      link.target = '_blank'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -381,6 +519,8 @@ export default function FluxKontextPro() {
     setImageInfo({})
     setIsProcessingImage(false)
     setIsGenerating(false)
+    setIsTranslating(false)
+    setTranslationInfo(null)
     
     // 清理localStorage
     if (typeof window !== 'undefined') {
@@ -625,19 +765,60 @@ export default function FluxKontextPro() {
                     className="mt-2 bg-white/5 border-white/20 text-white placeholder:text-white/40 focus:border-purple-400 focus:ring-purple-400/20 resize-none"
                     rows={6}
                   />
+                  
+                  {/* 翻译信息显示 */}
+                  {translationInfo && (
+                    <div className="mt-2 p-3 bg-blue-500/10 border border-blue-400/20 rounded-lg">
+                      <div className="text-xs text-blue-400 mb-1">
+                        {language === 'en' ? 'Language Detection & Translation' : '语言检测与翻译'}
+                      </div>
+                      <div className="text-sm text-white/80">
+                        {translationInfo.isTranslated ? (
+                          <>
+                            <div className="text-white/60 mb-1">
+                              {language === 'en' ? 'Original:' : '原文:'} &ldquo;{translationInfo.originalText}&rdquo;
+                            </div>
+                            <div className="text-green-400">
+                              {language === 'en' ? 'Translated:' : '翻译:'} &ldquo;{translationInfo.translatedText}&rdquo;
+                            </div>
+                            <div className="text-xs text-blue-400 mt-1">
+                              {language === 'en' 
+                                ? `Detected language: ${getLanguageName(translationInfo.detectedLanguage)}`
+                                : `检测语言: ${getLanguageName(translationInfo.detectedLanguage)}`
+                              }
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-green-400">
+                            {language === 'en' 
+                              ? `Already in English (${getLanguageName(translationInfo.detectedLanguage)})`
+                              : `已是英语 (${getLanguageName(translationInfo.detectedLanguage)})`
+                            }
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 生成按钮 */}
                 <Button
                   onClick={generateImage}
-                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || (creditsInfo?.credits || 0) < 10}
+                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || isTranslating || (creditsInfo?.credits || 0) < 10}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {language === 'en' ? 'Generating...' : '生成中...'}
-                    </>
+                    isTranslating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {language === 'en' ? 'Translating...' : '翻译中...'}
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {language === 'en' ? 'Generating...' : '生成中...'}
+                      </>
+                    )
                   ) : isProcessingImage ? (
                     <>
                       <Scissors className="w-4 h-4 mr-2 animate-pulse" />
@@ -711,13 +892,23 @@ export default function FluxKontextPro() {
                         </p>
                       </div>
                     ) : (
-                      <Button
-                        onClick={downloadImage}
-                        className="w-full bg-green-600 hover:bg-green-700"
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        {language === 'en' ? 'Download Image' : '下载图片'}
-                      </Button>
+                      <div className="space-y-2">
+                        <Button
+                          onClick={downloadImage}
+                          className="w-full bg-green-600 hover:bg-green-700"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          {language === 'en' ? 'Download Image' : '下载图片'}
+                        </Button>
+                        <Button
+                          onClick={useAsInput}
+                          variant="outline"
+                          className="w-full border-purple-400 text-purple-300 hover:bg-purple-400/20 hover:text-purple-200 bg-purple-400/10"
+                        >
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          {language === 'en' ? 'Use as Input' : '用作输入'}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ) : (

@@ -58,6 +58,12 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
   - 支持高清图片导出
   - 自定义导出样式
   - 图文布局优化
+- 🌐 AI图片生成翻译功能
+  - 自动检测输入提示词语言
+  - 非英语自动翻译为英语
+  - 优化图片生成效果
+  - 支持多语言智能识别
+  - 翻译状态实时显示
 
 ## 积分系统
 
@@ -280,6 +286,9 @@ MINIMAX_API_KEY=
 
 # 地图服务
 NEXT_PUBLIC_GOOGLE_MAPS_KEY=
+
+# 翻译服务
+GOOGLE_TRANSLATE_API_KEY=
 
 # Paddle支付
 PADDLE_WEBHOOK_SECRET=
