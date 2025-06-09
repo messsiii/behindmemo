@@ -552,6 +552,16 @@ export default function FluxKontextPro() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown API error' }))
+        
+        // 检查是否是内容审核失败
+        if (errorData.error && (
+          errorData.error.includes('flagged as sensitive') ||
+          errorData.error.includes('E005') ||
+          errorData.error.includes('content policy')
+        )) {
+          throw new Error('CONTENT_FLAGGED')
+        }
+        
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
 
@@ -576,13 +586,23 @@ export default function FluxKontextPro() {
     } catch (error) {
       console.error('Generation error:', error)
       
+      // 检查是否是取消请求
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Generation aborted')
+        return
+      }
+      
       // 根据错误类型提供不同的处理
       const errorMessage = language === 'en' ? 'Generation failed' : '生成失败'
       let errorDescription = language === 'en' ? 'Please try again' : '请重试'
       let shouldRefresh = false
       
       if (error instanceof Error) {
-        if (error.name === 'TimeoutError') {
+        if (error.message === 'CONTENT_FLAGGED') {
+          errorDescription = language === 'en' 
+            ? 'Content flagged as sensitive. Please try with different, family-friendly prompts. Avoid words like "bikini", "sexy", "nude", etc.'
+            : '内容被标记为敏感。请尝试使用不同的、健康的提示词。避免使用如"比基尼"、"性感"、"裸体"等词汇。'
+        } else if (error.name === 'TimeoutError') {
           errorDescription = language === 'en' ? 'Request timed out. Please try again.' : '请求超时，请重试。'
         } else if (error.message.includes('fetch')) {
           errorDescription = language === 'en' ? 'Network error. Please check your connection.' : '网络错误，请检查连接。'
