@@ -16,19 +16,22 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import {
     Download,
+    History,
     Home,
     Image as ImageIcon,
     Info,
     Loader2,
+    RefreshCw,
     Scissors,
     Sparkles,
+    Trash2,
     Upload,
     Wand2
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import useSWR from 'swr'
 
@@ -47,6 +50,20 @@ interface ImageInfo {
   processedSize?: number
 }
 
+// 图片生成记录接口
+interface ImageGenerationRecord {
+  id: string
+  prompt: string
+  inputImageUrl: string
+  outputImageUrl: string | null
+  localOutputImageUrl?: string | null
+  status: 'pending' | 'completed' | 'failed'
+  creditsUsed: number
+  errorMessage?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 // 数据获取函数
 const fetcher = (url: string) =>
   fetch(url, {
@@ -55,6 +72,80 @@ const fetcher = (url: string) =>
     if (!res.ok) throw new Error('Failed to fetch credits')
     return res.json()
   })
+
+// 优化的输入图片组件 - 防止重新渲染导致闪烁
+const InputImagePreview = memo(({ 
+  src, 
+  onError
+}: { 
+  src: string, 
+  onError: (e: any) => void
+}) => {
+  return (
+    <div className="relative w-full h-48 rounded-lg overflow-hidden">
+      <Image
+        src={src}
+        alt="Input"
+        fill
+        className="object-contain"
+        unoptimized
+        onError={onError}
+        priority
+      />
+    </div>
+  )
+})
+InputImagePreview.displayName = 'InputImagePreview'
+
+// 优化的输出图片组件 - 防止重新渲染导致闪烁
+const OutputImagePreview = memo(({ 
+  src, 
+  onError
+}: { 
+  src: string, 
+  onError: (e: any) => void
+}) => {
+  return (
+    <div className="relative w-full h-64 rounded-lg overflow-hidden">
+      <Image
+        src={src}
+        alt="Generated"
+        fill
+        className="object-contain"
+        unoptimized
+        onError={onError}
+        priority
+      />
+    </div>
+  )
+})
+OutputImagePreview.displayName = 'OutputImagePreview'
+
+// 优化的历史图片组件 - 防止重新渲染导致闪烁
+const HistoryImagePreview = memo(({ 
+  src, 
+  alt,
+  onError 
+}: { 
+  src: string, 
+  alt: string,
+  onError: (e: any) => void
+}) => {
+  return (
+    <div className="relative aspect-square rounded-lg overflow-hidden bg-white/5 border border-white/10">
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className="object-cover"
+        unoptimized
+        onError={onError}
+        loading="lazy"
+      />
+    </div>
+  )
+})
+HistoryImagePreview.displayName = 'HistoryImagePreview'
 
 export default function FluxKontextPro() {
   const { language } = useLanguage()
@@ -74,6 +165,12 @@ export default function FluxKontextPro() {
     detectedLanguage: string
     isTranslated: boolean
   } | null>(null)
+  const [historyRecords, setHistoryRecords] = useState<ImageGenerationRecord[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMoreHistory, setHasMoreHistory] = useState(true)
+  const [historyPage, setHistoryPage] = useState(0)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // 获取用户积分信息
   const {
@@ -121,26 +218,130 @@ export default function FluxKontextPro() {
     }
   }, [])
 
-  // 保存状态到localStorage
-  const saveState = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('flux_prompt', prompt)
-      if (inputImage) localStorage.setItem('flux_input_image', inputImage)
-      if (outputImage) localStorage.setItem('flux_output_image', outputImage)
-      localStorage.setItem('flux_image_info', JSON.stringify(imageInfo))
-    }
-  }, [prompt, inputImage, outputImage, imageInfo])
-
-  // 实时保存状态
+  // 获取历史记录
   useEffect(() => {
-    saveState()
-  }, [saveState])
+    if (session?.user?.id) {
+      fetchGenerationHistory()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
+
+  // 创建稳定的错误处理函数 - 防止图片组件重新渲染
+  const handleInputImageError = useCallback((e: any) => {
+    console.warn('Input image load error:', e)
+  }, [])
+
+  const handleOutputImageError = useCallback((e: any) => {
+    console.warn('Output image load error:', e)
+  }, [])
+
+  const handleHistoryImageError = useCallback((e: any) => {
+    console.warn('History image load error:', e)
+  }, [])
+
+
+
+  // 分离prompt保存以减少重新渲染
+  const savePrompt = useCallback((promptValue: string) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('flux_prompt', promptValue)
+      } catch (error) {
+        console.warn('Failed to save prompt:', error)
+      }
+    }
+  }, [])
+
+  // 保存图片状态（优化版本）
+  const saveImageState = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        // 只保存non-blob图片URL，避免内存泄漏
+        if (inputImage && !inputImage.startsWith('blob:')) {
+          localStorage.setItem('flux_input_image', inputImage)
+        } else {
+          localStorage.removeItem('flux_input_image')
+        }
+        
+        if (outputImage && !outputImage.startsWith('blob:')) {
+          localStorage.setItem('flux_output_image', outputImage)
+        } else {
+          localStorage.removeItem('flux_output_image')
+        }
+        
+        // 简化图片信息存储
+        const simpleImageInfo = {
+          processedDimensions: imageInfo.processedDimensions,
+          processedSize: imageInfo.processedSize
+        }
+        localStorage.setItem('flux_image_info', JSON.stringify(simpleImageInfo))
+      } catch (error) {
+        // localStorage可能满了，清理旧数据
+        console.warn('localStorage save failed:', error)
+        try {
+          localStorage.removeItem('flux_input_image')
+          localStorage.removeItem('flux_output_image')
+        } catch (e) {
+          // 忽略清理错误
+        }
+      }
+    }
+  }, [inputImage, outputImage, imageInfo])
+
+  // 实时保存prompt（防抖优化）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      savePrompt(prompt)
+    }, 300) // 300ms防抖
+    
+    return () => clearTimeout(timer)
+  }, [prompt, savePrompt])
+
+  // 保存图片状态（当图片改变时）
+  useEffect(() => {
+    saveImageState()
+  }, [saveImageState])
+
+  // 组件卸载时的清理
+  useEffect(() => {
+    return () => {
+      // 清理可能的内存泄漏
+      if (typeof window !== 'undefined') {
+        // 清理可能存在的URL对象
+        const urlsToClean = [inputImage, outputImage].filter((url): url is string => 
+          url !== null && url !== undefined && url.startsWith('blob:')
+        )
+        urlsToClean.forEach(url => {
+          try {
+            URL.revokeObjectURL(url)
+          } catch (e) {
+            // 忽略清理错误
+          }
+        })
+        
+        // 强制垃圾回收（如果可用）
+        if (window.gc) {
+          window.gc()
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 处理图片文件
   const processImageFile = useCallback(async (file: File) => {
     // 在开始新的处理前，清理之前的输出图片
     setOutputImage(null)
     setIsProcessingImage(true)
+    
+    // 清理之前的blob URL
+    if (inputImage && inputImage.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(inputImage)
+      } catch (e) {
+        // 忽略清理错误
+      }
+    }
     
     // 清理可能存在的旧图片内存
     if (typeof window !== 'undefined') {
@@ -233,7 +434,7 @@ export default function FluxKontextPro() {
     } finally {
       setIsProcessingImage(false)
     }
-  }, [language])
+  }, [language, inputImage])
 
   // 文件上传处理
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -282,6 +483,9 @@ export default function FluxKontextPro() {
       return
     }
 
+    // 创建AbortController来管理请求
+    const abortController = new AbortController()
+    
     setIsGenerating(true)
     setOutputImage(null)
     setTranslationInfo(null)
@@ -299,6 +503,7 @@ export default function FluxKontextPro() {
         body: JSON.stringify({
           text: prompt.trim(),
         }),
+        signal: abortController.signal,
       })
 
       if (!translateResponse.ok) {
@@ -340,8 +545,7 @@ export default function FluxKontextPro() {
           prompt: finalPrompt,
           input_image: inputImage,
         }),
-        // 添加超时处理
-        signal: AbortSignal.timeout(300000), // 5分钟超时
+        signal: abortController.signal,
       })
 
       console.log('API response status:', response.status)
@@ -359,8 +563,10 @@ export default function FluxKontextPro() {
       }
 
       setOutputImage(data.output)
-      // 刷新积分信息
+      // 刷新积分信息和历史记录
       mutateCredits()
+      // 使用智能刷新而不是全量刷新
+      setTimeout(() => refreshHistoryWithNewData(), 1000)
       
       toast({
         title: language === 'en' ? 'Generation successful!' : '生成成功！',
@@ -396,8 +602,9 @@ export default function FluxKontextPro() {
 
       // 只在必要时刷新页面
       if (shouldRefresh) {
-        // 保存状态
-        saveState()
+        // 保存当前状态
+        savePrompt(prompt)
+        saveImageState()
         setTimeout(() => {
           window.location.reload()
         }, 2000)
@@ -408,6 +615,60 @@ export default function FluxKontextPro() {
     } finally {
       setIsGenerating(false)
       setIsTranslating(false)
+      
+      // 清理AbortController
+      if (!abortController.signal.aborted) {
+        abortController.abort()
+      }
+      
+      // 清理内存
+      if (typeof window !== 'undefined' && window.gc) {
+        setTimeout(() => {
+          if (window.gc) window.gc()
+        }, 1000)
+      }
+    }
+  }
+
+  // 下载历史记录中的图片
+  const downloadHistoryImage = async (imageUrl: string, prompt: string, id: string) => {
+    // 生成文件名：使用提示词前20个字符，去掉空格和特殊字符，加上记录ID
+    const cleanPrompt = prompt
+      .slice(0, 20) // 取前20个字符
+      .replace(/\s+/g, '') // 去掉所有空格
+      .replace(/[^\w\u4e00-\u9fa5]/g, '') // 去掉特殊字符，保留字母数字和中文
+    
+    const fileName = cleanPrompt ? `${cleanPrompt}-${id}.png` : `flux-generated-${id}.png`
+    
+    try {
+      // 获取图片数据
+      const response = await fetch(imageUrl)
+      const blob = await response.blob()
+      
+      // 创建本地 URL
+      const url = URL.createObjectURL(blob)
+      
+      // 创建下载链接
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      
+      // 清理
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Download failed:', error)
+      // 降级到直接链接
+      const link = document.createElement('a')
+      link.href = imageUrl
+      link.download = fileName
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 
@@ -427,10 +688,216 @@ export default function FluxKontextPro() {
       processedSize: 0,
     })
     
+    // 滚动到页面顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    
     toast({
       title: language === 'en' ? 'Image set as input' : '图片已设为输入',
       description: language === 'en' ? 'Generated image is now ready for further transformation' : '生成的图片现在可以进行进一步转换',
     })
+  }
+
+  // 使用历史记录中的图片作为输入
+  const setHistoryImageAsInput = (imageUrl: string, isInputImage = false) => {
+    // 设置图片为新的输入图片
+    setInputImage(imageUrl)
+    // 清空输出图片和翻译信息
+    setOutputImage(null)
+    setTranslationInfo(null)
+    
+    // 重置图片信息为默认值
+    setImageInfo({
+      processedDimensions: { width: 1024, height: 1024 },
+      processedSize: 0,
+    })
+    
+    // 滚动到页面顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    
+    const imageType = isInputImage 
+      ? (language === 'en' ? 'input image' : '输入图片')
+      : (language === 'en' ? 'generated result' : '生成结果')
+    
+    toast({
+      title: language === 'en' ? 'Image set as input' : '图片已设为输入',
+      description: language === 'en' 
+        ? `Using ${imageType} as new input for transformation`
+        : `已将${imageType}设为新的转换输入`,
+    })
+  }
+
+  // 获取生成历史
+  const fetchGenerationHistory = useCallback(async (page = 0, isRefresh = false) => {
+    if (!session?.user?.id) return
+    
+    // 创建AbortController
+    const controller = new AbortController()
+    
+    if (page === 0) {
+      setIsLoadingHistory(true)
+    } else {
+      setIsLoadingMore(true)
+    }
+    
+    try {
+      const limit = 20
+      const offset = page * limit
+      const response = await fetch(`/api/user/generation-history?limit=${limit}&offset=${offset}`, {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch generation history')
+      }
+      
+      const data = await response.json()
+      const newRecords = data.records || []
+      
+      if (page === 0 || isRefresh) {
+        // 首次加载或刷新
+        setHistoryRecords(newRecords)
+        setHistoryPage(0)
+      } else {
+        // 加载更多
+        setHistoryRecords(prev => [...prev, ...newRecords])
+      }
+      
+      // 更新分页状态
+      setHasMoreHistory(newRecords.length === limit)
+      setHistoryPage(page)
+      
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Fetch aborted')
+        return
+      }
+      
+      console.error('Error fetching generation history:', error)
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: language === 'en' ? 'Failed to load generation history' : '加载生成历史失败',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoadingHistory(false)
+      setIsLoadingMore(false)
+      
+      // 清理controller
+      controller.abort()
+    }
+  }, [session?.user?.id, language])
+
+  // 刷新历史记录（智能插入新数据）
+  const refreshHistoryWithNewData = async () => {
+    if (!session?.user?.id) return
+    
+    try {
+      // 获取最新的前20条记录
+      const response = await fetch('/api/user/generation-history?limit=20&offset=0')
+      if (!response.ok) return
+      
+      const data = await response.json()
+      const latestRecords = data.records || []
+      
+      if (latestRecords.length === 0) return
+      
+      // 找到新记录（不在当前列表中的）
+      const existingIds = new Set(historyRecords.map(r => r.id))
+      const newRecords = latestRecords.filter((r: ImageGenerationRecord) => !existingIds.has(r.id))
+      
+      if (newRecords.length > 0) {
+        // 将新记录插入到列表开头
+        setHistoryRecords(prev => [...newRecords, ...prev])
+        
+        toast({
+          title: language === 'en' ? 'New generations loaded' : '已加载新生成记录',
+          description: language === 'en' 
+            ? `${newRecords.length} new record(s) added`
+            : `已添加 ${newRecords.length} 条新记录`,
+        })
+      }
+    } catch (error) {
+      console.error('Error refreshing history:', error)
+    }
+  }
+
+  // 加载更多历史记录
+  const loadMoreHistory = () => {
+    if (!isLoadingMore && hasMoreHistory) {
+      fetchGenerationHistory(historyPage + 1)
+    }
+  }
+
+  // 删除生成记录
+  const deleteRecord = async (id: string) => {
+    const controller = new AbortController()
+    setDeletingId(id)
+    
+    try {
+      const response = await fetch(`/api/user/generation-history/${id}`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete record')
+      }
+
+      setHistoryRecords(prev => prev.filter(record => record.id !== id))
+      toast({
+        title: language === 'en' ? 'Deleted' : '已删除',
+        description: language === 'en' ? 'Generation record deleted successfully' : '生成记录已成功删除',
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Delete aborted')
+        return
+      }
+      
+      console.error('Error deleting record:', error)
+      toast({
+        title: language === 'en' ? 'Error' : '错误',
+        description: language === 'en' ? 'Failed to delete record' : '删除记录失败',
+        variant: 'destructive',
+      })
+    } finally {
+      setDeletingId(null)
+      controller.abort()
+    }
+  }
+
+  // 格式化日期
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  }
+
+  // 获取状态颜色和文本
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-400'
+      case 'failed': return 'text-red-400'
+      case 'pending': return 'text-yellow-400'
+      default: return 'text-gray-400'
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed': return language === 'en' ? 'Completed' : '已完成'
+      case 'failed': return language === 'en' ? 'Failed' : '失败'
+      case 'pending': return language === 'en' ? 'Pending' : '处理中'
+      default: return status
+    }
   }
 
   // 获取语言名称的辅助函数
@@ -458,8 +925,8 @@ export default function FluxKontextPro() {
     if (langInfo) {
       return language === 'en' ? langInfo.en : langInfo.zh
     }
-    return langCode.toUpperCase()
-  }
+        return langCode.toUpperCase()
+}
 
   // 下载图片
   const downloadImage = async () => {
@@ -510,34 +977,22 @@ export default function FluxKontextPro() {
     }
   }
 
-  // 清空所有内容
-  const clearAll = useCallback(() => {
-    // 批量清理状态
-    setInputImage(null)
+  // 清空提示词
+  const clear = useCallback(() => {
+    // 只清理提示词相关状态，保留输入和输出图片
     setPrompt('')
-    setOutputImage(null)
-    setImageInfo({})
-    setIsProcessingImage(false)
     setIsGenerating(false)
     setIsTranslating(false)
     setTranslationInfo(null)
     
-    // 清理localStorage
+    // 只清理提示词localStorage，保留图片
     if (typeof window !== 'undefined') {
       localStorage.removeItem('flux_prompt')
-      localStorage.removeItem('flux_input_image')
-      localStorage.removeItem('flux_output_image')
-      localStorage.removeItem('flux_image_info')
-      
-      // 强制垃圾回收
-      if (window.gc) {
-        window.gc()
-      }
     }
     
     toast({
-      title: language === 'en' ? 'All content cleared' : '已清空所有内容',
-      description: language === 'en' ? 'Ready for new image generation' : '准备进行新的图片生成',
+      title: language === 'en' ? 'Prompt cleared' : '提示词已清空',
+      description: language === 'en' ? 'Images preserved' : '图片已保留',
     })
   }, [language])
 
@@ -548,11 +1003,16 @@ export default function FluxKontextPro() {
     if (typeof window !== 'undefined' && 'performance' in window && 'memory' in window.performance) {
       memoryCheckInterval = setInterval(() => {
         const memory = (window.performance as any).memory
-        if (memory && memory.usedJSHeapSize > 100 * 1024 * 1024) { // 100MB
+        if (memory && memory.usedJSHeapSize > 200 * 1024 * 1024) { // 提高到200MB
           console.warn('High memory usage detected, suggesting cleanup')
-          // 不自动清理，只记录日志
+          // 执行轻量级清理
+          if (window.gc) {
+            setTimeout(() => {
+              if (window.gc) window.gc()
+            }, 100)
+          }
         }
-      }, 30000) // 每30秒检查一次
+      }, 60000) // 改为每60秒检查一次
     }
 
     return () => {
@@ -593,14 +1053,24 @@ export default function FluxKontextPro() {
             </Link>
             
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+              <span 
+                className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent !bg-clip-text !text-transparent"
+                data-title="ai-generation"
+                style={{
+                  background: 'linear-gradient(90deg, #c084fc 0%, #f472b6 50%, #60a5fa 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  color: 'transparent',
+                  WebkitTextFillColor: 'transparent'
+                }}
+              >
                 AI Image Generation
               </span>
             </h1>
             <p className="text-xl text-white/80 max-w-2xl mx-auto">
               {language === 'en' 
-                ? 'Transform your images with AI-powered generation using Flux Kontext Pro'
-                : '使用 Flux Kontext Pro 的 AI 技术转换您的图片'
+                ? 'AI Image Editing that surpasses ChatGPT'
+                : '超过 ChatGPT 的图片编辑'
               }
             </p>
           </motion.div>
@@ -627,10 +1097,7 @@ export default function FluxKontextPro() {
                 <span className="text-sm text-white/60">
                   {language === 'en' ? '10 credits per generation' : '每次生成消耗10积分'}
                 </span>
-                <span className="text-white/60">•</span>
-                <Link href="/gen/results" className="text-sm text-purple-400 hover:text-purple-300 transition-colors">
-                  {language === 'en' ? 'View History' : '查看历史'}
-                </Link>
+
               </div>
             </div>
           </motion.div>
@@ -644,7 +1111,7 @@ export default function FluxKontextPro() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <Card className="bg-black/20 backdrop-blur-lg border-white/10 text-white h-full">
+            <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full" data-card="gen-card" style={{backgroundColor: 'rgba(0, 0, 0, 0.2)'}}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-purple-400" />
@@ -680,14 +1147,10 @@ export default function FluxKontextPro() {
                     </div>
                   ) : inputImage ? (
                     <div className="space-y-4">
-                      <div className="relative w-full h-48 rounded-lg overflow-hidden">
-                        <Image
-                          src={inputImage}
-                          alt="Input"
-                          fill
-                          className="object-contain"
-                        />
-                      </div>
+                      <InputImagePreview
+                        src={inputImage}
+                        onError={handleInputImageError}
+                      />
                       <div className="text-left space-y-2">
                         <p className="text-sm text-green-400 font-medium">
                           {language === 'en' ? 'Image processed successfully' : '图片处理成功'}
@@ -739,7 +1202,7 @@ export default function FluxKontextPro() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <Card className="bg-black/20 backdrop-blur-lg border-white/10 text-white h-full">
+            <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full" data-card="gen-card" style={{backgroundColor: 'rgba(0, 0, 0, 0.2)'}}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Wand2 className="w-5 h-5 text-pink-400" />
@@ -834,11 +1297,11 @@ export default function FluxKontextPro() {
 
                 {/* 清空按钮 */}
                 <Button
-                  onClick={clearAll}
+                  onClick={clear}
                   variant="outline"
                   className="w-full border-white/20 text-white hover:bg-white/10 bg-transparent"
                 >
-                  {language === 'en' ? 'Clear All' : '清空所有'}
+                  {language === 'en' ? 'Clear' : '清空'}
                 </Button>
               </CardContent>
             </Card>
@@ -850,7 +1313,7 @@ export default function FluxKontextPro() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
           >
-            <Card className="bg-black/20 backdrop-blur-lg border-white/10 text-white h-full">
+            <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full" data-card="gen-card" style={{backgroundColor: 'rgba(0, 0, 0, 0.2)'}}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-blue-400" />
@@ -873,15 +1336,10 @@ export default function FluxKontextPro() {
                   </div>
                 ) : outputImage ? (
                   <div className="space-y-4">
-                    <div className="relative w-full h-64 rounded-lg overflow-hidden">
-                      <Image
-                        src={outputImage}
-                        alt="Generated"
-                        fill
-                        className="object-contain"
-                        unoptimized
-                      />
-                    </div>
+                    <OutputImagePreview
+                      src={outputImage}
+                      onError={handleOutputImageError}
+                    />
                     {isMobile ? (
                       <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
                         <p className="text-sm text-white/80 mb-2">
@@ -903,10 +1361,10 @@ export default function FluxKontextPro() {
                         <Button
                           onClick={useAsInput}
                           variant="outline"
-                          className="w-full border-purple-400 text-purple-300 hover:bg-purple-400/20 hover:text-purple-200 bg-purple-400/10"
+                          className="w-full border-purple-400 text-purple-200 hover:bg-purple-400/20 hover:text-purple-100 hover:border-purple-300 bg-purple-500/10 font-medium"
+                          data-button="purple-outline"
                         >
-                          <ImageIcon className="w-4 h-4 mr-2" />
-                          {language === 'en' ? 'Use as Input' : '用作输入'}
+                          use as input
                         </Button>
                       </div>
                     )}
@@ -925,6 +1383,242 @@ export default function FluxKontextPro() {
             </Card>
           </motion.div>
         </div>
+
+        {/* 生成历史 */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="mt-12"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white">
+              <span 
+                className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent"
+                data-title="history-title"
+                style={{
+                  background: 'linear-gradient(90deg, #c084fc 0%, #f472b6 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  color: 'transparent',
+                  WebkitTextFillColor: 'transparent'
+                }}
+              >
+                {language === 'en' ? 'Generation History' : '生成历史'}
+              </span>
+
+            </h2>
+            <Button
+              onClick={() => fetchGenerationHistory(0, true)}
+              disabled={isLoadingHistory}
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10 bg-transparent"
+            >
+              {isLoadingHistory ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              {language === 'en' ? 'Refresh' : '刷新'}
+            </Button>
+          </div>
+
+          {isLoadingHistory ? (
+            <div className="flex flex-col items-center justify-center h-32 space-y-4">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <p className="text-white/80 text-center">
+                {language === 'en' ? 'Loading history...' : '加载历史中...'}
+              </p>
+            </div>
+          ) : historyRecords.length === 0 ? (
+            <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white" data-card="gen-card" style={{backgroundColor: 'rgba(0, 0, 0, 0.2)'}}>
+              <CardContent className="p-8 text-center">
+                <History className="w-12 h-12 text-white/40 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  {language === 'en' ? 'No generations yet' : '暂无生成记录'}
+                </h3>
+                <p className="text-white/60">
+                  {language === 'en' 
+                    ? 'Your generation history will appear here'
+                    : '您的生成历史将显示在这里'
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {/* 历史记录网格 */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {historyRecords.map((record, index) => (
+                  <motion.div
+                    key={record.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                  >
+                    <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white" data-card="gen-card" style={{backgroundColor: 'rgba(0, 0, 0, 0.2)'}}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-sm mb-1" title={record.prompt}>
+                              <span className="line-clamp-2">{record.prompt}</span>
+                            </CardTitle>
+                            <CardDescription className="text-white/60 text-xs">
+                              {formatDate(record.createdAt)} • {record.creditsUsed} {language === 'en' ? 'credits' : '积分'}
+                            </CardDescription>
+                          </div>
+                          <div className={cn("text-xs px-2 py-1 rounded-full shrink-0 ml-2", getStatusColor(record.status))}>
+                            {getStatusText(record.status)}
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* 原图 */}
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-medium text-white/80">
+                              {language === 'en' ? 'Input Image' : '输入图片'}
+                            </h4>
+                            <HistoryImagePreview
+                              src={record.inputImageUrl}
+                              alt="Input"
+                              onError={handleHistoryImageError}
+                            />
+                            {/* 原图操作按钮 */}
+                            <div className="flex gap-1">
+                              <Button
+                                onClick={() => downloadHistoryImage(record.inputImageUrl, record.prompt + '-input', record.id)}
+                                size="sm"
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs h-7"
+                              >
+                                download
+                              </Button>
+                              <Button
+                                onClick={() => setHistoryImageAsInput(record.inputImageUrl, true)}
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 border-purple-400/50 text-purple-200 hover:bg-purple-400/20 hover:text-purple-100 hover:border-purple-300 bg-purple-500/10 text-xs h-7 font-medium"
+                                title={language === 'en' ? 'Use as Input' : 'Use as Input'}
+                                data-button="purple-outline"
+                              >
+                                use as input
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* 生成结果 */}
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-medium text-white/80">
+                              {language === 'en' ? 'Generated Result' : '生成结果'}
+                            </h4>
+                            {record.status === 'completed' && (record.localOutputImageUrl || record.outputImageUrl) ? (
+                              <>
+                                <HistoryImagePreview
+                                  src={record.localOutputImageUrl || record.outputImageUrl!}
+                                  alt="Generated"
+                                  onError={handleHistoryImageError}
+                                />
+                                {/* 结果图操作按钮 */}
+                                <div className="flex gap-1">
+                                                                      <Button
+                                      onClick={() => downloadHistoryImage(
+                                        record.localOutputImageUrl || record.outputImageUrl!,
+                                        record.prompt,
+                                        record.id
+                                      )}
+                                      size="sm"
+                                      className="flex-1 bg-green-600 hover:bg-green-700 text-xs h-7"
+                                    >
+                                      download
+                                    </Button>
+                                  <Button
+                                    onClick={() => setHistoryImageAsInput(record.localOutputImageUrl || record.outputImageUrl!, false)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 border-purple-400/50 text-purple-200 hover:bg-purple-400/20 hover:text-purple-100 hover:border-purple-300 bg-purple-500/10 text-xs h-7 font-medium"
+                                    title={language === 'en' ? 'Use as Input' : 'Use as Input'}
+                                    data-button="purple-outline"
+                                  >
+                                    use as input
+                                  </Button>
+                                </div>
+                              </>
+                            ) : record.status === 'failed' ? (
+                              <div className="aspect-square flex items-center justify-center bg-red-500/10 border border-red-500/20 rounded-lg">
+                                <div className="text-center">
+                                  <p className="text-xs text-red-400 mb-1">
+                                    {language === 'en' ? 'Generation Failed' : '生成失败'}
+                                  </p>
+                                  {record.errorMessage && (
+                                    <p className="text-xs text-red-300/80 line-clamp-2">
+                                      {record.errorMessage}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="aspect-square flex items-center justify-center bg-white/5 rounded-lg border border-white/10">
+                                <div className="text-center">
+                                  <Loader2 className="w-6 h-6 text-yellow-400 animate-spin mx-auto mb-1" />
+                                  <p className="text-xs text-yellow-400">
+                                    {language === 'en' ? 'Processing...' : '处理中...'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 删除按钮 */}
+                        <div className="flex justify-center pt-2 border-t border-white/10">
+                          <Button
+                            onClick={() => deleteRecord(record.id)}
+                            disabled={deletingId === record.id}
+                            size="sm"
+                            variant="outline"
+                            className="border-red-500/50 text-red-400 hover:bg-red-500/20"
+                          >
+                            {deletingId === record.id ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3 mr-1" />
+                            )}
+                            {language === 'en' ? 'Delete' : '删除'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* 加载更多按钮 */}
+              {hasMoreHistory && (
+                <div className="flex justify-center pt-6">
+                  <Button
+                    onClick={loadMoreHistory}
+                    disabled={isLoadingMore}
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10 bg-transparent"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {language === 'en' ? 'Loading more...' : '加载更多...'}
+                      </>
+                    ) : (
+                      <>
+                        <History className="w-4 h-4 mr-2" />
+                        {language === 'en' ? 'Load More' : '加载更多'}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </motion.div>
       </div>
     </div>
   )
