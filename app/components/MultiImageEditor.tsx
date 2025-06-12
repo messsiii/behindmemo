@@ -388,7 +388,14 @@ export default function MultiImageEditor({
 
   // 拼合图片
   const composeImages = useCallback(async () => {
-    if (selectedImages.length === 0 || !canvasRef.current) {
+    if (selectedImages.length === 0) {
+      setIsProcessing(false)
+      return
+    }
+    
+    if (!canvasRef.current) {
+      console.warn('Canvas ref not ready, will retry...')
+      setIsProcessing(false)
       return
     }
 
@@ -398,6 +405,8 @@ export default function MultiImageEditor({
       const canvas = canvasRef.current
       const ctx = canvas.getContext('2d')
       if (!ctx) {
+        console.error('Failed to get canvas context')
+        setIsProcessing(false)
         return
       }
 
@@ -636,6 +645,7 @@ export default function MultiImageEditor({
         if (blob) {
           const url = URL.createObjectURL(blob)
           setCompositeImage(url)
+          console.log('图片拼合完成，生成预览:', url.substring(0, 50) + '...')
         }
       }, 'image/jpeg', 0.9)
 
@@ -668,6 +678,12 @@ export default function MultiImageEditor({
       currentBoxRef.current = null
       setIsDrawingMode(false)
       setCompositeImage(null)
+      setIsProcessing(false) // 重置处理状态
+      
+      // 记录初始图片信息
+      if (initialImages.length > 0) {
+        console.log('加载初始图片到编辑器:', initialImages.length, '张')
+      }
     }
   }, [isOpen, initialImages, initialRatio])
 
@@ -771,9 +787,14 @@ export default function MultiImageEditor({
   // 当图片或比例改变时重新拼合
   useEffect(() => {
     if (selectedImages.length > 0) {
-      composeImages()
+      // 添加短暂延迟确保Canvas元素已渲染
+      const timer = setTimeout(() => {
+        composeImages()
+      }, 100)
+      return () => clearTimeout(timer)
     } else {
       setCompositeImage(null)
+      setIsProcessing(false)
     }
   }, [selectedImages, selectedRatio, composeImages])
 
@@ -937,13 +958,33 @@ export default function MultiImageEditor({
                 ) : (
                   <div className="flex items-center justify-center h-full bg-gray-100">
                     <div className="text-center text-gray-500">
-                      <Edit3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium mb-2">
-                        {language === 'en' ? 'No images to compose' : '暂无图片可拼合'}
-                      </p>
-                      <p className="text-sm">
-                        {language === 'en' ? 'Upload images on the right to see the result' : '在右侧上传图片以查看拼合结果'}
-                      </p>
+                      {isProcessing ? (
+                        <>
+                          <div className="w-16 h-16 mx-auto mb-4 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-lg font-medium mb-2">
+                            {language === 'en' ? 'Processing images...' : '正在处理图片...'}
+                          </p>
+                          <p className="text-sm">
+                            {language === 'en' ? 'Please wait while we prepare your images' : '请稍候，正在准备您的图片'}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Edit3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                          <p className="text-lg font-medium mb-2">
+                            {selectedImages.length > 0 
+                              ? (language === 'en' ? 'Ready to compose' : '准备拼合')
+                              : (language === 'en' ? 'No images to compose' : '暂无图片可拼合')
+                            }
+                          </p>
+                          <p className="text-sm">
+                            {selectedImages.length > 0
+                              ? (language === 'en' ? 'Images are ready for composition' : '图片已准备好，可以进行拼合')
+                              : (language === 'en' ? 'Upload images on the right to see the result' : '在右侧上传图片以查看拼合结果')
+                            }
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1047,7 +1088,10 @@ export default function MultiImageEditor({
                 "font-medium text-gray-700",
                 isMobile ? "text-xs" : "text-sm"
               )}>
-                {language === 'en' ? 'Upload Images' : '上传图片'}
+                {selectedImages.length > 0 
+                  ? (language === 'en' ? 'Add More Images' : '添加更多图片')
+                  : (language === 'en' ? 'Upload Images' : '上传图片')
+                }
               </h4>
               <div
                 {...getRootProps()}
@@ -1075,7 +1119,9 @@ export default function MultiImageEditor({
                   )}>
                     {isDragActive
                       ? (language === 'en' ? 'Drop here...' : '放置于此...')
-                      : (language === 'en' ? 'Click or drag to upload' : '点击或拖拽上传')
+                      : selectedImages.length > 0
+                        ? (language === 'en' ? 'Click or drag to add more' : '点击或拖拽添加更多')
+                        : (language === 'en' ? 'Click or drag to upload' : '点击或拖拽上传')
                     }
                   </p>
                   <p className="text-xs text-gray-400">
@@ -1143,7 +1189,10 @@ export default function MultiImageEditor({
                   isMobile ? "flex-1 h-10 text-sm" : "w-full"
                 )}
               >
-                {language === 'en' ? 'Apply Composition' : '应用拼合'}
+                {selectedImages.length === 1
+                  ? (language === 'en' ? 'Apply Changes' : '应用修改')
+                  : (language === 'en' ? 'Apply Composition' : '应用拼合')
+                }
               </Button>
               <Button 
                 variant="outline" 

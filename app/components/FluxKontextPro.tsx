@@ -466,7 +466,15 @@ export default function FluxKontextPro() {
     
     setEditorImages(initialImages)
     setIsImageEditorOpen(true)
-    console.log('打开干净的图片编辑器，初始图片:', initialImages.length)
+    console.log('打开图片编辑器，初始图片:', initialImages.length)
+    
+    // 如果有输入图片，提示用户
+    if (initialImages.length > 0) {
+      toast({
+        title: language === 'en' ? 'Image Editor Opened' : '图片编辑器已打开',
+        description: language === 'en' ? 'Current input image loaded for editing' : '当前输入图片已加载到编辑器',
+      })
+    }
   }, [inputImage])
 
   // 处理图片编辑确认
