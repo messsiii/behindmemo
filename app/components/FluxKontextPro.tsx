@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import {
     Download,
+    Edit3,
     History,
     Home,
     Image as ImageIcon,
@@ -34,6 +35,7 @@ import Link from 'next/link'
 import { memo, useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import useSWR from 'swr'
+import MultiImageEditor, { EditState } from './MultiImageEditor'
 
 // 积分信息接口
 interface CreditsInfo {
@@ -171,6 +173,8 @@ export default function FluxKontextPro() {
   const [hasMoreHistory, setHasMoreHistory] = useState(true)
   const [historyPage, setHistoryPage] = useState(0)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isImageEditorOpen, setIsImageEditorOpen] = useState(false)
+  const [editorImages, setEditorImages] = useState<File[]>([])
 
   // 获取用户积分信息
   const {
@@ -435,6 +439,64 @@ export default function FluxKontextPro() {
       setIsProcessingImage(false)
     }
   }, [language, inputImage])
+
+  // 打开图片编辑器
+  const openImageEditor = useCallback(() => {
+    // 每次都提供干净的编辑环境
+    const initialImages: File[] = []
+    
+    // 如果当前有输入图片，转换为File对象作为初始图片
+    if (inputImage && inputImage.startsWith('data:')) {
+      try {
+        // 从base64创建File对象
+        const byteString = atob(inputImage.split(',')[1])
+        const mimeString = inputImage.split(',')[0].split(':')[1].split(';')[0]
+        const ab = new ArrayBuffer(byteString.length)
+        const ia = new Uint8Array(ab)
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i)
+        }
+        const blob = new Blob([ab], { type: mimeString })
+        const file = new File([blob], 'current-image.jpg', { type: mimeString })
+        initialImages.push(file)
+      } catch (error) {
+        console.warn('Failed to convert current image to File:', error)
+      }
+    }
+    
+    setEditorImages(initialImages)
+    setIsImageEditorOpen(true)
+    console.log('打开干净的图片编辑器，初始图片:', initialImages.length)
+  }, [inputImage])
+
+  // 处理图片编辑确认
+  const handleImageEditConfirm = useCallback(async (resultImage: File, editState: EditState) => {
+    try {
+      setIsImageEditorOpen(false)
+      
+      // 记录编辑状态（用于调试和未来功能扩展）
+      console.log('Image editing completed with state:', {
+        imageCount: editState.images.length,
+        ratio: editState.ratio,
+        markBoxesCount: editState.markBoxes.length
+      })
+      
+      // 使用编辑结果处理图片
+      await processImageFile(resultImage)
+      
+      toast({
+        title: language === 'en' ? 'Image editing completed' : '图片编辑完成',
+        description: language === 'en' ? 'Multi-image composition applied successfully' : '多图拼合已成功应用',
+      })
+    } catch (error) {
+      console.error('Error applying edited image:', error)
+      toast({
+        title: language === 'en' ? 'Edit application failed' : '编辑应用失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        variant: 'destructive',
+      })
+    }
+  }, [language, processImageFile])
 
   // 文件上传处理
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -1212,6 +1274,33 @@ export default function FluxKontextPro() {
                     </div>
                   )}
                 </div>
+
+                {/* 独立的图片编辑功能区域 */}
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Edit3 className="w-4 h-4 text-purple-400" />
+                      <span className="text-sm font-medium text-white/80">
+                        {language === 'en' ? 'Multi-Image Editor' : '多图片编辑器'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/60">
+                      {language === 'en' 
+                        ? 'Combine multiple images into custom aspect ratios' 
+                        : '将多张图片拼合成自定义比例'
+                      }
+                    </p>
+                    <Button
+                      onClick={openImageEditor}
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-purple-400/50 text-purple-200 hover:bg-purple-400/20 hover:text-purple-100 hover:border-purple-300 bg-purple-500/10"
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      {language === 'en' ? 'Open Image Editor' : '打开图片编辑器'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -1640,6 +1729,18 @@ export default function FluxKontextPro() {
           )}
         </motion.div>
       </div>
+
+      {/* 多图片编辑器 */}
+      <MultiImageEditor
+        isOpen={isImageEditorOpen}
+        onClose={() => {
+          setIsImageEditorOpen(false)
+          setEditorImages([])
+        }}
+        onConfirm={handleImageEditConfirm}
+        initialImages={editorImages}
+        initialRatio="4:3"
+      />
     </div>
   )
 } 

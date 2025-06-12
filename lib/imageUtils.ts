@@ -49,9 +49,7 @@ export async function resizeImageTo1080p(
         // 计算新的尺寸，保持原比例
         const { width: newWidth, height: newHeight } = calculateNewDimensions(
           img.width,
-          img.height,
-          maxWidth,
-          maxHeight
+          img.height
         )
 
         // 设置canvas尺寸
@@ -132,32 +130,30 @@ export async function resizeImageTo1080p(
 }
 
 /**
- * 计算保持比例的新尺寸
+ * 计算保持比例的新尺寸 - 短边固定为1080像素
  */
 function calculateNewDimensions(
   originalWidth: number,
-  originalHeight: number,
-  maxWidth: number,
-  maxHeight: number
+  originalHeight: number
 ): { width: number; height: number } {
-  // 如果原始尺寸已经小于等于目标尺寸，保持原样
-  if (originalWidth <= maxWidth && originalHeight <= maxHeight) {
-    return { width: originalWidth, height: originalHeight }
-  }
-
+  // 固定短边为1080像素
+  const SHORT_SIDE = 1080
+  
   // 计算宽高比
   const aspectRatio = originalWidth / originalHeight
-
-  let newWidth = maxWidth
-  let newHeight = maxHeight
-
-  // 根据比例调整尺寸
-  if (aspectRatio > maxWidth / maxHeight) {
-    // 图片更宽，以宽度为准
-    newHeight = Math.round(maxWidth / aspectRatio)
+  
+  let newWidth: number
+  let newHeight: number
+  
+  // 判断哪边是短边，将短边设置为1080像素
+  if (originalWidth <= originalHeight) {
+    // 宽度是短边
+    newWidth = SHORT_SIDE
+    newHeight = Math.round(SHORT_SIDE / aspectRatio)
   } else {
-    // 图片更高，以高度为准
-    newWidth = Math.round(maxHeight * aspectRatio)
+    // 高度是短边
+    newHeight = SHORT_SIDE
+    newWidth = Math.round(SHORT_SIDE * aspectRatio)
   }
 
   return { width: newWidth, height: newHeight }

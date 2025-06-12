@@ -7,8 +7,6 @@ export const maxDuration = 60 // 设置最大执行时间为 60 秒
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const TARGET_QUALITY = 80
-const MAX_WIDTH = 1920
-const MAX_HEIGHT = 1080
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
@@ -76,22 +74,26 @@ export async function POST(request: Request): Promise<NextResponse> {
       const metadata = await sharp(buffer).metadata();
       console.log(`原始图片信息: ${metadata.width}x${metadata.height}, 格式: ${metadata.format}, 通道: ${metadata.channels}`);
 
-      // 计算目标尺寸，保持宽高比
-      let targetWidth = metadata.width || 0
-      let targetHeight = metadata.height || 0
-
-      if (targetWidth > MAX_WIDTH || targetHeight > MAX_HEIGHT) {
-        const aspectRatio = targetWidth / targetHeight
-
-        if (aspectRatio > MAX_WIDTH / MAX_HEIGHT) {
-          // 宽度超出限制
-          targetWidth = MAX_WIDTH
-          targetHeight = Math.round(MAX_WIDTH / aspectRatio)
-        } else {
-          // 高度超出限制
-          targetHeight = MAX_HEIGHT
-          targetWidth = Math.round(MAX_HEIGHT * aspectRatio)
-        }
+      // 计算目标尺寸，短边固定为1080像素
+      const originalWidth = metadata.width || 0
+      const originalHeight = metadata.height || 0
+      const SHORT_SIDE = 1080
+      
+      let targetWidth: number
+      let targetHeight: number
+      
+      // 计算宽高比
+      const aspectRatio = originalWidth / originalHeight
+      
+      // 判断哪边是短边，将短边设置为1080像素
+      if (originalWidth <= originalHeight) {
+        // 宽度是短边
+        targetWidth = SHORT_SIDE
+        targetHeight = Math.round(SHORT_SIDE / aspectRatio)
+      } else {
+        // 高度是短边
+        targetHeight = SHORT_SIDE
+        targetWidth = Math.round(SHORT_SIDE * aspectRatio)
       }
 
       // 优化图片
