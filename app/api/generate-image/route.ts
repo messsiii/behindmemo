@@ -21,12 +21,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { prompt, input_image } = await request.json()
+    const { prompt, input_image, model = 'pro' } = await request.json()
 
     // 验证输入
     if (!prompt || !input_image) {
       return NextResponse.json(
         { error: 'Missing prompt or input image' },
+        { status: 400 }
+      )
+    }
+
+    // 验证模型选择
+    const validModels = ['pro', 'max']
+    if (!validModels.includes(model)) {
+      return NextResponse.json(
+        { error: 'Invalid model selection' },
         { status: 400 }
       )
     }
@@ -55,7 +64,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const creditsRequired = 10
+    // 根据模型类型设置积分消耗
+    const creditsRequired = model === 'max' ? 20 : 10
     if (user.credits < creditsRequired) {
       return NextResponse.json(
         { error: 'Insufficient credits' },
@@ -103,26 +113,33 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // 调用Replicate API生成图片
-      console.log('Starting Flux Kontext Pro generation...')
-      const output = await replicate.run(
-        "black-forest-labs/flux-kontext-pro",
-        {
-          input: {
-            prompt: cleanPrompt,
-            input_image: cleanInputImage,
+      // 根据模型类型调用相应的Replicate API
+      const modelName = model === 'max' 
+        ? "black-forest-labs/flux-kontext-max"
+        : "black-forest-labs/flux-kontext-pro"
+      
+      console.log(`Starting Flux Kontext ${model.toUpperCase()} generation...`)
+      
+      const output = await replicate.run(modelName, {
+        input: {
+          prompt: cleanPrompt,
+          input_image: cleanInputImage,
+          ...(model === 'pro' && {
             num_inference_steps: 30,
             guidance_scale: 7.5,
             width: 1024,
             height: 1024,
-          }
+          }),
+          ...(model === 'max' && {
+            output_format: "jpg"
+          })
         }
-      )
+      })
 
       console.log('Generation completed, output type:', typeof output)
 
       // 处理 Replicate 输出
-      let blobUrl: string
+      let blobUrl: string = ''
       
       if (output instanceof ReadableStream) {
         // 如果是流，直接处理流数据
@@ -178,9 +195,32 @@ export async function POST(request: NextRequest) {
           throw new Error(`Unsupported output format: ${typeof outputData}, value: ${JSON.stringify(outputData)}`)
         }
         
-        blobUrl = await downloadImageToBlob(imageUrl, {
-          filename: `flux-generated-${generationRecord.id}.jpg`,
-        })
+        // 添加重试机制下载图片
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`Downloading image, attempt ${attempt}/3...`)
+            blobUrl = await downloadImageToBlob(imageUrl, {
+              filename: `flux-generated-${generationRecord.id}.jpg`,
+            })
+            console.log('Image download successful')
+            break
+          } catch (error) {
+            console.error(`Download attempt ${attempt} failed:`, error)
+            
+            // 如果不是最后一次尝试，等待后重试
+            if (attempt < 3) {
+              console.log(`Waiting 2 seconds before retry...`)
+              await new Promise(resolve => setTimeout(resolve, 2000))
+            }
+          }
+        }
+        
+        // 如果所有重试都失败了
+        if (!blobUrl) {
+          console.error('All download attempts failed, using original URL as fallback')
+          // 作为备选方案，直接使用原始URL
+          blobUrl = imageUrl
+        }
       }
 
       // 更新生成记录为完成状态

@@ -3,31 +3,32 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
 import {
-    formatFileSize,
-    getImageDimensions,
-    isValidImageFile,
-    resizeImageTo1080p
+  formatFileSize,
+  getImageDimensions,
+  isValidImageFile,
+  resizeImageTo1080p
 } from '@/lib/imageUtils'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import {
-    Download,
-    Edit3,
-    History,
-    Home,
-    Image as ImageIcon,
-    Info,
-    Loader2,
-    RefreshCw,
-    Scissors,
-    Sparkles,
-    Trash2,
-    Upload,
-    Wand2
+  Download,
+  Edit3,
+  History,
+  Home,
+  Image as ImageIcon,
+  Info,
+  Loader2,
+  RefreshCw,
+  Scissors,
+  Sparkles,
+  Trash2,
+  Upload,
+  Wand2
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
@@ -175,6 +176,8 @@ export default function FluxKontextPro() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false)
   const [editorImages, setEditorImages] = useState<File[]>([])
+  const [selectedModel, setSelectedModel] = useState<'pro' | 'max'>('pro')
+  const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
 
   // 获取用户积分信息
   const {
@@ -208,6 +211,7 @@ export default function FluxKontextPro() {
       const savedInputImage = localStorage.getItem('flux_input_image')
       const savedOutputImage = localStorage.getItem('flux_output_image')
       const savedImageInfo = localStorage.getItem('flux_image_info')
+      const savedModel = localStorage.getItem('flux_selected_model')
       
       if (savedPrompt) setPrompt(savedPrompt)
       if (savedInputImage) setInputImage(savedInputImage)
@@ -218,6 +222,9 @@ export default function FluxKontextPro() {
         } catch (e) {
           setImageInfo({})
         }
+      }
+      if (savedModel && ['pro', 'max'].includes(savedModel)) {
+        setSelectedModel(savedModel as 'pro' | 'max')
       }
     }
   }, [])
@@ -300,6 +307,17 @@ export default function FluxKontextPro() {
     
     return () => clearTimeout(timer)
   }, [prompt, savePrompt])
+
+  // 保存模型选择
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('flux_selected_model', selectedModel)
+      } catch (error) {
+        console.warn('Failed to save model selection:', error)
+      }
+    }
+  }, [selectedModel])
 
   // 保存图片状态（当图片改变时）
   useEffect(() => {
@@ -544,10 +562,13 @@ export default function FluxKontextPro() {
       return
     }
 
-    if ((creditsInfo?.credits || 0) < 10) {
+    const requiredCredits = selectedModel === 'max' ? 20 : 10
+    if ((creditsInfo?.credits || 0) < requiredCredits) {
       toast({
         title: language === 'en' ? 'Insufficient credits' : '积分不足',
-        description: language === 'en' ? 'You need 10 credits to generate an image' : '您需要10个积分来生成图片',
+        description: language === 'en' 
+          ? `You need ${requiredCredits} credits to generate an image with ${selectedModel.toUpperCase()} model`
+          : `您需要${requiredCredits}个积分来使用${selectedModel.toUpperCase()}模型生成图片`,
         variant: 'destructive',
       })
       return
@@ -559,6 +580,7 @@ export default function FluxKontextPro() {
     setIsGenerating(true)
     setOutputImage(null)
     setTranslationInfo(null)
+    setContentFlaggedError(null)
 
     try {
       console.log('Starting prompt translation check...')
@@ -614,6 +636,7 @@ export default function FluxKontextPro() {
         body: JSON.stringify({
           prompt: finalPrompt,
           input_image: inputImage,
+          model: selectedModel,
         }),
         signal: abortController.signal,
       })
@@ -629,7 +652,26 @@ export default function FluxKontextPro() {
           errorData.error.includes('E005') ||
           errorData.error.includes('content policy')
         )) {
-          throw new Error('CONTENT_FLAGGED')
+          // 内容审核失败，设置状态并退出
+          setContentFlaggedError(language === 'en' 
+            ? 'Content flagged as sensitive. Please try with different, family-friendly prompts. Avoid words that could be considered inappropriate.'
+            : '内容被标记为敏感。请尝试使用不同的、健康的提示词。避免使用可能被认为不当的词汇。'
+          )
+          return
+        }
+        
+        // 检查详细错误信息中的内容审核
+        if (errorData.details && (
+          errorData.details.includes('flagged as sensitive') ||
+          errorData.details.includes('E005') ||
+          errorData.details.includes('content policy')
+        )) {
+          // 内容审核失败，设置状态并退出
+          setContentFlaggedError(language === 'en' 
+            ? 'Content flagged as sensitive. Please try with different, family-friendly prompts. Avoid words that could be considered inappropriate.'
+            : '内容被标记为敏感。请尝试使用不同的、健康的提示词。避免使用可能被认为不当的词汇。'
+          )
+          return
         }
         
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
@@ -668,11 +710,7 @@ export default function FluxKontextPro() {
       let shouldRefresh = false
       
       if (error instanceof Error) {
-        if (error.message === 'CONTENT_FLAGGED') {
-          errorDescription = language === 'en' 
-            ? 'Content flagged as sensitive. Please try with different, family-friendly prompts. Avoid words like "bikini", "sexy", "nude", etc.'
-            : '内容被标记为敏感。请尝试使用不同的、健康的提示词。避免使用如"比基尼"、"性感"、"裸体"等词汇。'
-        } else if (error.name === 'TimeoutError') {
+        if (error.name === 'TimeoutError') {
           errorDescription = language === 'en' ? 'Request timed out. Please try again.' : '请求超时，请重试。'
         } else if (error.message.includes('fetch')) {
           errorDescription = language === 'en' ? 'Network error. Please check your connection.' : '网络错误，请检查连接。'
@@ -1074,6 +1112,7 @@ export default function FluxKontextPro() {
     setIsGenerating(false)
     setIsTranslating(false)
     setTranslationInfo(null)
+    setContentFlaggedError(null)
     
     // 只清理提示词localStorage，保留图片
     if (typeof window !== 'undefined') {
@@ -1330,6 +1369,38 @@ export default function FluxKontextPro() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 模型选择 */}
+                <div>
+                  <Label className="text-white/80">
+                    {language === 'en' ? 'Model Selection' : '模型选择'}
+                  </Label>
+                  <Select value={selectedModel} onValueChange={(value: 'pro' | 'max') => setSelectedModel(value)}>
+                    <SelectTrigger className="mt-2 bg-white/5 border-white/20 text-white focus:border-purple-400 focus:ring-purple-400/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/90 border-white/20">
+                      <SelectItem value="pro" className="text-white">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Flux Kontext Pro</span>
+                          <span className="text-xs text-green-400 ml-2">10 积分</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="max" className="text-white">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Flux Kontext Max</span>
+                          <span className="text-xs text-orange-400 ml-2">20 积分</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-white/60 mt-1">
+                    {selectedModel === 'max' 
+                      ? (language === 'en' ? 'Max model provides higher quality results' : 'Max 模型提供更高质量的结果')
+                      : (language === 'en' ? 'Pro model for standard quality generation' : 'Pro 模型用于标准质量生成')
+                    }
+                  </p>
+                </div>
+                
                 <div>
                   <Label htmlFor="prompt" className="text-white/80">
                     {language === 'en' ? 'Transformation prompt' : '转换提示词'}
@@ -1384,7 +1455,7 @@ export default function FluxKontextPro() {
                 {/* 生成按钮 */}
                 <Button
                   onClick={generateImage}
-                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || isTranslating || (creditsInfo?.credits || 0) < 10}
+                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || isTranslating || (creditsInfo?.credits || 0) < (selectedModel === 'max' ? 20 : 10)}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
@@ -1407,7 +1478,13 @@ export default function FluxKontextPro() {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 mr-2" />
-                      {language === 'en' ? 'Generate Image' : '生成图片'}
+                      {language === 'en' 
+                        ? `Generate Image (${selectedModel.toUpperCase()})` 
+                        : `生成图片 (${selectedModel.toUpperCase()})`
+                      }
+                      <span className="ml-1 text-xs opacity-75">
+                        {selectedModel === 'max' ? '20' : '10'}积分
+                      </span>
                     </>
                   )}
                 </Button>
@@ -1450,6 +1527,20 @@ export default function FluxKontextPro() {
                     <p className="text-sm text-white/60 text-center">
                       {language === 'en' ? 'This may take 30-60 seconds' : '这可能需要30-60秒'}
                     </p>
+                  </div>
+                ) : contentFlaggedError ? (
+                  <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                    <div className="w-16 h-16 border-2 border-orange-400/50 rounded-lg flex items-center justify-center bg-orange-500/10">
+                      <Info className="w-8 h-8 text-orange-400" />
+                    </div>
+                    <div className="text-center space-y-2">
+                      <h3 className="text-lg font-semibold text-orange-400">
+                        {language === 'en' ? 'Content Review Notice' : '内容审核提醒'}
+                      </h3>
+                      <p className="text-white/80 text-center max-w-md">
+                        {contentFlaggedError}
+                      </p>
+                    </div>
                   </div>
                 ) : outputImage ? (
                   <div className="space-y-4">
