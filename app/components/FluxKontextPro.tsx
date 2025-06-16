@@ -459,26 +459,40 @@ export default function FluxKontextPro() {
   }, [language, inputImage])
 
   // 打开图片编辑器
-  const openImageEditor = useCallback(() => {
+  const openImageEditor = useCallback(async () => {
     // 每次都提供干净的编辑环境
     const initialImages: File[] = []
     
     // 如果当前有输入图片，转换为File对象作为初始图片
-    if (inputImage && inputImage.startsWith('data:')) {
+    if (inputImage) {
       try {
-        // 从base64创建File对象
-        const byteString = atob(inputImage.split(',')[1])
-        const mimeString = inputImage.split(',')[0].split(':')[1].split(';')[0]
-        const ab = new ArrayBuffer(byteString.length)
-        const ia = new Uint8Array(ab)
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i)
+        if (inputImage.startsWith('data:')) {
+          // 处理base64格式图片
+          const byteString = atob(inputImage.split(',')[1])
+          const mimeString = inputImage.split(',')[0].split(':')[1].split(';')[0]
+          const ab = new ArrayBuffer(byteString.length)
+          const ia = new Uint8Array(ab)
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i)
+          }
+          const blob = new Blob([ab], { type: mimeString })
+          const file = new File([blob], 'current-input-image.jpg', { type: mimeString })
+          initialImages.push(file)
+        } else if (inputImage.startsWith('http') || inputImage.startsWith('blob:')) {
+          // 处理URL格式图片
+          const response = await fetch(inputImage)
+          const blob = await response.blob()
+          const file = new File([blob], 'current-input-image.jpg', { type: blob.type || 'image/jpeg' })
+          initialImages.push(file)
         }
-        const blob = new Blob([ab], { type: mimeString })
-        const file = new File([blob], 'current-image.jpg', { type: mimeString })
-        initialImages.push(file)
       } catch (error) {
         console.warn('Failed to convert current image to File:', error)
+        // 即使转换失败，也要显示提示
+        toast({
+          title: language === 'en' ? 'Note' : '提示',
+          description: language === 'en' ? 'Failed to load current image. You can upload images in the editor.' : '加载当前图片失败，您可以在编辑器中上传图片。',
+          variant: 'default',
+        })
       }
     }
     
@@ -490,10 +504,22 @@ export default function FluxKontextPro() {
     if (initialImages.length > 0) {
       toast({
         title: language === 'en' ? 'Image Editor Opened' : '图片编辑器已打开',
-        description: language === 'en' ? 'Current input image loaded for editing' : '当前输入图片已加载到编辑器',
+        description: language === 'en' ? 'Current input image loaded for editing' : '当前输入图片已加载到编辑器中',
+      })
+    } else if (inputImage) {
+      // 如果有输入图片但加载失败
+      toast({
+        title: language === 'en' ? 'Image Editor Opened' : '图片编辑器已打开',
+        description: language === 'en' ? 'Upload images to start editing' : '请上传图片开始编辑',
+      })
+    } else {
+      // 没有输入图片时的提示
+      toast({
+        title: language === 'en' ? 'Image Editor Opened' : '图片编辑器已打开',
+        description: language === 'en' ? 'Upload images to start multi-image composition' : '上传图片开始多图拼合',
       })
     }
-  }, [inputImage])
+  }, [inputImage, language])
 
   // 处理图片编辑确认
   const handleImageEditConfirm = useCallback(async (resultImage: File, editState: EditState) => {
@@ -1166,6 +1192,69 @@ export default function FluxKontextPro() {
     }
   }, [])
 
+  // 处理剪贴板粘贴图片
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // 检查是否在输入框或可编辑元素中
+      const target = e.target as HTMLElement
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
+        return // 在输入框中不处理粘贴
+      }
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault() // 阻止默认粘贴行为
+          
+          const file = item.getAsFile()
+          if (!file) continue
+
+          try {
+            // 检查文件大小
+            if (file.size > 50 * 1024 * 1024) { // 50MB限制
+              toast({
+                title: language === 'en' ? 'File too large' : '文件过大',
+                description: language === 'en' ? 'Please paste an image smaller than 50MB' : '请粘贴小于50MB的图片',
+                variant: 'destructive',
+              })
+              return
+            }
+
+            // 处理粘贴的图片
+            toast({
+              title: language === 'en' ? 'Image pasted' : '图片已粘贴',
+              description: language === 'en' ? 'Processing the pasted image...' : '正在处理粘贴的图片...',
+            })
+
+            await processImageFile(file)
+            
+            toast({
+              title: language === 'en' ? 'Image processed' : '图片处理完成',
+              description: language === 'en' ? 'Pasted image is ready for transformation' : '粘贴的图片已准备好进行转换',
+            })
+          } catch (error) {
+            console.error('Error processing pasted image:', error)
+            toast({
+              title: language === 'en' ? 'Paste failed' : '粘贴失败',
+              description: error instanceof Error ? error.message : (language === 'en' ? 'Failed to process pasted image' : '处理粘贴图片失败'),
+              variant: 'destructive',
+            })
+          }
+          break // 只处理第一个图片
+        }
+      }
+    }
+
+    // 添加paste事件监听器
+    window.addEventListener('paste', handlePaste)
+    
+    return () => {
+      window.removeEventListener('paste', handlePaste)
+    }
+  }, [language, processImageFile])
+
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -1309,13 +1398,13 @@ export default function FluxKontextPro() {
                       <Upload className="w-12 h-12 text-white/40 mx-auto" />
                       <div>
                         <p className="text-white/80">
-                          {language === 'en' ? 'Drop an image here or click to upload' : '将图片拖放到此处或点击上传'}
+                          {language === 'en' ? 'Drop an image here, click to upload, or paste from clipboard' : '将图片拖放到此处、点击上传或从剪贴板粘贴'}
                         </p>
                         <p className="text-sm text-white/60 mt-2">
                           {language === 'en' ? 'Supports PNG, JPG, JPEG, WebP (max 50MB)' : '支持 PNG、JPG、JPEG、WebP（最大50MB）'}
                         </p>
                         <p className="text-xs text-purple-400 mt-1">
-                          {language === 'en' ? 'Auto-resize to 1080p for optimal processing' : '自动调整为1080p以优化处理'}
+                          {language === 'en' ? 'Auto-resize to 1080p for optimal processing • Press Ctrl+V to paste' : '自动调整为1080p以优化处理 • 按Ctrl+V粘贴'}
                         </p>
                       </div>
                     </div>
@@ -1525,7 +1614,7 @@ export default function FluxKontextPro() {
                       {language === 'en' ? 'AI is processing your image...' : 'AI正在处理您的图片...'}
                     </p>
                     <p className="text-sm text-white/60 text-center">
-                      {language === 'en' ? 'This may take 30-60 seconds' : '这可能需要30-60秒'}
+                      {language === 'en' ? 'This may take 5-10 seconds' : '这可能需要5-10秒'}
                     </p>
                   </div>
                 ) : contentFlaggedError ? (
