@@ -185,6 +185,11 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false)
   const [editorImages, setEditorImages] = useState<File[]>([])
   const [selectedModel, setSelectedModel] = useState<'pro' | 'max' | 'gemini'>(initialModel)
+  
+  // Sync selectedModel with initialModel when route changes
+  useEffect(() => {
+    setSelectedModel(initialModel)
+  }, [initialModel])
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
@@ -221,7 +226,6 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       const savedInputImage = localStorage.getItem('flux_input_image')
       const savedOutputImage = localStorage.getItem('flux_output_image')
       const savedImageInfo = localStorage.getItem('flux_image_info')
-      const savedModel = localStorage.getItem('flux_selected_model')
       
       if (savedPrompt) setPrompt(savedPrompt)
       if (savedInputImage) setInputImage(savedInputImage)
@@ -233,9 +237,9 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           setImageInfo({})
         }
       }
-      if (savedModel && ['pro', 'max'].includes(savedModel)) {
-        setSelectedModel(savedModel as 'pro' | 'max')
-      }
+      // Don't override the model if it was explicitly set by the route
+      // The initialModel prop takes precedence over localStorage
+      // Only use savedModel if we're on a generic route without a specific model
     }
   }, [])
 
