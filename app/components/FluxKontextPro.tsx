@@ -1721,14 +1721,6 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                       <p className="text-white/80 text-center max-w-md">
                         {generalError}
                       </p>
-                      <Button
-                        onClick={() => setGeneralError(null)}
-                        variant="outline"
-                        size="sm"
-                        className="mt-2 border-white/20 text-white hover:bg-white/10"
-                      >
-                        {language === 'en' ? 'Try Again' : '重试'}
-                      </Button>
                     </div>
                   </div>
                 ) : outputImage ? (

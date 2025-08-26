@@ -122,10 +122,16 @@ export async function POST(request: NextRequest) {
         // Gemini API 调用
         console.log('Starting Gemini 2.5 Flash Image generation...')
         
+        // 检查API密钥
+        if (!process.env.GEMINI_API_KEY) {
+          console.error('GEMINI_API_KEY is not configured')
+          throw new Error('Gemini API key is not configured')
+        }
+        
         // 准备包含输入图像的prompt
         const fullPrompt = `Based on this image, ${cleanPrompt}`
         
-        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent', {
+        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
