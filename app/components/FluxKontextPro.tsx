@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
+import { CreditsAlert } from '@/components/CreditsAlert'
 import { useLanguage } from '@/contexts/LanguageContext'
 import {
   formatFileSize,
@@ -16,6 +17,7 @@ import {
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import {
+  AlertCircle,
   Download,
   Edit3,
   History,
@@ -33,6 +35,7 @@ import {
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { memo, useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import useSWR from 'swr'
@@ -85,7 +88,7 @@ const InputImagePreview = memo(({
   onError: (e: any) => void
 }) => {
   return (
-    <div className="relative w-full h-48 rounded-lg overflow-hidden">
+    <div className="relative w-full h-32 sm:h-48 rounded-lg overflow-hidden">
       <Image
         src={src}
         alt="Input"
@@ -109,7 +112,7 @@ const OutputImagePreview = memo(({
   onError: (e: any) => void
 }) => {
   return (
-    <div className="relative w-full h-64 rounded-lg overflow-hidden">
+    <div className="relative w-full h-48 sm:h-64 rounded-lg overflow-hidden">
       <Image
         src={src}
         alt="Generated"
@@ -150,9 +153,14 @@ const HistoryImagePreview = memo(({
 })
 HistoryImagePreview.displayName = 'HistoryImagePreview'
 
-export default function FluxKontextPro() {
+interface FluxKontextProProps {
+  initialModel?: 'pro' | 'max' | 'gemini'
+}
+
+export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProProps) {
   const { language } = useLanguage()
   const { data: session } = useSession()
+  const router = useRouter()
   const [inputImage, setInputImage] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('')
   const [outputImage, setOutputImage] = useState<string | null>(null)
@@ -176,8 +184,10 @@ export default function FluxKontextPro() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false)
   const [editorImages, setEditorImages] = useState<File[]>([])
-  const [selectedModel, setSelectedModel] = useState<'pro' | 'max'>('pro')
+  const [selectedModel, setSelectedModel] = useState<'pro' | 'max' | 'gemini'>(initialModel)
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
+  const [generalError, setGeneralError] = useState<string | null>(null)
+  const [showCreditsAlert, setShowCreditsAlert] = useState(false)
 
   // 获取用户积分信息
   const {
@@ -263,18 +273,19 @@ export default function FluxKontextPro() {
     }
   }, [])
 
-  // 保存图片状态（优化版本）
+  // 保存图片状态（优化版本 - 只在本地保存）
   const saveImageState = useCallback(() => {
     if (typeof window !== 'undefined') {
       try {
-        // 只保存non-blob图片URL，避免内存泄漏
-        if (inputImage && !inputImage.startsWith('blob:')) {
+        // 只保存图片URL到本地，不上传到服务器
+        if (inputImage) {
+          // 如果是 base64 或者是已上传的URL，直接保存
           localStorage.setItem('flux_input_image', inputImage)
         } else {
           localStorage.removeItem('flux_input_image')
         }
         
-        if (outputImage && !outputImage.startsWith('blob:')) {
+        if (outputImage) {
           localStorage.setItem('flux_output_image', outputImage)
         } else {
           localStorage.removeItem('flux_output_image')
@@ -292,6 +303,7 @@ export default function FluxKontextPro() {
         try {
           localStorage.removeItem('flux_input_image')
           localStorage.removeItem('flux_output_image')
+          localStorage.removeItem('flux_image_info')
         } catch (e) {
           // 忽略清理错误
         }
@@ -579,6 +591,22 @@ export default function FluxKontextPro() {
 
   // 生成图片
   const generateImage = async () => {
+    // 未登录时保存状态并跳转到登录页面
+    if (!session?.user) {
+      // 保存当前状态
+      savePrompt(prompt)
+      saveImageState()
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('flux_selected_model', selectedModel)
+      }
+      // 跳转到登录页面，登录后返回当前模型页面
+      const modelPath = selectedModel === 'pro' ? 'flux-kontext-pro' : 
+                       selectedModel === 'max' ? 'flux-kontext-max' : 
+                       'gemini-2.5-flash-image'
+      router.push(`/auth/signin?callbackUrl=/ai-image-generation/${modelPath}`)
+      return
+    }
+
     if (!inputImage || !prompt.trim()) {
       toast({
         title: language === 'en' ? 'Missing inputs' : '缺少输入',
@@ -588,15 +616,9 @@ export default function FluxKontextPro() {
       return
     }
 
-    const requiredCredits = selectedModel === 'max' ? 20 : 10
+    const requiredCredits = selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10
     if ((creditsInfo?.credits || 0) < requiredCredits) {
-      toast({
-        title: language === 'en' ? 'Insufficient credits' : '积分不足',
-        description: language === 'en' 
-          ? `You need ${requiredCredits} credits to generate an image with ${selectedModel.toUpperCase()} model`
-          : `您需要${requiredCredits}个积分来使用${selectedModel.toUpperCase()}模型生成图片`,
-        variant: 'destructive',
-      })
+      setShowCreditsAlert(true)
       return
     }
 
@@ -607,6 +629,7 @@ export default function FluxKontextPro() {
     setOutputImage(null)
     setTranslationInfo(null)
     setContentFlaggedError(null)
+    setGeneralError(null)
 
     try {
       console.log('Starting prompt translation check...')
@@ -653,6 +676,7 @@ export default function FluxKontextPro() {
 
       setIsTranslating(false)
       console.log('Starting image generation with prompt:', finalPrompt)
+      console.log('Selected model:', selectedModel)
       
       const response = await fetch('/api/generate-image', {
         method: 'POST',
@@ -673,11 +697,12 @@ export default function FluxKontextPro() {
         const errorData = await response.json().catch(() => ({ error: 'Unknown API error' }))
         
         // 检查是否是内容审核失败
-        if (errorData.error && (
-          errorData.error.includes('flagged as sensitive') ||
-          errorData.error.includes('E005') ||
-          errorData.error.includes('content policy')
-        )) {
+        if (errorData.contentFlagged || 
+            (errorData.error && (
+              errorData.error.includes('flagged as sensitive') ||
+              errorData.error.includes('E005') ||
+              errorData.error.includes('content policy')
+            ))) {
           // 内容审核失败，设置状态并退出
           setContentFlaggedError(language === 'en' 
             ? 'Content flagged as sensitive. Please try with different, family-friendly prompts. Avoid words that could be considered inappropriate.'
@@ -690,7 +715,8 @@ export default function FluxKontextPro() {
         if (errorData.details && (
           errorData.details.includes('flagged as sensitive') ||
           errorData.details.includes('E005') ||
-          errorData.details.includes('content policy')
+          errorData.details.includes('content policy') ||
+          errorData.details.includes('HARM_CATEGORY')
         )) {
           // 内容审核失败，设置状态并退出
           setContentFlaggedError(language === 'en' 
@@ -700,7 +726,10 @@ export default function FluxKontextPro() {
           return
         }
         
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+        // 设置通用错误信息
+        const errorMsg = errorData.error || errorData.details || `HTTP ${response.status}: ${response.statusText}`
+        setGeneralError(errorMsg)
+        throw new Error(errorMsg)
       }
 
       const data = await response.json()
@@ -1139,6 +1168,7 @@ export default function FluxKontextPro() {
     setIsTranslating(false)
     setTranslationInfo(null)
     setContentFlaggedError(null)
+    setGeneralError(null)
     
     // 只清理提示词localStorage，保留图片
     if (typeof window !== 'undefined') {
@@ -1270,7 +1300,7 @@ export default function FluxKontextPro() {
               {language === 'en' ? 'Back to Home' : '返回首页'}
             </Link>
             
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
               <span 
                 className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent !bg-clip-text !text-transparent"
                 data-title="ai-generation"
@@ -1282,10 +1312,10 @@ export default function FluxKontextPro() {
                   WebkitTextFillColor: 'transparent'
                 }}
               >
-                AI Image Generation
+                {selectedModel === 'pro' ? 'Flux Kontext Pro' : selectedModel === 'max' ? 'Flux Kontext Max' : 'Gemini 2.5 Flash Image'}
               </span>
             </h1>
-            <p className="text-xl text-white/80 max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto">
               {language === 'en' 
                 ? 'AI Image Editing that surpasses ChatGPT'
                 : '超过 ChatGPT 的图片编辑'
@@ -1295,31 +1325,59 @@ export default function FluxKontextPro() {
         </div>
 
         {/* 积分显示 */}
-        {creditsInfo && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="flex justify-center mb-6"
-          >
-            <div className="bg-black/20 backdrop-blur-lg rounded-full px-6 py-3 border border-white/10">
-              <div className="flex items-center gap-3 text-white">
-                <Sparkles className="w-5 h-5 text-yellow-400" />
-                <span className="font-medium">
-                  <span className={creditsInfo.isVIP ? "text-yellow-400" : "text-white"}>
-                    {creditsInfo.isVIP && <span className="text-yellow-400">VIP </span>}
-                    {creditsInfo.credits} {language === 'en' ? 'Credits' : '积分'}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="flex justify-center mb-6"
+        >
+          <div className="bg-black/20 backdrop-blur-lg rounded-full px-6 py-3 border border-white/10">
+            <div className="flex items-center gap-3 text-white">
+              {session?.user ? (
+                // 已登录用户显示积分
+                <>
+                  <Sparkles className="w-5 h-5 text-yellow-400" />
+                  <span className="font-medium">
+                    <span className={creditsInfo?.isVIP ? "text-yellow-400" : "text-white"}>
+                      {creditsInfo?.isVIP && <span className="text-yellow-400">VIP </span>}
+                      {creditsInfo?.credits || 0} {language === 'en' ? 'Credits' : '积分'}
+                    </span>
                   </span>
-                </span>
-                <span className="text-white/60">•</span>
-                <span className="text-sm text-white/60">
-                  {language === 'en' ? '10 credits per generation' : '每次生成消耗10积分'}
-                </span>
-
-              </div>
+                  <span className="text-white/60">•</span>
+                  <span className="text-sm text-white/60">
+                    {selectedModel === 'max' 
+                      ? (language === 'en' ? '20 credits per generation' : '每次生成消耗20积分')
+                      : selectedModel === 'gemini' 
+                      ? (language === 'en' ? '30 credits per generation' : '每次生成消耗30积分')
+                      : (language === 'en' ? '10 credits per generation' : '每次生成消耗10积分')
+                    }
+                  </span>
+                </>
+              ) : (
+                // 未登录用户显示引导
+                <>
+                  <Sparkles className="w-5 h-5 text-green-400" />
+                  <span className="font-medium">
+                    <span className="text-green-400">
+                      {language === 'en' ? 'Sign in to get 30 FREE credits!' : '登录即可获得30个免费积分！'}
+                    </span>
+                  </span>
+                  <span className="text-white/60">•</span>
+                  <Link 
+                    href={`/auth/signin?callbackUrl=/ai-image-generation/${
+                      selectedModel === 'pro' ? 'flux-kontext-pro' : 
+                      selectedModel === 'max' ? 'flux-kontext-max' : 
+                      'gemini-2.5-flash-image'
+                    }`}
+                    className="text-sm text-purple-400 hover:text-purple-300 underline"
+                  >
+                    {language === 'en' ? 'Sign in now' : '立即登录'}
+                  </Link>
+                </>
+              )}
             </div>
-          </motion.div>
-        )}
+          </div>
+        </motion.div>
 
         {/* 主要内容区域 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1463,7 +1521,15 @@ export default function FluxKontextPro() {
                   <Label className="text-white/80">
                     {language === 'en' ? 'Model Selection' : '模型选择'}
                   </Label>
-                  <Select value={selectedModel} onValueChange={(value: 'pro' | 'max') => setSelectedModel(value)}>
+                  <Select 
+                    value={selectedModel} 
+                    onValueChange={(value: 'pro' | 'max' | 'gemini') => {
+                      setSelectedModel(value)
+                      // 切换路由但保留当前状态
+                      const modelPath = value === 'pro' ? 'flux-kontext-pro' : value === 'max' ? 'flux-kontext-max' : 'gemini-2.5-flash-image'
+                      router.push(`/ai-image-generation/${modelPath}`)
+                    }}
+                  >
                     <SelectTrigger className="mt-2 bg-white/5 border-white/20 text-white focus:border-purple-400 focus:ring-purple-400/20">
                       <SelectValue />
                     </SelectTrigger>
@@ -1480,11 +1546,19 @@ export default function FluxKontextPro() {
                           <span className="text-xs text-orange-400 ml-2">20 积分</span>
                         </div>
                       </SelectItem>
+                      <SelectItem value="gemini" className="text-white">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Gemini 2.5 Flash</span>
+                          <span className="text-xs text-blue-400 ml-2">30 积分</span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-white/60 mt-1">
                     {selectedModel === 'max' 
                       ? (language === 'en' ? 'Max model provides higher quality results' : 'Max 模型提供更高质量的结果')
+                      : selectedModel === 'gemini'
+                      ? (language === 'en' ? 'Gemini 2.5 Flash for advanced AI image generation' : 'Gemini 2.5 Flash 高级AI图像生成')
                       : (language === 'en' ? 'Pro model for standard quality generation' : 'Pro 模型用于标准质量生成')
                     }
                   </p>
@@ -1544,7 +1618,7 @@ export default function FluxKontextPro() {
                 {/* 生成按钮 */}
                 <Button
                   onClick={generateImage}
-                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || isTranslating || (creditsInfo?.credits || 0) < (selectedModel === 'max' ? 20 : 10)}
+                  disabled={!inputImage || !prompt.trim() || isGenerating || isProcessingImage || isTranslating || (creditsInfo?.credits || 0) < (selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10)}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
@@ -1572,7 +1646,7 @@ export default function FluxKontextPro() {
                         : `生成图片 (${selectedModel.toUpperCase()})`
                       }
                       <span className="ml-1 text-xs opacity-75">
-                        {selectedModel === 'max' ? '20' : '10'}积分
+                        ({selectedModel === 'max' ? '20' : selectedModel === 'gemini' ? '30' : '10'} {language === 'en' ? 'credits' : '积分'})
                       </span>
                     </>
                   )}
@@ -1631,6 +1705,28 @@ export default function FluxKontextPro() {
                       </p>
                     </div>
                   </div>
+                ) : generalError ? (
+                  <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                    <div className="w-16 h-16 border-2 border-red-400/50 rounded-lg flex items-center justify-center bg-red-500/10">
+                      <AlertCircle className="w-8 h-8 text-red-400" />
+                    </div>
+                    <div className="text-center space-y-2">
+                      <h3 className="text-lg font-semibold text-red-400">
+                        {language === 'en' ? 'Generation Failed' : '生成失败'}
+                      </h3>
+                      <p className="text-white/80 text-center max-w-md">
+                        {generalError}
+                      </p>
+                      <Button
+                        onClick={() => setGeneralError(null)}
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 border-white/20 text-white hover:bg-white/10"
+                      >
+                        {language === 'en' ? 'Try Again' : '重试'}
+                      </Button>
+                    </div>
+                  </div>
                 ) : outputImage ? (
                   <div className="space-y-4">
                     <OutputImagePreview
@@ -1681,13 +1777,14 @@ export default function FluxKontextPro() {
           </motion.div>
         </div>
 
-        {/* 生成历史 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="mt-12"
-        >
+        {/* 生成历史 - 只对登录用户显示 */}
+        {session?.user && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="mt-12"
+          >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">
               <span 
@@ -1916,6 +2013,7 @@ export default function FluxKontextPro() {
             </div>
           )}
         </motion.div>
+        )}
       </div>
 
       {/* 多图片编辑器 */}
@@ -1928,6 +2026,12 @@ export default function FluxKontextPro() {
         onConfirm={handleImageEditConfirm}
         initialImages={editorImages}
         initialRatio="4:3"
+      />
+      
+      {/* 积分不足提醒 */}
+      <CreditsAlert
+        open={showCreditsAlert}
+        onOpenChange={setShowCreditsAlert}
       />
     </div>
   )

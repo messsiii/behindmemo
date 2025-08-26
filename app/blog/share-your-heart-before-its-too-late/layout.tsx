@@ -3,7 +3,6 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Share Your Heart Before It\'s Too Late - Behind Memory',
   description: 'Life is unpredictable. Learn why expressing your feelings to loved ones matters and how to do it authentically before it\'s too late.',
-  keywords: 'emotional expression, love letters, relationships, heartfelt communication, expressing feelings, share your heart, express love, express feelings, write a letter, love letter, heartfelt letter, emotional expression, regret, missed opportunities, say it now, before it\'s too late, Behindmemory, personal writing, meaningful gifts, overcome fear, vulnerability, how to write a love letter, how to express feelings, stop regretting',
   openGraph: {
     title: 'Share Your Heart Before It\'s Too Late - Behind Memory',
     description: 'Life is unpredictable. Learn why expressing your feelings to loved ones matters and how to do it authentically before it\'s too late.',

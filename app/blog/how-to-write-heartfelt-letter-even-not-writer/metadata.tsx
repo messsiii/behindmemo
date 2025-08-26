@@ -3,7 +3,6 @@ import { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'How to Write a Heartfelt Letter to Someone You Love (Even If You\'re Not a Writer) | Behind Memory',
   description: 'Discover how to write authentic, meaningful letters to your loved ones, even if you\'re not a writer. Learn practical tips and find inspiration to express your feelings.',
-  keywords: 'heartfelt letter, love letter, writing tips, express feelings, emotional writing, letter to loved one, personal letter, writing inspiration',
   
   openGraph: {
     title: 'How to Write a Heartfelt Letter to Someone You Love (Even If You\'re Not a Writer)',

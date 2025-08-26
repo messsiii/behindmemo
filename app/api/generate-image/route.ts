@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { prompt, input_image, model = 'pro' } = await request.json()
+    
+    console.log('Received request with model:', model)
 
     // 验证输入
     if (!prompt || !input_image) {
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证模型选择
-    const validModels = ['pro', 'max']
+    const validModels = ['pro', 'max', 'gemini']
     if (!validModels.includes(model)) {
       return NextResponse.json(
         { error: 'Invalid model selection' },
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 根据模型类型设置积分消耗
-    const creditsRequired = model === 'max' ? 20 : 10
+    const creditsRequired = model === 'max' ? 20 : model === 'gemini' ? 30 : 10
     if (user.credits < creditsRequired) {
       return NextResponse.json(
         { error: 'Insufficient credits' },
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
           userId: session.user.id,
           prompt: cleanPrompt,
           inputImageUrl: cleanInputImage,
+          model: model,
           status: 'pending',
           creditsUsed: creditsRequired,
         }
@@ -113,35 +116,143 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // 根据模型类型调用相应的Replicate API
-      const modelName = model === 'max' 
-        ? "black-forest-labs/flux-kontext-max"
-        : "black-forest-labs/flux-kontext-pro"
+      let output: any
       
-      console.log(`Starting Flux Kontext ${model.toUpperCase()} generation...`)
-      
-      const output = await replicate.run(modelName, {
-        input: {
-          prompt: cleanPrompt,
-          input_image: cleanInputImage,
-          ...(model === 'pro' && {
-            num_inference_steps: 30,
-            guidance_scale: 7.5,
-            width: 1024,
-            height: 1024,
-          }),
-          ...(model === 'max' && {
-            output_format: "jpg"
+      if (model === 'gemini') {
+        // Gemini API 调用
+        console.log('Starting Gemini 2.5 Flash Image generation...')
+        
+        // 准备包含输入图像的prompt
+        const fullPrompt = `Based on this image, ${cleanPrompt}`
+        
+        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: fullPrompt
+                  },
+                  {
+                    inline_data: {
+                      mime_type: cleanInputImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                      data: cleanInputImage.split(',')[1] // 获取base64数据部分
+                    }
+                  }
+                ]
+              }
+            ],
+            generation_config: {
+              temperature: 0.8,
+              top_p: 0.95,
+              top_k: 64,
+              max_output_tokens: 8192,
+              response_modalities: ['IMAGE', 'TEXT']
+            }
           })
+        })
+
+        if (!geminiResponse.ok) {
+          const errorData = await geminiResponse.json()
+          console.error('Gemini API error:', errorData)
+          throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`)
         }
-      })
+
+        const geminiData = await geminiResponse.json()
+        // 记录响应结构以调试
+        console.log('Gemini response received, candidates count:', geminiData.candidates?.length)
+        
+        // 检查是否有内容审核错误
+        if (geminiData.promptFeedback?.blockReason || 
+            geminiData.candidates?.[0]?.finishReason === 'SAFETY' ||
+            geminiData.candidates?.[0]?.safetyRatings) {
+          console.log('Content blocked by safety filters:', {
+            blockReason: geminiData.promptFeedback?.blockReason,
+            finishReason: geminiData.candidates?.[0]?.finishReason,
+            safetyRatings: geminiData.candidates?.[0]?.safetyRatings
+          })
+          throw new Error('HARM_CATEGORY: Content was blocked by safety filters')
+        }
+        
+        if (geminiData.candidates?.[0]?.content?.parts) {
+          console.log('Parts count:', geminiData.candidates[0].content.parts.length)
+          geminiData.candidates[0].content.parts.forEach((part: any, index: number) => {
+            console.log(`Part ${index}:`, Object.keys(part))
+            if (part.text) {
+              console.log(`Part ${index} text:`, part.text)
+            }
+          })
+        } else {
+          console.log('No parts found in response. Response keys:', Object.keys(geminiData))
+          if (geminiData.promptFeedback) {
+            console.log('Prompt feedback:', geminiData.promptFeedback)
+          }
+          if (!geminiData.candidates || geminiData.candidates.length === 0) {
+            console.log('No candidates in response')
+          }
+        }
+        
+        // 提取生成的图像
+        if (geminiData.candidates?.[0]?.content?.parts) {
+          for (const part of geminiData.candidates[0].content.parts) {
+            // 同时检查 inlineData 和 inline_data 以兼容不同的响应格式
+            const inlineData = part.inlineData || part.inline_data
+            if (inlineData?.data) {
+              // 将 base64 数据转换为 data URL
+              const mimeType = inlineData.mimeType || inlineData.mime_type || 'image/png'
+              output = `data:${mimeType};base64,${inlineData.data}`
+              console.log('Found image data with mimeType:', mimeType)
+              break
+            } else if (part.text) {
+              console.log('Gemini text response:', part.text)
+            }
+          }
+        }
+        
+        if (!output) {
+          throw new Error('Gemini did not return an image')
+        }
+      } else {
+        // Replicate API 调用
+        const modelName = model === 'max' 
+          ? "black-forest-labs/flux-kontext-max"
+          : "black-forest-labs/flux-kontext-pro"
+        
+        console.log(`Starting Flux Kontext ${model.toUpperCase()} generation...`)
+        
+        output = await replicate.run(modelName, {
+          input: {
+            prompt: cleanPrompt,
+            input_image: cleanInputImage,
+            ...(model === 'pro' && {
+              num_inference_steps: 30,
+              guidance_scale: 7.5,
+              width: 1024,
+              height: 1024,
+            }),
+            ...(model === 'max' && {
+              output_format: "jpg"
+            })
+          }
+        })
+      }
 
       console.log('Generation completed, output type:', typeof output)
 
-      // 处理 Replicate 输出
+      // 处理输出
       let blobUrl: string = ''
       
-      if (output instanceof ReadableStream) {
+      // Gemini 返回的是 data URL，直接使用
+      if (model === 'gemini' && typeof output === 'string' && output.startsWith('data:')) {
+        blobUrl = output
+        console.log('Using Gemini data URL directly')
+      } else if (output instanceof ReadableStream) {
         // 如果是流，直接处理流数据
         console.log('Processing ReadableStream output...')
         
@@ -243,6 +354,10 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error('Generation failed:', error)
 
+      // 检查错误类型并设置适当的错误消息
+      let errorMessage = 'Unknown error'
+      let isContentFlagged = false
+
       // 生成失败时，退还积分并更新记录状态
       try {
         // 退还积分
@@ -252,18 +367,25 @@ export async function POST(request: NextRequest) {
         })
 
         // 更新记录状态
+        if (error instanceof Error) {
+          errorMessage = error.message
+          // 检查是否是内容审核错误
+          if (errorMessage.includes('HARM_CATEGORY') || 
+              errorMessage.includes('content policy') || 
+              errorMessage.includes('safety') ||
+              errorMessage.includes('blocked')) {
+            isContentFlagged = true
+            errorMessage = 'Content was flagged as sensitive. Please try using a different prompt that complies with content policies.'
+          }
+        } else if (typeof error === 'string') {
+          errorMessage = error
+        }
+        
         const failureUpdateData: any = {
           status: 'failed',
           updatedAt: new Date(),
-        }
-        
-        // 只有当有错误消息时才添加错误消息字段
-        if (error instanceof Error && error.message) {
-          failureUpdateData.errorMessage = error.message
-        } else if (typeof error === 'string' && error) {
-          failureUpdateData.errorMessage = error
-        } else {
-          failureUpdateData.errorMessage = 'Unknown error'
+          errorMessage: errorMessage,
+          creditsUsed: 0  // 退还积分后，记录显示0积分消耗
         }
 
         await prisma.imageGeneration.update({
@@ -277,9 +399,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Image generation failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
+          details: errorMessage,
+          contentFlagged: isContentFlagged
         },
-        { status: 500 }
+        { status: isContentFlagged ? 400 : 500 }
       )
     }
 

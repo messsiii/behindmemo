@@ -3,7 +3,6 @@ import { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Share Your Heart Before It\'s Too Late: Why Now is the Best Time | Behind Memory',
   description: 'Explore why expressing your feelings to loved ones today matters more than waiting for tomorrow. Learn how to overcome barriers and share your heart in meaningful ways.',
-  keywords: 'express feelings, share emotions, emotional connection, heartfelt communication, relationships, meaningful connection, overcoming barriers',
   
   openGraph: {
     title: 'Share Your Heart Before It\'s Too Late: Why Now is the Best Time',

@@ -22,28 +22,28 @@ const content = {
   en: {
     title: 'Credits Exceeded',
     description:
-      "You've used up all your free credits. Upgrade to VIP to enjoy:",
+      "You've used up all your free credits. Get more credits or upgrade to VIP to enjoy:",
     features: [
       "✨ Unlimited letter generation",
-      "🎨 Unlimited template usage",
+      "🎨 AI Image Generation (10-30 credits per use)",
       "🔄 Unlimited sharing",
       "🔒 Watermark removal"
     ],
     cancel: 'Cancel',
-    upgrade: 'Upgrade to VIP',
+    upgrade: 'Get Credits',
   },
   zh: {
-    title: '创作配额不足',
+    title: '积分不足',
     description:
-      '您的免费创作次数已用完。升级为VIP即可享受：',
+      '您的积分已不足。购买更多积分或升级VIP即可享受：',
     features: [
       "✨ 无限生成信件",
-      "🎨 无限使用模板",
+      "🎨 AI图像生成（10-30积分/次）",
       "🔄 无限分享",
       "🔒 去除水印"
     ],
     cancel: '取消',
-    upgrade: '升级VIP',
+    upgrade: '获取积分',
   },
 }
 

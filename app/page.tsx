@@ -4,6 +4,7 @@ import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
 import { SimpleImageUpload } from '@/components/SimpleImageUpload'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
@@ -50,9 +51,22 @@ interface CTAContent {
   button: string;
 }
 
+interface ToolsContent {
+  title: string;
+  subtitle: string;
+  tools: {
+    name: string;
+    description: string;
+    credits: number;
+    href: string;
+    badge?: string;
+  }[];
+}
+
 interface ContentVariant {
   hero: BaseHeroContent | TypewriterHeroContent;
   videoCard: SectionContent;
+  tools: ToolsContent;
   cta: CTAContent;
 }
 
@@ -494,6 +508,31 @@ export default function Home() {
           description: 'Watch how Behind Memo helps you create heartfelt letters from your cherished photos.',
           buttonText: 'Try It Now'
         },
+        tools: {
+          title: 'AI Creative Tools',
+          subtitle: 'Transform your ideas into stunning visuals with our AI-powered image generation tools',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: 'Professional AI image generation with high-quality results',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: 'Maximum quality AI image generation for premium results',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: 'Google\'s latest AI model for creative image generation',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: 'New'
+            }
+          ]
+        },
         cta: {
           title: 'Ready to express your true feelings?',
           description:
@@ -513,6 +552,31 @@ export default function Home() {
           title: '了解我们如何工作',
           description: '观看Behind Memo如何帮助您从珍贵照片创建充满感情的信件。',
           buttonText: '立即体验'
+        },
+        tools: {
+          title: 'AI创意工具',
+          subtitle: '使用我们的AI图像生成工具，将您的创意转化为令人惊叹的视觉作品',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: '专业AI图像生成，高质量输出',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: '最高质量AI图像生成，适合高端需求',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: '谷歌最新AI模型，创意图像生成',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: '新'
+            }
+          ]
         },
         cta: {
           title: '准备好表达真挚情感了吗？',
@@ -536,6 +600,31 @@ export default function Home() {
           description: 'Watch how Behind Memo helps you create meaningful love letters from your cherished photos.',
           buttonText: 'Try It Now'
         },
+        tools: {
+          title: 'AI Creative Tools',
+          subtitle: 'Transform your ideas into stunning visuals with our AI-powered image generation tools',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: 'Professional AI image generation with high-quality results',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: 'Maximum quality AI image generation for premium results',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: 'Google\'s latest AI model for creative image generation',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: 'New'
+            }
+          ]
+        },
         cta: {
           title: 'Ready to express your love?',
           description: '✓ Personalized love letters\n✓ Photo-inspired writing\n✓ Emotional expression guide\n✓ Beautiful templates',
@@ -553,6 +642,31 @@ export default function Home() {
           title: '了解我们如何工作',
           description: '观看Behind Memo如何帮助您从珍贵照片创建充满爱意的信件。',
           buttonText: '立即体验'
+        },
+        tools: {
+          title: 'AI创意工具',
+          subtitle: '使用我们的AI图像生成工具，将您的创意转化为令人惊叹的视觉作品',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: '专业AI图像生成，高质量输出',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: '最高质量AI图像生成，适合高端需求',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: '谷歌最新AI模型，创意图像生成',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: '新'
+            }
+          ]
         },
         cta: {
           title: '准备好表达你的爱意了吗？',
@@ -576,6 +690,31 @@ export default function Home() {
           description: 'Watch how Behind Memo helps you create meaningful messages from your friendship photos.',
           buttonText: 'Try It Now'
         },
+        tools: {
+          title: 'AI Creative Tools',
+          subtitle: 'Transform your ideas into stunning visuals with our AI-powered image generation tools',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: 'Professional AI image generation with high-quality results',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: 'Maximum quality AI image generation for premium results',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: 'Google\'s latest AI model for creative image generation',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: 'New'
+            }
+          ]
+        },
         cta: {
           title: 'Ready to thank your friends?',
           description: '✓ Friendship appreciation letters\n✓ Memories into words\n✓ Photo-based inspiration\n✓ Express gratitude easily',
@@ -593,6 +732,31 @@ export default function Home() {
           title: '了解我们如何工作',
           description: '观看Behind Memo如何帮助您从友谊照片创建有意义的信件。',
           buttonText: '立即体验'
+        },
+        tools: {
+          title: 'AI创意工具',
+          subtitle: '使用我们的AI图像生成工具，将您的创意转化为令人惊叹的视觉作品',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: '专业AI图像生成，高质量输出',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: '最高质量AI图像生成，适合高端需求',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: '谷歌最新AI模型，创意图像生成',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: '新'
+            }
+          ]
         },
         cta: {
           title: '准备好感谢你的朋友了吗？',
@@ -616,6 +780,31 @@ export default function Home() {
           description: 'Watch how Behind Memo helps you create meaningful family letters from your precious photos.',
           buttonText: 'Try It Now'
         },
+        tools: {
+          title: 'AI Creative Tools',
+          subtitle: 'Transform your ideas into stunning visuals with our AI-powered image generation tools',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: 'Professional AI image generation with high-quality results',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: 'Maximum quality AI image generation for premium results',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: 'Google\'s latest AI model for creative image generation',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: 'New'
+            }
+          ]
+        },
         cta: {
           title: 'Ready to express family love?',
           description: '✓ Family appreciation letters\n✓ Preserve family stories\n✓ Photo-inspired writing\n✓ Heartfelt expressions',
@@ -633,6 +822,31 @@ export default function Home() {
           title: '了解我们如何工作',
           description: '观看Behind Memo如何帮助您从珍贵的家庭照片创建有意义的信件。',
           buttonText: '立即体验'
+        },
+        tools: {
+          title: 'AI创意工具',
+          subtitle: '使用我们的AI图像生成工具，将您的创意转化为令人惊叹的视觉作品',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: '专业AI图像生成，高质量输出',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: '最高质量AI图像生成，适合高端需求',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: '谷歌最新AI模型，创意图像生成',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: '新'
+            }
+          ]
         },
         cta: {
           title: '准备好表达家庭之爱了吗？',
@@ -660,6 +874,31 @@ export default function Home() {
           description: 'Watch how Behind Memo helps transform your photos into meaningful personalized letters.',
           buttonText: 'Try It Now'
         },
+        tools: {
+          title: 'AI Creative Tools',
+          subtitle: 'Transform your ideas into stunning visuals with our AI-powered image generation tools',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: 'Professional AI image generation with high-quality results',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: 'Maximum quality AI image generation for premium results',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: 'Google\'s latest AI model for creative image generation',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: 'New'
+            }
+          ]
+        },
         cta: {
           title: 'Express your feelings with ease',
           description: '✓ Photo-inspired writing\n✓ Multiple relationships\n✓ Various occasions\n✓ Personalized guidance',
@@ -681,6 +920,31 @@ export default function Home() {
           title: '了解工作原理',
           description: '观看Behind Memo如何帮助您将照片转化为有意义的个性化信件。',
           buttonText: '立即体验'
+        },
+        tools: {
+          title: 'AI创意工具',
+          subtitle: '使用我们的AI图像生成工具，将您的创意转化为令人惊叹的视觉作品',
+          tools: [
+            {
+              name: 'Flux Kontext Pro',
+              description: '专业AI图像生成，高质量输出',
+              credits: 10,
+              href: '/ai-image-generation/flux-kontext-pro'
+            },
+            {
+              name: 'Flux Kontext Max',
+              description: '最高质量AI图像生成，适合高端需求',
+              credits: 20,
+              href: '/ai-image-generation/flux-kontext-max'
+            },
+            {
+              name: 'Gemini 2.5 Flash',
+              description: '谷歌最新AI模型，创意图像生成',
+              credits: 30,
+              href: '/ai-image-generation/gemini-2.5-flash-image',
+              badge: '新'
+            }
+          ]
         },
         cta: {
           title: '轻松表达您的情感',
@@ -1341,6 +1605,70 @@ export default function Home() {
                 <Link href="/write">{language === "en" ? "Try It Now" : "立即尝试"}</Link>
               </Button>
             </motion.div>
+          </div>
+        </section>
+
+        {/* Tools Section */}
+        <section className="py-16 md:py-24 bg-gray-50/50">
+          <div className="container mx-auto px-4">
+            <div className="max-w-6xl mx-auto">
+              <motion.div
+                className="text-center mb-12"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <h2 className={`text-3xl md:text-4xl font-bold mb-4 ${
+                  language === 'en' ? 'font-serif' : 'font-serif-zh'
+                }`}>
+                  {content[language].tools.title}
+                </h2>
+                <p className={`text-lg md:text-xl text-gray-700 max-w-3xl mx-auto ${
+                  language === 'en' ? 'font-serif' : 'font-serif-zh'
+                }`}>
+                  {content[language].tools.subtitle}
+                </p>
+              </motion.div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {content[language].tools.tools.map((tool, index) => (
+                  <motion.div
+                    key={tool.href}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                  >
+                    <Link href={tool.href}>
+                      <Card className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-gray-200">
+                        <CardContent className="p-6">
+                          <div className="flex justify-between items-start mb-4">
+                            <h3 className={`text-xl font-bold ${
+                              language === 'en' ? 'font-serif' : 'font-serif-zh'
+                            }`}>
+                              {tool.name}
+                            </h3>
+                            {tool.badge && (
+                              <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                {tool.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-600 mb-4">{tool.description}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">
+                              {tool.credits} {language === 'en' ? 'credits per use' : '积分/次'}
+                            </span>
+                            <span className="text-sm font-medium text-blue-600">
+                              {language === 'en' ? 'Try Now →' : '立即体验 →'}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 

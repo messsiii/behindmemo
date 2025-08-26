@@ -4,7 +4,6 @@ import './styles.css'
 export const metadata: Metadata = {
   title: 'Blog - Behind Memory',
   description: 'Explore articles about expressing emotions, writing heartfelt letters, and creating meaningful memories with your loved ones.',
-  keywords: 'love letters, emotional expression, heartfelt writing, memories, relationships',
   openGraph: {
     title: 'Blog - Behind Memory',
     description: 'Explore articles about expressing emotions, writing heartfelt letters, and creating meaningful memories with your loved ones.',

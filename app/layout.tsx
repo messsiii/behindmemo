@@ -5,7 +5,6 @@ import { Analytics } from '@vercel/analytics/react'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { Inter } from 'next/font/google'
-import StagewiseWrapper from './components/StagewiseWrapper'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -13,7 +12,6 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Behind Memory - AI Memory Generator',
   description: 'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
-  keywords: 'AI letter writing, memory generator, photo to letter, express feelings, heartfelt letter, love letter, personal letter',
   authors: [{ name: 'Behind Memory Team' }],
   generator: 'Next.js',
   applicationName: 'Behind Memory',
@@ -90,7 +88,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers session={session}>{children}</Providers>
         <Analytics />
         <GoogleAnalytics />
-        <StagewiseWrapper />
       </body>
     </html>
   )

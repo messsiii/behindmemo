@@ -1,84 +1,87 @@
-import { MetadataRoute } from 'next';
+import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://behindmemory.com';
-
-  // 博客文章列表 - 可以扩展
-  const blogPosts = [
+  const baseUrl = 'https://www.behindmemory.com'
+  
+  // 静态页面
+  const staticPages = [
     {
-      url: '/blog/how-to-write-heartfelt-letter-even-not-writer',
-      lastModified: new Date('2023-03-15'),
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: '/blog/share-your-heart-before-its-too-late',
-      lastModified: new Date('2023-03-15'),
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    // 为SEO添加更多博客文章条目
-  ];
-
-  // 主要页面
-  const mainPages = [
-    {
-      url: '/',
+      url: baseUrl,
       lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 1.0,
+      changeFrequency: 'daily' as const,
+      priority: 1,
     },
     {
-      url: '/blog',
+      url: `${baseUrl}/write`,
       lastModified: new Date(),
-      changeFrequency: 'weekly',
+      changeFrequency: 'daily' as const,
       priority: 0.9,
     },
     {
-      url: '/about',
+      url: `${baseUrl}/ai-image-generation/flux-kontext-pro`,
       lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    },
-    {
-      url: '/pricing',
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
+      changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
     {
-      url: '/terms',
-      lastModified: new Date('2023-02-07'),
-      changeFrequency: 'yearly',
+      url: `${baseUrl}/ai-image-generation/flux-kontext-max`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/ai-image-generation/gemini-2.5-flash-image`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/pricing`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/blog`,
+      lastModified: new Date(),
+      changeFrequency: 'daily' as const,
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/about`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    },
+    {
+      url: `${baseUrl}/terms`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
       priority: 0.5,
     },
     {
-      url: '/privacy',
-      lastModified: new Date('2023-02-07'),
-      changeFrequency: 'yearly',
+      url: `${baseUrl}/privacy`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
       priority: 0.5,
     },
+  ]
 
-  ];
+  // 博客文章
+  const blogPosts = [
+    {
+      url: `${baseUrl}/blog/how-to-write-heartfelt-letter-even-not-writer`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    },
+    {
+      url: `${baseUrl}/blog/share-your-heart-before-its-too-late`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    },
+  ]
 
-  // 确保所有URL都是完整的绝对URL
-  const routes = mainPages.map(page => ({
-    url: `${baseUrl}${page.url}`,
-    lastModified: page.lastModified,
-    changeFrequency: page.changeFrequency as 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never',
-    priority: page.priority,
-  }));
-
-  // 添加博客文章
-  blogPosts.forEach(post => {
-    routes.push({
-      url: `${baseUrl}${post.url}`,
-      lastModified: post.lastModified,
-      changeFrequency: post.changeFrequency as 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never',
-      priority: post.priority,
-    });
-  });
-
-
-  return routes;
-} 
+  return [...staticPages, ...blogPosts]
+}

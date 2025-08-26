@@ -99,8 +99,10 @@ export const authConfig = {
         const urlObj = new URL(url, baseUrl)
         const pathname = urlObj.pathname
         
-        // 只记录路径名，不记录完整 URL
-        console.debug('Processing redirect:', pathname)
+        // 只在开发环境且启用调试时记录路径名
+        if (process.env.NODE_ENV === 'development' && process.env.DEBUG_AUTH === 'true') {
+          console.debug('Processing redirect:', pathname)
+        }
 
         // 特殊处理支付成功页面，避免重定向循环
         if (pathname === '/checkout/success' || pathname.startsWith('/checkout/success')) {

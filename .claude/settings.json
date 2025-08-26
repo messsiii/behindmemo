@@ -1,0 +1,89 @@
+{
+  "allowedTools": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Edit",
+    "Write",
+    "MultiEdit",
+    "Bash(npm:*)",
+    "Bash(yarn:*)",
+    "Bash(git:*)",
+    "Bash(next:*)",
+    "Bash(npx:*)"
+  ],
+  "allowedDomains": [
+    "docs.anthropic.com",
+    "nextjs.org",
+    "tailwindcss.com",
+    "developer.mozilla.org",
+    "typescript-eslint.io"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json, sys; data=json.load(sys.stdin); path=data.get('tool_input',{}).get('file_path',''); sys.exit(2 if any(p in path for p in ['.env', '.env.local', '.env.production', 'package-lock.json', 'pnpm-lock.yaml', '.git/', '.vercel/', 'vercel.json']) else 0)\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json, sys, re; data=json.load(sys.stdin); cmd=data.get('tool_input',{}).get('command',''); dangerous=['rm.*-[rf]', 'sudo.*rm', 'chmod.*777', 'mkfs', ':(){ :|:& };:']; sys.exit(2 if any(re.search(p, cmd) for p in dangerous) else 0)\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | { read file_path; if echo \"$file_path\" | grep -qE '\\.(ts|tsx|js|jsx|json|md|mdx)$'; then cd \"$CLAUDE_PROJECT_DIR\" && npx prettier --write \"$file_path\" 2>/dev/null && echo \"✨ Formatted: $file_path\" >&2; fi; } || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r 'if .tool_input.command | test(\"git commit\") then \"🔍 记得运行 npm run build 检查构建\" else empty end' >&2 || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"任务已完成 ✨\" with title \"Claude Code\" sound name \"Glass\"' && echo '✨ 任务完成！' >&2 || echo '✨ 任务完成！' >&2"
+          }
+        ]
+      }
+    ]
+  },
+  "workflowSettings": {
+    "autoSave": true,
+    "contextPreservation": true,
+    "preferredAgents": {
+      "default": "vibecoding-assistant",
+      "frontend": "frontend-developer",
+      "seo": "seo-specialist",
+      "content": "content-manager"
+    },
+    "vibecoding": {
+      "autoConfirm": true,
+      "minimalOutput": true,
+      "bundleChanges": true
+    }
+  }
+}

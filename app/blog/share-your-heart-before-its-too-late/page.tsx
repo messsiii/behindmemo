@@ -267,7 +267,6 @@ export default function ArticlePage() {
                   "@type": "WebPage",
                   "@id": "https://behindmemory.com/blog/share-your-heart-before-its-too-late"
                 },
-                "keywords": "share your heart, express love, express feelings, write a letter, love letter, heartfelt letter, emotional expression, regret, missed opportunities, say it now, before it's too late, Behindmemory, personal writing, meaningful gifts, overcome fear, vulnerability, how to write a love letter, how to express feelings, stop regretting",
                 "description": "Don't let unspoken feelings and missed opportunities become lifelong regrets. Learn how to express your love, overcome the fear of vulnerability, and write heartfelt letters."
               })
             }}

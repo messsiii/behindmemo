@@ -59,6 +59,7 @@ next-env.d.ts
 /references
 *.md
 !README.md
+!CLAUDE.md
 
 # 数据库备份
 /backups/
