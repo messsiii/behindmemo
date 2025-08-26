@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
           base64Length: cleanInputImage.replace(/^data:image\/(png|jpeg|jpg);base64,/, '').length
         })
         
-        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
+        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -156,8 +156,8 @@ export async function POST(request: NextRequest) {
                   },
                   {
                     inline_data: {
-                      mime_type: cleanInputImage.includes('image/png') ? 'image/png' : 'image/jpeg',
-                      data: cleanInputImage.replace(/^data:image\/(png|jpeg|jpg);base64,/, '') // 移除data URL前缀，只保留base64部分
+                      mime_type: cleanInputImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                      data: cleanInputImage.split(',')[1] // 获取base64数据部分
                     }
                   }
                 ]
@@ -168,14 +168,20 @@ export async function POST(request: NextRequest) {
               top_p: 0.95,
               top_k: 64,
               max_output_tokens: 8192,
-              response_modalities: ['TEXT']
+              response_modalities: ['IMAGE', 'TEXT']
             }
           })
         })
 
         if (!geminiResponse.ok) {
           const errorData = await geminiResponse.json()
-          console.error('Gemini API error:', errorData)
+          console.error('Gemini API error:', JSON.stringify(errorData, null, 2))
+          console.error('Request details:', {
+            imageDataLength: cleanInputImage.length,
+            base64Length: cleanInputImage.split(',')[1]?.length,
+            imageType: cleanInputImage.substring(5, 20),
+            promptLength: fullPrompt.length
+          })
           throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`)
         }
 
