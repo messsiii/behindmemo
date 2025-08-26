@@ -123,10 +123,12 @@ export async function POST(request: NextRequest) {
         console.log('Starting Gemini 2.5 Flash Image generation...')
         
         // 检查API密钥
-        if (!process.env.GEMINI_API_KEY) {
+        const geminiApiKey = process.env.GEMINI_API_KEY
+        if (!geminiApiKey) {
           console.error('GEMINI_API_KEY is not configured')
           throw new Error('Gemini API key is not configured')
         }
+        console.log('Gemini API key length:', geminiApiKey.length)
         
         // 准备包含输入图像的prompt
         const fullPrompt = `Based on this image, ${cleanPrompt}`
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+            'x-goog-api-key': geminiApiKey,
           },
           body: JSON.stringify({
             contents: [
