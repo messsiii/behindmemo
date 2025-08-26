@@ -31,7 +31,8 @@
     "db:migrate:dev": "node dev-tools/safe-migrate.js dev",
     "db:migrate:deploy": "node dev-tools/safe-migrate.js deploy",
     "db:push": "node dev-tools/safe-migrate.js push",
-    "test:email": "node dev-tools/test-email.js"
+    "test:email": "node dev-tools/test-email.js",
+    "indexnow": "node scripts/indexnow-submit.js"
   },
   "dependencies": {
     "@auth/core": "^0.37.4",

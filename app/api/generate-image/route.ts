@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
 
     const { prompt, input_image, model = 'pro' } = await request.json()
     
-    console.log('Received request with model:', model)
 
     // 验证输入
     if (!prompt || !input_image) {
@@ -120,25 +119,13 @@ export async function POST(request: NextRequest) {
       
       if (model === 'gemini') {
         // Gemini API 调用
-        console.log('Starting Gemini 2.5 Flash Image generation...')
-        
-        // 检查API密钥
         const geminiApiKey = process.env.GEMINI_API_KEY
         if (!geminiApiKey) {
-          console.error('GEMINI_API_KEY is not configured')
           throw new Error('Gemini API key is not configured')
         }
-        console.log('Gemini API key length:', geminiApiKey.length)
         
         // 准备包含输入图像的prompt
         const fullPrompt = `Based on this image, ${cleanPrompt}`
-        
-        // 检查图像格式
-        console.log('Input image format check:', {
-          startsWithData: cleanInputImage.startsWith('data:'),
-          imageType: cleanInputImage.substring(5, 15),
-          base64Length: cleanInputImage.replace(/^data:image\/(png|jpeg|jpg);base64,/, '').length
-        })
         
         const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
           method: 'POST',
@@ -175,48 +162,16 @@ export async function POST(request: NextRequest) {
 
         if (!geminiResponse.ok) {
           const errorData = await geminiResponse.json()
-          console.error('Gemini API error:', JSON.stringify(errorData, null, 2))
-          console.error('Request details:', {
-            imageDataLength: cleanInputImage.length,
-            base64Length: cleanInputImage.split(',')[1]?.length,
-            imageType: cleanInputImage.substring(5, 20),
-            promptLength: fullPrompt.length
-          })
           throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`)
         }
 
         const geminiData = await geminiResponse.json()
-        // 记录响应结构以调试
-        console.log('Gemini response received, candidates count:', geminiData.candidates?.length)
         
         // 检查是否有内容审核错误
         if (geminiData.promptFeedback?.blockReason || 
             geminiData.candidates?.[0]?.finishReason === 'SAFETY' ||
             geminiData.candidates?.[0]?.safetyRatings) {
-          console.log('Content blocked by safety filters:', {
-            blockReason: geminiData.promptFeedback?.blockReason,
-            finishReason: geminiData.candidates?.[0]?.finishReason,
-            safetyRatings: geminiData.candidates?.[0]?.safetyRatings
-          })
           throw new Error('HARM_CATEGORY: Content was blocked by safety filters')
-        }
-        
-        if (geminiData.candidates?.[0]?.content?.parts) {
-          console.log('Parts count:', geminiData.candidates[0].content.parts.length)
-          geminiData.candidates[0].content.parts.forEach((part: any, index: number) => {
-            console.log(`Part ${index}:`, Object.keys(part))
-            if (part.text) {
-              console.log(`Part ${index} text:`, part.text)
-            }
-          })
-        } else {
-          console.log('No parts found in response. Response keys:', Object.keys(geminiData))
-          if (geminiData.promptFeedback) {
-            console.log('Prompt feedback:', geminiData.promptFeedback)
-          }
-          if (!geminiData.candidates || geminiData.candidates.length === 0) {
-            console.log('No candidates in response')
-          }
         }
         
         // 提取生成的图像
@@ -228,10 +183,7 @@ export async function POST(request: NextRequest) {
               // 将 base64 数据转换为 data URL
               const mimeType = inlineData.mimeType || inlineData.mime_type || 'image/png'
               output = `data:${mimeType};base64,${inlineData.data}`
-              console.log('Found image data with mimeType:', mimeType)
               break
-            } else if (part.text) {
-              console.log('Gemini text response:', part.text)
             }
           }
         }
@@ -244,8 +196,6 @@ export async function POST(request: NextRequest) {
         const modelName = model === 'max' 
           ? "black-forest-labs/flux-kontext-max"
           : "black-forest-labs/flux-kontext-pro"
-        
-        console.log(`Starting Flux Kontext ${model.toUpperCase()} generation...`)
         
         output = await replicate.run(modelName, {
           input: {
@@ -264,18 +214,14 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      console.log('Generation completed, output type:', typeof output)
-
       // 处理输出
       let blobUrl: string = ''
       
       // Gemini 返回的是 data URL，直接使用
       if (model === 'gemini' && typeof output === 'string' && output.startsWith('data:')) {
         blobUrl = output
-        console.log('Using Gemini data URL directly')
       } else if (output instanceof ReadableStream) {
         // 如果是流，直接处理流数据
-        console.log('Processing ReadableStream output...')
         
         const reader = output.getReader()
         const chunks: Uint8Array[] = []
@@ -296,8 +242,6 @@ export async function POST(request: NextRequest) {
           offset += chunk.length
         }
         
-        console.log(`Image data processed, size: ${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB`)
-        
         // 直接上传到 Blob 存储
         const { put } = await import('@vercel/blob')
         const blob = await put(`flux-generated-${generationRecord.id}.png`, Buffer.from(imageBuffer), {
@@ -308,7 +252,6 @@ export async function POST(request: NextRequest) {
         })
         
         blobUrl = blob.url
-        console.log('Image uploaded to Blob storage:', blobUrl)
         
       } else {
         // 处理其他类型的输出 - 使用类型断言
@@ -318,11 +261,9 @@ export async function POST(request: NextRequest) {
         if (Array.isArray(outputData) && outputData.length > 0) {
           // 如果是数组URL
           imageUrl = String(outputData[0])
-          console.log('Processing array output URL:', imageUrl)
         } else if (typeof outputData === 'string' && String(outputData).startsWith('http')) {
           // 如果是字符串URL
           imageUrl = String(outputData)
-          console.log('Processing string URL:', outputData)
         } else {
           throw new Error(`Unsupported output format: ${typeof outputData}, value: ${JSON.stringify(outputData)}`)
         }
@@ -330,18 +271,13 @@ export async function POST(request: NextRequest) {
         // 添加重试机制下载图片
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
-            console.log(`Downloading image, attempt ${attempt}/3...`)
             blobUrl = await downloadImageToBlob(imageUrl, {
               filename: `flux-generated-${generationRecord.id}.jpg`,
             })
-            console.log('Image download successful')
             break
           } catch (error) {
-            console.error(`Download attempt ${attempt} failed:`, error)
-            
             // 如果不是最后一次尝试，等待后重试
             if (attempt < 3) {
-              console.log(`Waiting 2 seconds before retry...`)
               await new Promise(resolve => setTimeout(resolve, 2000))
             }
           }
@@ -349,7 +285,6 @@ export async function POST(request: NextRequest) {
         
         // 如果所有重试都失败了
         if (!blobUrl) {
-          console.error('All download attempts failed, using original URL as fallback')
           // 作为备选方案，直接使用原始URL
           blobUrl = imageUrl
         }
