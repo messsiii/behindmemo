@@ -133,7 +133,14 @@ export async function POST(request: NextRequest) {
         // 准备包含输入图像的prompt
         const fullPrompt = `Based on this image, ${cleanPrompt}`
         
-        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
+        // 检查图像格式
+        console.log('Input image format check:', {
+          startsWithData: cleanInputImage.startsWith('data:'),
+          imageType: cleanInputImage.substring(5, 15),
+          base64Length: cleanInputImage.replace(/^data:image\/(png|jpeg|jpg);base64,/, '').length
+        })
+        
+        const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -149,8 +156,8 @@ export async function POST(request: NextRequest) {
                   },
                   {
                     inline_data: {
-                      mime_type: cleanInputImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
-                      data: cleanInputImage.split(',')[1] // 获取base64数据部分
+                      mime_type: cleanInputImage.includes('image/png') ? 'image/png' : 'image/jpeg',
+                      data: cleanInputImage.replace(/^data:image\/(png|jpeg|jpg);base64,/, '') // 移除data URL前缀，只保留base64部分
                     }
                   }
                 ]
@@ -161,7 +168,7 @@ export async function POST(request: NextRequest) {
               top_p: 0.95,
               top_k: 64,
               max_output_tokens: 8192,
-              response_modalities: ['IMAGE', 'TEXT']
+              response_modalities: ['TEXT']
             }
           })
         })
