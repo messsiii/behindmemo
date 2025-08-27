@@ -2,30 +2,32 @@ import FluxKontextPro from '@/app/components/FluxKontextPro'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Gemini 2.5 Flash Image - AI Image Generation | Behind Memory',
-  description: 'Experience Google Gemini 2.5 Flash for AI image generation. Premium quality transformations at 30 credits per generation.',
+  title: 'Flux Kontext Pro - AI Image Generation Tool | Behind Memory',
+  description:
+    'Transform photos with Flux Kontext Pro AI. Professional quality results with 10 credits per generation. Start with 30 free credits!',
   openGraph: {
-    title: 'Gemini 2.5 Flash Image - AI Image Generation',
-    description: 'Transform photos with Google Gemini 2.5 Flash. Fast and efficient AI image generation.',
+    title: 'Flux Kontext Pro - AI Image Generation Tool',
+    description:
+      'Transform your photos with Flux Kontext Pro AI. Professional quality results with advanced AI technology.',
     type: 'website',
-    url: 'https://behindmemory.com/ai-image-generation/gemini-2.5-flash-image',
+    url: 'https://behindmemory.com/flux-kontext-pro',
     images: [
       {
-        url: 'https://behindmemory.com/images/gemini-flash-og.jpg',
+        url: 'https://behindmemory.com/images/flux-kontext-pro-og.jpg',
         width: 1200,
         height: 630,
-        alt: 'Gemini 2.5 Flash Image AI Generation',
+        alt: 'Flux Kontext Pro AI Image Generation',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Gemini 2.5 Flash Image - AI Generation',
-    description: 'Fast AI image generation with Google Gemini 2.5 Flash',
-    images: ['https://behindmemory.com/images/gemini-flash-twitter.jpg'],
+    title: 'Flux Kontext Pro - AI Image Generation',
+    description: 'Transform photos with professional AI image generation technology',
+    images: ['https://behindmemory.com/images/flux-kontext-pro-twitter.jpg'],
   },
   alternates: {
-    canonical: 'https://behindmemory.com/ai-image-generation/gemini-2.5-flash-image',
+    canonical: 'https://behindmemory.com/flux-kontext-pro',
   },
   robots: {
     index: true,
@@ -40,11 +42,11 @@ export const metadata: Metadata = {
   },
 }
 
-export default function GeminiFlashImagePage() {
+export default function FluxKontextProPage() {
   return (
-    <div 
-      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black" 
-      data-page="gemini-2.5-flash-image"
+    <div
+      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black"
+      data-page="flux-kontext-pro"
     >
       {/* 背景装饰 */}
       <div className="fixed inset-0 opacity-10 pointer-events-none">
@@ -54,7 +56,7 @@ export default function GeminiFlashImagePage() {
       </div>
 
       <div className="relative z-10">
-        <FluxKontextPro initialModel="gemini" />
+        <FluxKontextPro initialModel="pro" />
       </div>
     </div>
   )

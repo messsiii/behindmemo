@@ -2,30 +2,32 @@ import FluxKontextPro from '@/app/components/FluxKontextPro'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Flux Kontext Max - Premium AI Image Generation | Behind Memory',
-  description: 'Experience premium AI image generation with Flux Kontext Max. Superior quality transformations at 20 credits per generation.',
+  title: 'Gemini 2.5 Flash Image - AI Image Generation | Behind Memory',
+  description:
+    'Experience Google Gemini 2.5 Flash for AI image generation. Premium quality transformations at 30 credits per generation.',
   openGraph: {
-    title: 'Flux Kontext Max - Premium AI Image Generation',
-    description: 'Premium AI image generation with Flux Kontext Max. Superior quality results for professional use.',
+    title: 'Gemini 2.5 Flash Image - AI Image Generation',
+    description:
+      'Transform photos with Google Gemini 2.5 Flash. Fast and efficient AI image generation.',
     type: 'website',
-    url: 'https://behindmemory.com/ai-image-generation/flux-kontext-max',
+    url: 'https://behindmemory.com/gemini-2.5-flash-image',
     images: [
       {
-        url: 'https://behindmemory.com/images/flux-kontext-max-og.jpg',
+        url: 'https://behindmemory.com/images/gemini-flash-og.jpg',
         width: 1200,
         height: 630,
-        alt: 'Flux Kontext Max Premium AI Image Generation',
+        alt: 'Gemini 2.5 Flash Image AI Generation',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flux Kontext Max - Premium AI Image Generation',
-    description: 'Transform photos with premium AI technology for exceptional results',
-    images: ['https://behindmemory.com/images/flux-kontext-max-twitter.jpg'],
+    title: 'Gemini 2.5 Flash Image - AI Generation',
+    description: 'Fast AI image generation with Google Gemini 2.5 Flash',
+    images: ['https://behindmemory.com/images/gemini-flash-twitter.jpg'],
   },
   alternates: {
-    canonical: 'https://behindmemory.com/ai-image-generation/flux-kontext-max',
+    canonical: 'https://behindmemory.com/gemini-2.5-flash-image',
   },
   robots: {
     index: true,
@@ -40,11 +42,11 @@ export const metadata: Metadata = {
   },
 }
 
-export default function FluxKontextMaxPage() {
+export default function GeminiFlashImagePage() {
   return (
-    <div 
-      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black" 
-      data-page="flux-kontext-max"
+    <div
+      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black"
+      data-page="gemini-2.5-flash-image"
     >
       {/* 背景装饰 */}
       <div className="fixed inset-0 opacity-10 pointer-events-none">
@@ -54,7 +56,7 @@ export default function FluxKontextMaxPage() {
       </div>
 
       <div className="relative z-10">
-        <FluxKontextPro initialModel="max" />
+        <FluxKontextPro initialModel="gemini" />
       </div>
     </div>
   )

@@ -2,10 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -30,8 +30,10 @@ export function Nav() {
 
   const links = [
     { href: '/write', label: language === 'en' ? 'Write' : '写信' },
-    { href: '/ai-image-generation/flux-kontext-pro', label: language === 'en' ? 'AI Images' : 'AI 图像' },
-    ...(status === 'authenticated' ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }] : []),
+    { href: '/flux-kontext-pro', label: language === 'en' ? 'AI Images' : 'AI 图像' },
+    ...(status === 'authenticated'
+      ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }]
+      : []),
     { href: '/pricing', label: language === 'en' ? 'Pricing' : '定价' },
     { href: '/blog', label: language === 'en' ? 'Blog' : '博客' },
   ]
@@ -78,9 +80,7 @@ export function Nav() {
             </SheetTrigger>
             <SheetContent side="left" className="w-[240px] sm:w-[280px]">
               <SheetHeader>
-                <SheetTitle>
-                  {language === 'en' ? 'Menu' : '菜单'}
-                </SheetTitle>
+                <SheetTitle>{language === 'en' ? 'Menu' : '菜单'}</SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col space-y-4 mt-6">
                 {links.map(({ href, label }) => (
@@ -90,14 +90,18 @@ export function Nav() {
                     className="text-sm font-medium relative group"
                     onClick={() => setIsOpen(false)}
                   >
-                    <span className={`absolute inset-0 bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent transition-opacity duration-300 ease-in-out ${
-                      pathname === href ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}>
+                    <span
+                      className={`absolute inset-0 bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent transition-opacity duration-300 ease-in-out ${
+                        pathname === href ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
                       {label}
                     </span>
-                    <span className={`transition-opacity duration-300 ease-in-out ${
-                      pathname === href ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-                    }`}>
+                    <span
+                      className={`transition-opacity duration-300 ease-in-out ${
+                        pathname === href ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+                      }`}
+                    >
                       {label}
                     </span>
                   </Link>
@@ -114,19 +118,19 @@ export function Nav() {
           {/* 桌面端导航链接 */}
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium ml-6">
             {links.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="relative group"
-              >
-                <span className={`absolute inset-0 bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent transition-opacity duration-300 ease-in-out ${
-                  pathname === href ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}>
+              <Link key={href} href={href} className="relative group">
+                <span
+                  className={`absolute inset-0 bg-gradient-to-r from-[#738fbd] to-[#cc8eb1] bg-clip-text text-transparent transition-opacity duration-300 ease-in-out ${
+                    pathname === href ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                >
                   {label}
                 </span>
-                <span className={`transition-opacity duration-300 ease-in-out ${
-                  pathname === href ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-                }`}>
+                <span
+                  className={`transition-opacity duration-300 ease-in-out ${
+                    pathname === href ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+                  }`}
+                >
                   {label}
                 </span>
               </Link>

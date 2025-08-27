@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://www.behindmemory.com'
-  
+
   // 静态页面
   const staticPages = [
     {
@@ -18,19 +18,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/ai-image-generation/flux-kontext-pro`,
+      url: `${baseUrl}/flux-kontext-pro`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/ai-image-generation/flux-kontext-max`,
+      url: `${baseUrl}/flux-kontext-max`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/ai-image-generation/gemini-2.5-flash-image`,
+      url: `${baseUrl}/gemini-2.5-flash-image`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.8,

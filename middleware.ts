@@ -3,7 +3,21 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 // 不需要登录的路由
-const publicRoutes = ['/', '/auth/signin', '/about', '/terms', '/privacy', '/pricing', '/checkout/success', '/write', '/blog', '/gen', '/ai-image-generation']
+const publicRoutes = [
+  '/',
+  '/auth/signin',
+  '/about',
+  '/terms',
+  '/privacy',
+  '/pricing',
+  '/checkout/success',
+  '/write',
+  '/blog',
+  '/gen',
+  '/flux-kontext-pro',
+  '/flux-kontext-max',
+  '/gemini-2.5-flash-image',
+]
 
 // 添加一个函数来检查路径是否匹配公开规则，包括前缀匹配
 const isPublicPath = (path: string) => {
@@ -11,22 +25,22 @@ const isPublicPath = (path: string) => {
   if (publicRoutes.includes(path)) {
     return true
   }
-  
+
   // 检查匿名结果页路径
   if (path.startsWith('/anonymous/')) {
     return true
   }
-  
+
   // 博客文章页面也是公开的
   if (path.startsWith('/blog/')) {
     return true
   }
-  
+
   // AI 图像生成页面也是公开的
-  if (path.startsWith('/gen/') || path.startsWith('/ai-image-generation/')) {
+  if (path.startsWith('/gen/')) {
     return true
   }
-  
+
   return false
 }
 

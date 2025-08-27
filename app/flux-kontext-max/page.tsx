@@ -2,30 +2,32 @@ import FluxKontextPro from '@/app/components/FluxKontextPro'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Flux Kontext Pro - AI Image Generation Tool | Behind Memory',
-  description: 'Transform photos with Flux Kontext Pro AI. Professional quality results with 10 credits per generation. Start with 30 free credits!',
+  title: 'Flux Kontext Max - Premium AI Image Generation | Behind Memory',
+  description:
+    'Experience premium AI image generation with Flux Kontext Max. Superior quality transformations at 20 credits per generation.',
   openGraph: {
-    title: 'Flux Kontext Pro - AI Image Generation Tool',
-    description: 'Transform your photos with Flux Kontext Pro AI. Professional quality results with advanced AI technology.',
+    title: 'Flux Kontext Max - Premium AI Image Generation',
+    description:
+      'Premium AI image generation with Flux Kontext Max. Superior quality results for professional use.',
     type: 'website',
-    url: 'https://behindmemory.com/ai-image-generation/flux-kontext-pro',
+    url: 'https://behindmemory.com/flux-kontext-max',
     images: [
       {
-        url: 'https://behindmemory.com/images/flux-kontext-pro-og.jpg',
+        url: 'https://behindmemory.com/images/flux-kontext-max-og.jpg',
         width: 1200,
         height: 630,
-        alt: 'Flux Kontext Pro AI Image Generation',
+        alt: 'Flux Kontext Max Premium AI Image Generation',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flux Kontext Pro - AI Image Generation',
-    description: 'Transform photos with professional AI image generation technology',
-    images: ['https://behindmemory.com/images/flux-kontext-pro-twitter.jpg'],
+    title: 'Flux Kontext Max - Premium AI Image Generation',
+    description: 'Transform photos with premium AI technology for exceptional results',
+    images: ['https://behindmemory.com/images/flux-kontext-max-twitter.jpg'],
   },
   alternates: {
-    canonical: 'https://behindmemory.com/ai-image-generation/flux-kontext-pro',
+    canonical: 'https://behindmemory.com/flux-kontext-max',
   },
   robots: {
     index: true,
@@ -40,11 +42,11 @@ export const metadata: Metadata = {
   },
 }
 
-export default function FluxKontextProPage() {
+export default function FluxKontextMaxPage() {
   return (
-    <div 
-      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black" 
-      data-page="flux-kontext-pro"
+    <div
+      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black"
+      data-page="flux-kontext-max"
     >
       {/* 背景装饰 */}
       <div className="fixed inset-0 opacity-10 pointer-events-none">
@@ -54,7 +56,7 @@ export default function FluxKontextProPage() {
       </div>
 
       <div className="relative z-10">
-        <FluxKontextPro initialModel="pro" />
+        <FluxKontextPro initialModel="max" />
       </div>
     </div>
   )
