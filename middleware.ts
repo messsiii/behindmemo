@@ -17,6 +17,7 @@ const publicRoutes = [
   '/flux-kontext-pro',
   '/flux-kontext-max',
   '/gemini-2.5-flash-image',
+  '/nano-banana',
 ]
 
 // 添加一个函数来检查路径是否匹配公开规则，包括前缀匹配

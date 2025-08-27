@@ -145,7 +145,7 @@ const HistoryImagePreview = memo(
 HistoryImagePreview.displayName = 'HistoryImagePreview'
 
 interface FluxKontextProProps {
-  initialModel?: 'pro' | 'max' | 'gemini'
+  initialModel?: 'pro' | 'max' | 'gemini' | 'banana'
 }
 
 export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProProps) {
@@ -175,14 +175,18 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false)
   const [editorImages, setEditorImages] = useState<File[]>([])
-  const [selectedModel, setSelectedModel] = useState<'pro' | 'max' | 'gemini'>(initialModel)
+  const [selectedModel, setSelectedModel] = useState<'pro' | 'max' | 'gemini'>(
+    initialModel === 'banana' ? 'gemini' : (initialModel as 'pro' | 'max' | 'gemini')
+  )
   const [activeTab, setActiveTab] = useState<'history' | 'introduction'>(
     session?.user ? 'history' : 'introduction'
   )
 
   // Sync selectedModel with initialModel when route changes
   useEffect(() => {
-    setSelectedModel(initialModel)
+    setSelectedModel(
+      initialModel === 'banana' ? 'gemini' : (initialModel as 'pro' | 'max' | 'gemini')
+    )
   }, [initialModel])
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
   const [generalError, setGeneralError] = useState<string | null>(null)
@@ -1397,28 +1401,40 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
             </Link>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
+              {initialModel === 'banana' && (
+                <span className="text-5xl sm:text-6xl md:text-7xl mr-3">🍌</span>
+              )}
               <span
                 className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent !bg-clip-text !text-transparent"
                 data-title="ai-generation"
                 style={{
-                  background: 'linear-gradient(90deg, #c084fc 0%, #f472b6 50%, #60a5fa 100%)',
+                  background:
+                    initialModel === 'banana'
+                      ? 'linear-gradient(90deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)'
+                      : 'linear-gradient(90deg, #c084fc 0%, #f472b6 50%, #60a5fa 100%)',
                   WebkitBackgroundClip: 'text',
                   backgroundClip: 'text',
                   color: 'transparent',
                   WebkitTextFillColor: 'transparent',
                 }}
               >
-                {selectedModel === 'pro'
-                  ? 'Flux Kontext Pro'
-                  : selectedModel === 'max'
-                    ? 'Flux Kontext Max'
-                    : 'Gemini 2.5 Flash Image'}
+                {initialModel === 'banana'
+                  ? 'Nano Banana (Gemini 2.5 Flash Image)'
+                  : selectedModel === 'pro'
+                    ? 'Flux Kontext Pro'
+                    : selectedModel === 'max'
+                      ? 'Flux Kontext Max'
+                      : 'Gemini 2.5 Flash Image'}
               </span>
             </h1>
             <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto">
-              {language === 'en'
-                ? 'AI Image Editing that surpasses ChatGPT'
-                : '超过 ChatGPT 的图片编辑'}
+              {initialModel === 'banana'
+                ? language === 'en'
+                  ? '🎨 The most playful AI image editor on the internet!'
+                  : '🎨 互联网上最有趣的 AI 图像编辑器！'
+                : language === 'en'
+                  ? 'AI Image Editing that surpasses ChatGPT'
+                  : '超过 ChatGPT 的图片编辑'}
             </p>
           </motion.div>
         </div>
@@ -2209,7 +2225,107 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                 style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
               >
                 <CardContent className="p-6 space-y-6">
-                  {selectedModel === 'pro' ? (
+                  {initialModel === 'banana' ? (
+                    // Nano Banana 介绍
+                    <div className="space-y-4">
+                      <h3 className="text-xl font-bold text-white mb-4">
+                        <span className="text-2xl mr-2">🍌</span>
+                        {language === 'en' ? 'About Nano Banana' : '关于 Nano Banana'}
+                      </h3>
+                      <div className="prose prose-invert max-w-none space-y-4 text-white/90">
+                        <p className="text-lg">
+                          {language === 'en'
+                            ? "🎉 Welcome to Nano Banana - where Google's cutting-edge AI meets playful creativity! This is the same powerful Gemini 2.5 Flash Image model, but with a fun twist that makes AI image editing feel like pure magic!"
+                            : '🎉 欢迎来到 Nano Banana - 谷歌尖端AI技术与趣味创意的完美结合！这是强大的 Gemini 2.5 Flash Image 模型，但带着有趣的变化，让AI图像编辑感觉像纯粹的魔法！'}
+                        </p>
+                        <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-400/30">
+                          <h4 className="text-lg font-semibold mb-2 text-yellow-400">
+                            🍌 {language === 'en' ? 'The Banana Philosophy' : '香蕉哲学'}
+                          </h4>
+                          <p>
+                            {language === 'en'
+                              ? "Why Nano Banana? Because AI doesn't have to be serious all the time! Just like peeling a banana, editing images should be simple, fun, and satisfying. Nano represents the cutting-edge technology, while Banana reminds us to keep things light and enjoyable."
+                              : '为什么叫 Nano Banana？因为AI不必总是严肃的！就像剥香蕉一样，编辑图像应该简单、有趣且令人满足。Nano代表尖端技术，而Banana提醒我们保持轻松愉快。'}
+                          </p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <h4 className="text-lg font-semibold mb-2">
+                            ⚡{' '}
+                            {language === 'en'
+                              ? 'Banana Powers (Features):'
+                              : '香蕉超能力（特性）：'}
+                          </h4>
+                          <ul className="space-y-2">
+                            <li className="flex items-start">
+                              <span className="text-yellow-400 mr-2">🍌</span>
+                              <span>
+                                {language === 'en'
+                                  ? 'Mix & Match: Blend up to 3 images like a smoothie'
+                                  : '混合搭配：像做奶昔一样混合最多3张图像'}
+                              </span>
+                            </li>
+                            <li className="flex items-start">
+                              <span className="text-yellow-400 mr-2">🍌</span>
+                              <span>
+                                {language === 'en'
+                                  ? 'Character Consistency: Keep your banana characters across scenes'
+                                  : '角色一致性：在不同场景中保持你的香蕉角色'}
+                              </span>
+                            </li>
+                            <li className="flex items-start">
+                              <span className="text-yellow-400 mr-2">🍌</span>
+                              <span>
+                                {language === 'en'
+                                  ? 'Magic Edits: Remove, blur, or transform with banana-powered precision'
+                                  : '魔法编辑：用香蕉之力精确移除、模糊或转换'}
+                              </span>
+                            </li>
+                            <li className="flex items-start">
+                              <span className="text-yellow-400 mr-2">🍌</span>
+                              <span>
+                                {language === 'en'
+                                  ? 'Color Magic: Turn black & white into vibrant banana yellow (and other colors!)'
+                                  : '色彩魔法：将黑白变成充满活力的香蕉黄（还有其他颜色！）'}
+                              </span>
+                            </li>
+                            <li className="flex items-start">
+                              <span className="text-yellow-400 mr-2">🍌</span>
+                              <span>
+                                {language === 'en'
+                                  ? "Smart Creation: Powered by Google's world knowledge - but with banana flavor"
+                                  : '智能创作：由谷歌的世界知识驱动 - 但带有香蕉风味'}
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                        <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg p-4">
+                          <p className="text-center text-lg">
+                            {language === 'en'
+                              ? '🎨 "Life is better when you\'re editing with bananas!" 🎨'
+                              : '🎨 "用香蕉编辑，生活更美好！" 🎨'}
+                          </p>
+                        </div>
+                        <p className="text-sm text-white/60 mt-4">
+                          {language === 'en'
+                            ? "Nano Banana is proudly powered by Google's Gemini 2.5 Flash Image technology. Visit the "
+                            : 'Nano Banana 自豪地由谷歌的 Gemini 2.5 Flash Image 技术驱动。访问'}
+                          <a
+                            href="https://ainanobanana.ai"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-yellow-400 hover:underline"
+                          >
+                            {language === 'en'
+                              ? 'official Nano Banana website'
+                              : 'Nano Banana 官方网站'}
+                          </a>
+                          {language === 'en'
+                            ? ' for more banana-powered fun!'
+                            : '，获得更多香蕉动力的乐趣！'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : selectedModel === 'pro' ? (
                     // Flux Kontext Pro 介绍
                     <div className="space-y-4">
                       <h3 className="text-xl font-bold text-white mb-4">
