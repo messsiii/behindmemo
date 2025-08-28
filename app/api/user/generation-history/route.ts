@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100) // 最大100条
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    console.log(`[GENERATION_HISTORY] Fetching records for user ${session.user.id}, limit: ${limit}, offset: ${offset}`)
 
     // 获取用户的生成历史，按创建时间倒序
     const records = await prisma.imageGeneration.findMany({
@@ -47,7 +46,6 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    console.log(`[GENERATION_HISTORY] Found ${records.length} records`)
 
     // 获取总数（用于判断是否还有更多数据）
     const totalCount = await prisma.imageGeneration.count({
@@ -56,7 +54,6 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    console.log(`[GENERATION_HISTORY] Total count: ${totalCount}`)
 
     return NextResponse.json({ 
       records,

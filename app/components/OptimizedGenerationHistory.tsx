@@ -208,13 +208,11 @@ export default function OptimizedGenerationHistory({
       if (page === 0) {
         // 第一页：直接设置
         setRecords(data.records)
-        console.log(`📄 Loaded page 0: ${data.records.length} records`)
       } else {
         // 后续页：累加到现有记录
         setRecords(prev => {
           const existingIds = new Set(prev.map(r => r.id))
           const newRecords = data.records.filter((r: ImageGenerationRecord) => !existingIds.has(r.id))
-          console.log(`📄 Loaded page ${page}: ${newRecords.length} new records (total: ${prev.length + newRecords.length})`)
           return [...prev, ...newRecords]
         })
       }
