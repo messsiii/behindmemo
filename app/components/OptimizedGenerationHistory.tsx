@@ -202,20 +202,24 @@ export default function OptimizedGenerationHistory({
     }
   )
 
-  // 合并新数据到记录中 - 移除缓存逻辑
+  // 合并新数据到记录中 - 修复分页累加逻辑
   useEffect(() => {
     if (data?.records) {
       if (page === 0) {
+        // 第一页：直接设置
         setRecords(data.records)
+        console.log(`📄 Loaded page 0: ${data.records.length} records`)
       } else {
+        // 后续页：累加到现有记录
         setRecords(prev => {
           const existingIds = new Set(prev.map(r => r.id))
           const newRecords = data.records.filter((r: ImageGenerationRecord) => !existingIds.has(r.id))
+          console.log(`📄 Loaded page ${page}: ${newRecords.length} new records (total: ${prev.length + newRecords.length})`)
           return [...prev, ...newRecords]
         })
       }
     }
-  }, [data?.records, page])
+  }, [data?.records, page]) // 监听data.records的变化
 
   // Component will re-render with new key when generation completes
   // This triggers a fresh data fetch automatically
@@ -302,6 +306,7 @@ export default function OptimizedGenerationHistory({
   // 刷新数据 - 移除缓存逻辑
   const handleRefresh = useCallback(async () => {
     setPage(0)
+    setRecords([]) // 清空现有记录
     setShouldFetch(true)
     await mutate()
   }, [mutate])
@@ -524,7 +529,12 @@ export default function OptimizedGenerationHistory({
                                 className="flex-1 h-7 text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  onUseAsInput(record.inputImageUrl || record.metadata?.referenceImages?.[0] || '', 'input', record.metadata)
+                                  // 多图参考模式传递所有参考图片
+                                  if (record.metadata?.mode === 'multi-reference' && record.metadata?.referenceImages) {
+                                    onUseAsInput('', 'input', record.metadata)
+                                  } else {
+                                    onUseAsInput(record.inputImageUrl || '', 'input', record.metadata)
+                                  }
                                 }}
                               >
                                 {record.metadata?.mode === 'multi-reference' 
