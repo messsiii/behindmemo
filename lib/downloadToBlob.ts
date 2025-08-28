@@ -68,12 +68,15 @@ export async function downloadImageToBlob(
         }
       }
 
+      // 生成安全的文件名
+      const secureFileName = `download-${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${filename}`
+      
       // 上传到Vercel Blob
-      const blob = await put(filename, finalBuffer, {
+      const blob = await put(secureFileName, finalBuffer, {
         access: 'public',
         token: process.env.BLOB_READ_WRITE_TOKEN,
         contentType,
-        addRandomSuffix: true,
+        addRandomSuffix: false,
       })
 
       console.log(`上传成功: ${blob.url}`)

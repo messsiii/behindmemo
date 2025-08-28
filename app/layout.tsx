@@ -67,9 +67,10 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.ico',
     apple: [
-      { url: '/apple-icon.png' }, // 需要添加实际图标
+      { url: '/icon-192x192.png' },
     ],
   },
+  manifest: '/manifest.json',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

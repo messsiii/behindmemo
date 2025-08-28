@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
         errorMessage: true,
         createdAt: true,
         updatedAt: true,
+        model: true,
+        metadata: true,
       },
     })
 

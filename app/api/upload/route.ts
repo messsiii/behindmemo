@@ -1,6 +1,8 @@
 import { put } from '@vercel/blob'
 import { NextResponse } from 'next/server'
 import sharp from 'sharp'
+import { getServerSession } from 'next-auth'
+import { authConfig } from '@/auth'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // 设置最大执行时间为 60 秒
@@ -10,6 +12,15 @@ const TARGET_QUALITY = 80
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
+    // 检查用户认证
+    const session = await getServerSession(authConfig)
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     // 记录请求头信息
     const headersObj: Record<string, string> = {};
     request.headers.forEach((value, key) => {
@@ -126,11 +137,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       // 上传到 Vercel Blob
       try {
         console.log('开始上传到Blob存储...');
-        const blob = await put(file.name, optimizedBuffer, {
+        // 生成安全的文件名，结合用户ID和随机字符串
+        const secureFileName = `upload-${session.user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}.jpg`
+        
+        const blob = await put(secureFileName, optimizedBuffer, {
           access: 'public',
           token: process.env.BLOB_READ_WRITE_TOKEN,
           contentType: 'image/jpeg', // 统一使用 JPEG 格式
-          addRandomSuffix: true, // 添加随机后缀避免文件名冲突
+          addRandomSuffix: false, // 已经有安全的随机后缀
         })
         
         console.log(`上传成功, URL: ${blob.url.substring(0, 60)}...`);

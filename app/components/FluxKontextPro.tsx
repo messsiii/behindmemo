@@ -22,7 +22,7 @@ import {
 } from '@/lib/imageUtils'
 import { cn } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   AlertCircle,
   Download,
@@ -32,23 +32,25 @@ import {
   Image as ImageIcon,
   Info,
   Loader2,
-  RefreshCw,
   Scissors,
   Sparkles,
-  Trash2,
   Upload,
   Wand2,
   BookOpen,
   ExternalLink,
+  Plus,
+  X,
+  Eye,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import useSWR from 'swr'
 import MultiImageEditor, { EditState } from './MultiImageEditor'
+import OptimizedGenerationHistory from './OptimizedGenerationHistory'
 
 // 积分信息接口
 interface CreditsInfo {
@@ -63,20 +65,6 @@ interface ImageInfo {
   processedDimensions?: { width: number; height: number }
   originalSize?: number
   processedSize?: number
-}
-
-// 图片生成记录接口
-interface ImageGenerationRecord {
-  id: string
-  prompt: string
-  inputImageUrl: string
-  outputImageUrl: string | null
-  localOutputImageUrl?: string | null
-  status: 'pending' | 'completed' | 'failed'
-  creditsUsed: number
-  errorMessage?: string | null
-  createdAt: string
-  updatedAt: string
 }
 
 // 数据获取函数
@@ -158,6 +146,10 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [isGenerating, setIsGenerating] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [isProcessingImage, setIsProcessingImage] = useState(false)
+  
+  // Multi-reference mode states
+  const [referenceImages, setReferenceImages] = useState<Array<{url: string, file: File}>>([])
+  const [processingImageIndex, setProcessingImageIndex] = useState<number | null>(null)
   const [imageInfo, setImageInfo] = useState<ImageInfo>({})
   const [isMobile, setIsMobile] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
@@ -167,12 +159,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     detectedLanguage: string
     isTranslated: boolean
   } | null>(null)
-  const [historyRecords, setHistoryRecords] = useState<ImageGenerationRecord[]>([])
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMoreHistory, setHasMoreHistory] = useState(true)
-  const [historyPage, setHistoryPage] = useState(0)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  // Removed history-related states as they are now handled in OptimizedGenerationHistory component
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false)
   const [editorImages, setEditorImages] = useState<File[]>([])
   const [selectedModel, setSelectedModel] = useState<'pro' | 'max' | 'gemini'>(
@@ -181,6 +168,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [activeTab, setActiveTab] = useState<'history' | 'introduction'>(
     session?.user ? 'history' : 'introduction'
   )
+  const [viewingImage, setViewingImage] = useState<string | null>(null)
 
   // Sync selectedModel with initialModel when route changes
   useEffect(() => {
@@ -191,6 +179,52 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
+  // 移除了 newGenerationTrigger，不再自动重新创建历史记录组件
+  
+  const [generationMode, setGenerationMode] = useState<'image-to-image' | 'text-to-image' | 'multi-reference'>('multi-reference')
+  const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '1:2' | '2:1'>('1:1')
+  
+  // Computed values
+  const isTextToImageMode = generationMode === 'text-to-image'
+  
+  // 历史记录刷新函数引用
+  const refreshHistoryRef = useRef<(() => Promise<void>) | null>(null)
+  
+  // 稳定的刷新回调函数
+  const handleRefreshReady = useCallback((refreshFn: () => Promise<void>) => {
+    refreshHistoryRef.current = refreshFn
+  }, [])
+  
+  // Load saved state from localStorage on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Restore aspect ratio
+      const savedRatio = localStorage.getItem('flux_aspect_ratio')
+      if (savedRatio && ['1:1', '16:9', '9:16', '4:3', '3:4', '1:2', '2:1'].includes(savedRatio)) {
+        setAspectRatio(savedRatio as any)
+      }
+      
+      // Restore generation mode
+      const savedMode = localStorage.getItem('flux_generation_mode')
+      if (savedMode && ['image-to-image', 'text-to-image', 'multi-reference'].includes(savedMode)) {
+        setGenerationMode(savedMode as any)
+      }
+    }
+  }, [])
+
+  // Save generation mode to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('flux_generation_mode', generationMode)
+    }
+  }, [generationMode])
+  
+  // Save aspect ratio to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('flux_aspect_ratio', aspectRatio)
+    }
+  }, [aspectRatio])
 
   // 获取用户积分信息
   const { data: creditsInfo, mutate: mutateCredits } = useSWR<CreditsInfo>(
@@ -235,21 +269,45 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           setImageInfo({})
         }
       }
+      
+      // 恢复多图参考模式的图片（如果有保存的话）
+      try {
+        const savedReferenceImages = localStorage.getItem('flux_reference_images')
+        const savedReferenceMetadata = localStorage.getItem('flux_reference_metadata')
+        
+        if (savedReferenceImages && savedReferenceMetadata) {
+          const imageUrls = JSON.parse(savedReferenceImages)
+          const metadata = JSON.parse(savedReferenceMetadata)
+          
+          if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+            const restoredImages = imageUrls.map((url: string, index: number) => ({
+              url,
+              file: new File([], metadata[index]?.name || `reference-${index}.png`, {
+                type: metadata[index]?.type || 'image/png'
+              })
+            }))
+            
+            setReferenceImages(restoredImages)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to restore reference images:', error)
+      }
+      
+      // Generation mode and aspect ratio are already initialized from localStorage in useState
       // Don't override the model if it was explicitly set by the route
       // The initialModel prop takes precedence over localStorage
       // Only use savedModel if we're on a generic route without a specific model
     }
   }, [])
 
-  // 获取历史记录
+  // 设置默认选项卡
   useEffect(() => {
     if (session?.user?.id) {
-      fetchGenerationHistory()
       setActiveTab('history') // 登录用户默认显示历史记录
     } else {
       setActiveTab('introduction') // 未登录用户默认显示介绍
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id])
 
   // 创建稳定的错误处理函数 - 防止图片组件重新渲染
@@ -261,9 +319,6 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     console.warn('Output image load error:', e)
   }, [])
 
-  const handleHistoryImageError = useCallback((e: any) => {
-    console.warn('History image load error:', e)
-  }, [])
 
   // 分离prompt保存以减少重新渲染
   const savePrompt = useCallback((promptValue: string) => {
@@ -300,6 +355,29 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           processedSize: imageInfo.processedSize,
         }
         localStorage.setItem('flux_image_info', JSON.stringify(simpleImageInfo))
+        
+        // 保存多图参考模式的图片（优化版本）
+        if (referenceImages.length > 0 && generationMode === 'multi-reference') {
+          try {
+            // 保存所有参考图片（现在都是持久化的URL：data或HTTP）
+            const urls = referenceImages.map(img => img.url)
+            const metadata = referenceImages.map(img => ({
+              name: img.file?.name || 'reference.png',
+              type: img.file?.type || 'image/png',
+              size: img.file?.size || 0
+            }))
+            
+            localStorage.setItem('flux_reference_images', JSON.stringify(urls))
+            localStorage.setItem('flux_reference_metadata', JSON.stringify(metadata))
+            console.log(`Saved ${referenceImages.length} reference images to cache`)
+          } catch (error) {
+            console.error('Failed to save reference images:', error)
+          }
+        } else if (generationMode !== 'multi-reference') {
+          // 如果不是多图模式，清除保存的参考图片
+          localStorage.removeItem('flux_reference_images')
+          localStorage.removeItem('flux_reference_metadata')
+        }
       } catch (error) {
         // localStorage可能满了，清理旧数据
         console.warn('localStorage save failed:', error)
@@ -307,12 +385,14 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           localStorage.removeItem('flux_input_image')
           localStorage.removeItem('flux_output_image')
           localStorage.removeItem('flux_image_info')
+          localStorage.removeItem('flux_reference_images')
+          localStorage.removeItem('flux_reference_metadata')
         } catch (e) {
           // 忽略清理错误
         }
       }
     }
-  }, [inputImage, outputImage, imageInfo])
+  }, [inputImage, outputImage, imageInfo, referenceImages, generationMode])
 
   // 实时保存prompt（防抖优化）
   useEffect(() => {
@@ -338,6 +418,16 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   useEffect(() => {
     saveImageState()
   }, [saveImageState])
+  
+  // 当参考图片变化时也保存状态
+  useEffect(() => {
+    if (generationMode === 'multi-reference') {
+      const timer = setTimeout(() => {
+        saveImageState()
+      }, 300) // 防抖，避免频繁保存
+      return () => clearTimeout(timer)
+    }
+  }, [referenceImages, generationMode, saveImageState])
 
   // 组件卸载时的清理
   useEffect(() => {
@@ -355,6 +445,17 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
             // 忽略清理错误
           }
         })
+        
+        // 清理参考图片的blob URL
+        referenceImages.forEach(img => {
+          if (img.url && img.url.startsWith('blob:')) {
+            try {
+              URL.revokeObjectURL(img.url)
+            } catch (e) {
+              // 忽略清理错误
+            }
+          }
+        })
 
         // 强制垃圾回收（如果可用）
         if (window.gc) {
@@ -365,7 +466,91 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 处理图片文件
+  // 处理多图参考模式的图片
+  const processReferenceImage = useCallback(
+    async (file: File, index?: number) => {
+      try {
+        setProcessingImageIndex(index !== undefined ? index : referenceImages.length)
+        
+        // 检查文件是否为图片
+        if (!isValidImageFile(file)) {
+          throw new Error(language === 'en' ? 'Invalid image file' : '无效的图片文件')
+        }
+
+        // 获取图片尺寸
+        const dimensions = await getImageDimensions(file)
+        console.log('Original dimensions:', dimensions)
+        
+        // 如果图片宽度或高度小于1080，不需要resize
+        const needsResize = dimensions.width > 1080 || dimensions.height > 1080
+        
+        let url: string
+        const processedFile = file
+        if (needsResize) {
+          console.log('Image needs resizing, processing...')
+          // resizeImageTo1080p 返回 base64 字符串
+          url = await resizeImageTo1080p(file)
+          console.log('Image resized to 1080p')
+        } else {
+          console.log('Image size is already optimal, converting to data URL for persistence')
+          // 转换为 data URL 而不是 blob URL，确保页面刷新后仍然有效
+          url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              if (reader.result && typeof reader.result === 'string') {
+                resolve(reader.result)
+              } else {
+                reject(new Error('Failed to convert file to data URL'))
+              }
+            }
+            reader.onerror = () => reject(new Error('FileReader error'))
+            reader.readAsDataURL(file)
+          })
+        }
+        
+        // 更新参考图片数组
+        if (index !== undefined) {
+          // 替换现有图片
+          const newImages = [...referenceImages]
+          if (newImages[index]) {
+            URL.revokeObjectURL(newImages[index].url)
+          }
+          newImages[index] = { url, file: processedFile }
+          setReferenceImages(newImages)
+        } else {
+          // 添加新图片 - Flux 最多2张，Gemini 最多3张
+          const maxImages = selectedModel === 'gemini' ? 3 : 2
+          if (referenceImages.length >= maxImages) {
+            throw new Error(
+              language === 'en' 
+                ? `Maximum ${maxImages} reference images allowed` 
+                : `最多支持${maxImages}张参考图片`
+            )
+          }
+          setReferenceImages(prev => [...prev, { url, file: processedFile }])
+        }
+        
+        toast({
+          title: language === 'en' ? 'Image processed' : '图片处理完成',
+          description: needsResize 
+            ? (language === 'en' ? 'Image resized and ready' : '图片已调整大小并准备就绪')
+            : (language === 'en' ? 'Image ready' : '图片已准备就绪'),
+        })
+      } catch (error) {
+        console.error('Error processing reference image:', error)
+        toast({
+          title: language === 'en' ? 'Processing failed' : '处理失败',
+          description: error instanceof Error ? error.message : '未知错误',
+          variant: 'destructive',
+        })
+      } finally {
+        setProcessingImageIndex(null)
+      }
+    },
+    [language, referenceImages]
+  )
+
+  // 处理单图片文件（原有功能）
   const processImageFile = useCallback(
     async (file: File) => {
       // 在开始新的处理前，清理之前的输出图片
@@ -591,26 +776,59 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
   // 文件上传处理
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0]
-      if (file) {
-        if (file.size > 50 * 1024 * 1024) {
-          // 50MB限制
+    async (acceptedFiles: File[]) => {
+      // Multi-reference mode
+      if (generationMode === 'multi-reference') {
+        const maxImages = selectedModel === 'gemini' ? 3 : 2
+        const remainingSlots = maxImages - referenceImages.length
+        const filesToProcess = acceptedFiles.slice(0, remainingSlots)
+        
+        for (const file of filesToProcess) {
+          if (file.size > 50 * 1024 * 1024) {
+            toast({
+              title: language === 'en' ? 'File too large' : '文件过大',
+              description:
+                language === 'en'
+                  ? `${file.name} is larger than 50MB`
+                  : `${file.name} 大于50MB`,
+              variant: 'destructive',
+            })
+            continue
+          }
+          await processReferenceImage(file)
+        }
+        
+        if (acceptedFiles.length > remainingSlots) {
           toast({
-            title: language === 'en' ? 'File too large' : '文件过大',
+            title: language === 'en' ? 'Too many files' : '文件过多',
             description:
               language === 'en'
-                ? 'Please select an image smaller than 50MB'
-                : '请选择小于50MB的图片',
+                ? `Only ${remainingSlots} more image(s) can be added`
+                : `只能再添加 ${remainingSlots} 张图片`,
             variant: 'destructive',
           })
-          return
         }
+      } else {
+        // Single image mode
+        const file = acceptedFiles[0]
+        if (file) {
+          if (file.size > 50 * 1024 * 1024) {
+            toast({
+              title: language === 'en' ? 'File too large' : '文件过大',
+              description:
+                language === 'en'
+                  ? 'Please select an image smaller than 50MB'
+                  : '请选择小于50MB的图片',
+              variant: 'destructive',
+            })
+            return
+          }
 
-        processImageFile(file)
+          processImageFile(file)
+        }
       }
     },
-    [language, processImageFile]
+    [language, processImageFile, processReferenceImage, generationMode, referenceImages.length]
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -618,7 +836,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.webp'],
     },
-    multiple: false,
+    multiple: generationMode === 'multi-reference',
     onDragEnter: () => setDragActive(true),
     onDragLeave: () => setDragActive(false),
   })
@@ -644,16 +862,71 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       return
     }
 
-    if (!inputImage || !prompt.trim()) {
+    // 验证输入条件
+    if (!prompt.trim()) {
       toast({
-        title: language === 'en' ? 'Missing inputs' : '缺少输入',
+        title: language === 'en' ? 'Missing prompt' : '缺少提示词',
         description:
           language === 'en'
-            ? 'Please upload an image and enter a prompt'
-            : '请上传图片并输入提示词',
+            ? 'Please enter a prompt to generate image'
+            : '请输入提示词来生成图片',
         variant: 'destructive',
       })
       return
+    }
+
+    if (generationMode === 'image-to-image' && !inputImage) {
+      toast({
+        title: language === 'en' ? 'Missing input image' : '缺少输入图片',
+        description:
+          language === 'en'
+            ? 'Please upload an image to transform'
+            : '请上传要转换的图片',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (generationMode === 'multi-reference') {
+      const minImages = 1
+      const maxImages = selectedModel === 'gemini' ? 3 : 2
+      
+      if (referenceImages.length < minImages) {
+        toast({
+          title: language === 'en' ? 'Missing reference images' : '缺少参考图片',
+          description:
+            language === 'en'
+              ? `Please upload at least ${minImages} reference image${minImages > 1 ? 's' : ''}`
+              : `请上传至少${minImages}张参考图片`,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (referenceImages.length > maxImages) {
+        toast({
+          title: language === 'en' ? 'Too many reference images' : '参考图片过多',
+          description:
+            language === 'en'
+              ? `Maximum ${maxImages} images allowed for ${selectedModel === 'gemini' ? 'Gemini' : 'Flux'} model`
+              : `${selectedModel === 'gemini' ? 'Gemini' : 'Flux'} 模型最多允许${maxImages}张图片`,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // 对于Flux模型，必须恰好2张图片
+      if (selectedModel !== 'gemini' && referenceImages.length !== 2) {
+        toast({
+          title: language === 'en' ? 'Invalid image count' : '图片数量不正确',
+          description:
+            language === 'en'
+              ? 'Flux model requires exactly 2 reference images'
+              : 'Flux 模型需要恰好2张参考图片',
+          variant: 'destructive',
+        })
+        return
+      }
     }
 
     const requiredCredits = selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10
@@ -726,8 +999,99 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         },
         body: JSON.stringify({
           prompt: finalPrompt,
-          input_image: inputImage,
+          input_image: generationMode === 'image-to-image' ? inputImage : undefined,
+          reference_images: generationMode === 'multi-reference' ? 
+            await Promise.all(referenceImages.map(async (img, index) => {
+              console.log(`🖼️ Processing reference image ${index + 1}:`, {
+                url: img.url,
+                urlType: img.url?.startsWith('data:') ? 'data' : img.url?.startsWith('http') ? 'http' : img.url?.startsWith('blob:') ? 'blob' : 'other',
+                fileSize: img.file?.size || 0,
+                fileName: img.file?.name || 'no name'
+              })
+              // 如果图片有 URL
+              if (img.url) {
+                // 如果是 data URL，直接使用
+                if (img.url.startsWith('data:')) {
+                  return img.url
+                }
+                
+                // 如果是 HTTP URL，需要下载并转换为 data URL
+                if (img.url.startsWith('http')) {
+                  try {
+                    console.log(`📥 Downloading image from: ${img.url.substring(0, 50)}...`)
+                    const response = await fetch(img.url)
+                    if (!response.ok) {
+                      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+                    }
+                    const blob = await response.blob()
+                    return new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader()
+                      reader.onloadend = () => {
+                        if (reader.result && typeof reader.result === 'string') {
+                          console.log(`✅ Converted HTTP URL to data URL (${blob.size} bytes)`)
+                          resolve(reader.result)
+                        } else {
+                          reject(new Error('Failed to convert HTTP image to data URL'))
+                        }
+                      }
+                      reader.onerror = () => reject(new Error('FileReader error during HTTP image conversion'))
+                      reader.readAsDataURL(blob)
+                    })
+                  } catch (error) {
+                    console.error(`❌ Failed to download image from ${img.url}:`, error)
+                    throw new Error(`Failed to download reference image: ${error}`)
+                  }
+                }
+                // 如果是 blob URL，需要转换
+                if (img.url.startsWith('blob:')) {
+                  try {
+                    const response = await fetch(img.url)
+                    const blob = await response.blob()
+                    return new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader()
+                      reader.onloadend = () => {
+                        if (reader.result && typeof reader.result === 'string') {
+                          resolve(reader.result)
+                        } else {
+                          reject(new Error('Failed to read blob'))
+                        }
+                      }
+                      reader.onerror = () => reject(new Error('FileReader error'))
+                      reader.readAsDataURL(blob)
+                    })
+                  } catch (error) {
+                    console.error('Error converting blob URL:', error)
+                    throw error
+                  }
+                }
+              }
+              
+              // 如果没有有效 URL，且有文件，从文件读取
+              if (img.file && img.file.size > 0) {
+                return new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader()
+                  reader.onloadend = () => {
+                    if (reader.result && typeof reader.result === 'string') {
+                      resolve(reader.result)
+                    } else {
+                      reject(new Error('Failed to read file'))
+                    }
+                  }
+                  reader.onerror = () => reject(new Error('FileReader error'))
+                  reader.readAsDataURL(img.file)
+                })
+              }
+              
+              console.error('No valid image data for img:', {
+                url: img.url,
+                fileSize: img.file?.size || 0,
+                fileName: img.file?.name || 'no file'
+              })
+              throw new Error(`No valid image data available for image: ${img.file?.name || 'unnamed'}`)
+            })) : undefined,
           model: selectedModel,
+          mode: generationMode,
+          aspectRatio: generationMode !== 'image-to-image' ? aspectRatio : undefined,
         }),
         signal: abortController.signal,
       })
@@ -788,8 +1152,16 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       setOutputImage(data.output)
       // 刷新积分信息和历史记录
       mutateCredits()
-      // 使用智能刷新而不是全量刷新
-      setTimeout(() => refreshHistoryWithNewData(), 1000)
+      
+      // 自动刷新历史记录列表
+      if (refreshHistoryRef.current) {
+        try {
+          await refreshHistoryRef.current()
+          console.log('✅ History refreshed successfully')
+        } catch (error) {
+          console.warn('⚠️ Failed to refresh history:', error)
+        }
+      }
 
       toast({
         title: language === 'en' ? 'Generation successful!' : '生成成功！',
@@ -867,46 +1239,6 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     }
   }
 
-  // 下载历史记录中的图片
-  const downloadHistoryImage = async (imageUrl: string, prompt: string, id: string) => {
-    // 生成文件名：使用提示词前20个字符，去掉空格和特殊字符，加上记录ID
-    const cleanPrompt = prompt
-      .slice(0, 20) // 取前20个字符
-      .replace(/\s+/g, '') // 去掉所有空格
-      .replace(/[^\w\u4e00-\u9fa5]/g, '') // 去掉特殊字符，保留字母数字和中文
-
-    const fileName = cleanPrompt ? `${cleanPrompt}-${id}.png` : `flux-generated-${id}.png`
-
-    try {
-      // 获取图片数据
-      const response = await fetch(imageUrl)
-      const blob = await response.blob()
-
-      // 创建本地 URL
-      const url = URL.createObjectURL(blob)
-
-      // 创建下载链接
-      const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-
-      // 清理
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Download failed:', error)
-      // 降级到直接链接
-      const link = document.createElement('a')
-      link.href = imageUrl
-      link.download = fileName
-      link.target = '_blank'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
-  }
 
   // 使用生成的图片作为输入
   const useAsInput = () => {
@@ -937,227 +1269,118 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   }
 
   // 使用历史记录中的图片作为输入
-  const setHistoryImageAsInput = (imageUrl: string, isInputImage = false) => {
-    // 设置图片为新的输入图片
-    setInputImage(imageUrl)
-    // 清空输出图片和翻译信息
-    setOutputImage(null)
-    setTranslationInfo(null)
+  const setHistoryImageAsInput = (imageUrl: string, isInputImage = false, metadata?: any) => {
+    // 检查是否是多图参考的历史记录
+    if (metadata?.mode === 'multi-reference' && metadata?.referenceImages?.length > 0) {
+      // 恢复多图参考模式
+      setGenerationMode('multi-reference')
+      setReferenceImages(metadata.referenceImages.map((url: string) => ({
+        url,
+        file: new File([new Blob([''])], 'history-image.png', { type: 'image/png' })
+      })))
+      
+      if (metadata.aspectRatio) {
+        setAspectRatio(metadata.aspectRatio)
+      }
+      
+      toast({
+        title: language === 'en' ? 'Multi-reference restored' : '多图参考已恢复',
+        description: language === 'en' 
+          ? `${metadata.referenceImages.length} reference images loaded` 
+          : `已加载 ${metadata.referenceImages.length} 张参考图片`,
+      })
+    } else if (generationMode === 'multi-reference') {
+      // 多图参考模式：将图片添加到参考图片数组
+      const maxImages = selectedModel === 'gemini' ? 3 : 2
+      if (referenceImages.length < maxImages) {
+        // 创建一个占位符 File 对象
+        const placeholderFile = new File([new Blob([''])], 'history-image.png', { type: 'image/png' })
+        setReferenceImages(prev => [...prev, { url: imageUrl, file: placeholderFile }])
+        
+        toast({
+          title: language === 'en' ? 'Image added to references' : '图片已添加到参考图片',
+          description: language === 'en' 
+            ? `${referenceImages.length + 1}/${maxImages} reference images` 
+            : `参考图片 ${referenceImages.length + 1}/${maxImages}`,
+        })
+      } else {
+        toast({
+          title: language === 'en' ? 'Reference limit reached' : '参考图片已达上限',
+          description: language === 'en' 
+            ? `Maximum ${maxImages} images for ${selectedModel === 'gemini' ? 'Gemini' : 'Flux'}` 
+            : `${selectedModel === 'gemini' ? 'Gemini' : 'Flux'} 最多允许 ${maxImages} 张图片`,
+          variant: 'destructive',
+        })
+      }
+    } else if (generationMode === 'image-to-image') {
+      // 图生图模式：设置为输入图片
+      setInputImage(imageUrl)
+      // 清空输出图片和翻译信息
+      setOutputImage(null)
+      setTranslationInfo(null)
 
-    // 重置图片信息为默认值
-    setImageInfo({
-      processedDimensions: { width: 1024, height: 1024 },
-      processedSize: 0,
-    })
+      // 重置图片信息为默认值
+      setImageInfo({
+        processedDimensions: { width: 1024, height: 1024 },
+        processedSize: 0,
+      })
+
+      const imageType = isInputImage
+        ? language === 'en'
+          ? 'input image'
+          : '输入图片'
+        : language === 'en'
+          ? 'generated result'
+          : '生成结果'
+
+      toast({
+        title: language === 'en' ? 'Image set as input' : '图片已设为输入',
+        description:
+          language === 'en'
+            ? `Using ${imageType} as new input for transformation`
+            : `已将${imageType}设为新的转换输入`,
+      })
+    } else {
+      // 检查是否是文生图模式的历史记录
+      if (metadata?.mode === 'text-to-image' && metadata?.aspectRatio) {
+        // 恢复文生图模式
+        setGenerationMode('text-to-image')
+        setAspectRatio(metadata.aspectRatio)
+        toast({
+          title: language === 'en' ? 'Text-to-Image mode restored' : '文生图模式已恢复',
+          description: language === 'en' 
+            ? 'Ready to generate with the same settings' 
+            : '已准备好使用相同设置生成',
+        })
+      } else {
+        // 默认情况：切换到图生图模式并设置图片
+        setGenerationMode('image-to-image')
+        setInputImage(imageUrl)
+        // 清空输出图片和翻译信息
+        setOutputImage(null)
+        setTranslationInfo(null)
+
+        // 重置图片信息为默认值
+        setImageInfo({
+          processedDimensions: { width: 1024, height: 1024 },
+          processedSize: 0,
+        })
+
+        toast({
+          title: language === 'en' ? 'Switched to Image-to-Image mode' : '已切换到图生图模式',
+          description: language === 'en' 
+            ? 'Image from history is now ready for transformation' 
+            : '历史记录中的图片现在可以进行转换',
+        })
+      }
+    }
 
     // 滚动到页面顶部
     window.scrollTo({ top: 0, behavior: 'smooth' })
-
-    const imageType = isInputImage
-      ? language === 'en'
-        ? 'input image'
-        : '输入图片'
-      : language === 'en'
-        ? 'generated result'
-        : '生成结果'
-
-    toast({
-      title: language === 'en' ? 'Image set as input' : '图片已设为输入',
-      description:
-        language === 'en'
-          ? `Using ${imageType} as new input for transformation`
-          : `已将${imageType}设为新的转换输入`,
-    })
   }
 
-  // 获取生成历史
-  const fetchGenerationHistory = useCallback(
-    async (page = 0, isRefresh = false) => {
-      if (!session?.user?.id) return
+  // History-related functions are now handled in OptimizedGenerationHistory component
 
-      // 创建AbortController
-      const controller = new AbortController()
-
-      if (page === 0) {
-        setIsLoadingHistory(true)
-      } else {
-        setIsLoadingMore(true)
-      }
-
-      try {
-        const limit = 20
-        const offset = page * limit
-        const response = await fetch(
-          `/api/user/generation-history?limit=${limit}&offset=${offset}`,
-          {
-            signal: controller.signal,
-            headers: {
-              'Cache-Control': 'no-cache',
-            },
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch generation history')
-        }
-
-        const data = await response.json()
-        const newRecords = data.records || []
-
-        if (page === 0 || isRefresh) {
-          // 首次加载或刷新
-          setHistoryRecords(newRecords)
-          setHistoryPage(0)
-        } else {
-          // 加载更多
-          setHistoryRecords(prev => [...prev, ...newRecords])
-        }
-
-        // 更新分页状态
-        setHasMoreHistory(newRecords.length === limit)
-        setHistoryPage(page)
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.log('Fetch aborted')
-          return
-        }
-
-        console.error('Error fetching generation history:', error)
-        toast({
-          title: language === 'en' ? 'Error' : '错误',
-          description: language === 'en' ? 'Failed to load generation history' : '加载生成历史失败',
-          variant: 'destructive',
-        })
-      } finally {
-        setIsLoadingHistory(false)
-        setIsLoadingMore(false)
-
-        // 清理controller
-        controller.abort()
-      }
-    },
-    [session?.user?.id, language]
-  )
-
-  // 刷新历史记录（智能插入新数据）
-  const refreshHistoryWithNewData = async () => {
-    if (!session?.user?.id) return
-
-    try {
-      // 获取最新的前20条记录
-      const response = await fetch('/api/user/generation-history?limit=20&offset=0')
-      if (!response.ok) return
-
-      const data = await response.json()
-      const latestRecords = data.records || []
-
-      if (latestRecords.length === 0) return
-
-      // 找到新记录（不在当前列表中的）
-      const existingIds = new Set(historyRecords.map(r => r.id))
-      const newRecords = latestRecords.filter((r: ImageGenerationRecord) => !existingIds.has(r.id))
-
-      if (newRecords.length > 0) {
-        // 将新记录插入到列表开头
-        setHistoryRecords(prev => [...newRecords, ...prev])
-
-        toast({
-          title: language === 'en' ? 'New generations loaded' : '已加载新生成记录',
-          description:
-            language === 'en'
-              ? `${newRecords.length} new record(s) added`
-              : `已添加 ${newRecords.length} 条新记录`,
-        })
-      }
-    } catch (error) {
-      console.error('Error refreshing history:', error)
-    }
-  }
-
-  // 加载更多历史记录
-  const loadMoreHistory = () => {
-    if (!isLoadingMore && hasMoreHistory) {
-      fetchGenerationHistory(historyPage + 1)
-    }
-  }
-
-  // 删除生成记录
-  const deleteRecord = async (id: string) => {
-    const controller = new AbortController()
-    setDeletingId(id)
-
-    try {
-      const response = await fetch(`/api/user/generation-history/${id}`, {
-        method: 'DELETE',
-        signal: controller.signal,
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete record')
-      }
-
-      setHistoryRecords(prev => prev.filter(record => record.id !== id))
-      toast({
-        title: language === 'en' ? 'Deleted' : '已删除',
-        description:
-          language === 'en' ? 'Generation record deleted successfully' : '生成记录已成功删除',
-      })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Delete aborted')
-        return
-      }
-
-      console.error('Error deleting record:', error)
-      toast({
-        title: language === 'en' ? 'Error' : '错误',
-        description: language === 'en' ? 'Failed to delete record' : '删除记录失败',
-        variant: 'destructive',
-      })
-    } finally {
-      setDeletingId(null)
-      controller.abort()
-    }
-  }
-
-  // 格式化日期
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date)
-  }
-
-  // 获取状态颜色和文本
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-400'
-      case 'failed':
-        return 'text-red-400'
-      case 'pending':
-        return 'text-yellow-400'
-      default:
-        return 'text-gray-400'
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return language === 'en' ? 'Completed' : '已完成'
-      case 'failed':
-        return language === 'en' ? 'Failed' : '失败'
-      case 'pending':
-        return language === 'en' ? 'Pending' : '处理中'
-      default:
-        return status
-    }
-  }
 
   // 获取语言名称的辅助函数
   const getLanguageName = (langCode: string): string => {
@@ -1245,6 +1468,21 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     setContentFlaggedError(null)
     setGeneralError(null)
 
+    // 清理多图参考模式的图片
+    if (generationMode === 'multi-reference') {
+      referenceImages.forEach(img => {
+        if (img.url.startsWith('blob:')) {
+          URL.revokeObjectURL(img.url)
+        }
+      })
+      setReferenceImages([])
+      // 清除缓存的参考图片
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('flux_reference_images')
+        localStorage.removeItem('flux_reference_metadata')
+      }
+    }
+
     // 只清理提示词localStorage，保留图片
     if (typeof window !== 'undefined') {
       localStorage.removeItem('flux_prompt')
@@ -1254,7 +1492,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       title: language === 'en' ? 'Prompt cleared' : '提示词已清空',
       description: language === 'en' ? 'Images preserved' : '图片已保留',
     })
-  }, [language])
+  }, [language, generationMode, referenceImages])
 
   // 添加内存监控和清理
   useEffect(() => {
@@ -1318,58 +1556,123 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       const items = e.clipboardData?.items
       if (!items) return
 
+      // 收集所有图片文件
+      const imageFiles: File[] = []
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
-          e.preventDefault() // 阻止默认粘贴行为
-
           const file = item.getAsFile()
-          if (!file) continue
+          if (file) {
+            imageFiles.push(file)
+          }
+        }
+      }
 
-          try {
+      if (imageFiles.length === 0) return
+
+      e.preventDefault() // 阻止默认粘贴行为
+
+      // 多图参考模式
+      if (generationMode === 'multi-reference') {
+        const maxImages = selectedModel === 'gemini' ? 3 : 2
+        const availableSlots = maxImages - referenceImages.length
+        
+        if (availableSlots <= 0) {
+          toast({
+            title: language === 'en' ? 'Reference limit reached' : '参考图片已达上限',
+            description: language === 'en' 
+              ? `Maximum ${maxImages} reference images allowed` 
+              : `最多允许 ${maxImages} 张参考图片`,
+            variant: 'destructive',
+          })
+          return
+        }
+
+        const filesToProcess = imageFiles.slice(0, availableSlots)
+        
+        try {
+          for (const file of filesToProcess) {
             // 检查文件大小
             if (file.size > 50 * 1024 * 1024) {
-              // 50MB限制
               toast({
                 title: language === 'en' ? 'File too large' : '文件过大',
                 description:
                   language === 'en'
-                    ? 'Please paste an image smaller than 50MB'
-                    : '请粘贴小于50MB的图片',
+                    ? `${file.name} is larger than 50MB`
+                    : `${file.name} 大于50MB`,
                 variant: 'destructive',
               })
-              return
+              continue
             }
 
-            // 处理粘贴的图片
-            toast({
-              title: language === 'en' ? 'Image pasted' : '图片已粘贴',
-              description:
-                language === 'en' ? 'Processing the pasted image...' : '正在处理粘贴的图片...',
-            })
+            await processReferenceImage(file)
+          }
 
-            await processImageFile(file)
-
+          toast({
+            title: language === 'en' ? 'Images pasted' : '图片已粘贴',
+            description:
+              language === 'en'
+                ? `${filesToProcess.length} image(s) added to references`
+                : `已添加 ${filesToProcess.length} 张参考图片`,
+          })
+        } catch (error) {
+          console.error('Error processing pasted images:', error)
+          toast({
+            title: language === 'en' ? 'Paste failed' : '粘贴失败',
+            description:
+              error instanceof Error
+                ? error.message
+                : language === 'en'
+                  ? 'Failed to process pasted images'
+                  : '处理粘贴图片失败',
+            variant: 'destructive',
+          })
+        }
+      } else {
+        // 单图模式（图生图或文生图）
+        const file = imageFiles[0]
+        
+        try {
+          // 检查文件大小
+          if (file.size > 50 * 1024 * 1024) {
             toast({
-              title: language === 'en' ? 'Image processed' : '图片处理完成',
+              title: language === 'en' ? 'File too large' : '文件过大',
               description:
                 language === 'en'
-                  ? 'Pasted image is ready for transformation'
-                  : '粘贴的图片已准备好进行转换',
-            })
-          } catch (error) {
-            console.error('Error processing pasted image:', error)
-            toast({
-              title: language === 'en' ? 'Paste failed' : '粘贴失败',
-              description:
-                error instanceof Error
-                  ? error.message
-                  : language === 'en'
-                    ? 'Failed to process pasted image'
-                    : '处理粘贴图片失败',
+                  ? 'Please paste an image smaller than 50MB'
+                  : '请粘贴小于50MB的图片',
               variant: 'destructive',
             })
+            return
           }
-          break // 只处理第一个图片
+
+          // 处理粘贴的图片
+          toast({
+            title: language === 'en' ? 'Image pasted' : '图片已粘贴',
+            description:
+              language === 'en' ? 'Processing the pasted image...' : '正在处理粘贴的图片...',
+          })
+
+          await processImageFile(file)
+
+          toast({
+            title: language === 'en' ? 'Image processed' : '图片处理完成',
+            description:
+              language === 'en'
+                ? 'Pasted image is ready for transformation'
+                : '粘贴的图片已准备好进行转换',
+          })
+        } catch (error) {
+          console.error('Error processing pasted image:', error)
+          toast({
+            title: language === 'en' ? 'Paste failed' : '粘贴失败',
+            description:
+              error instanceof Error
+                ? error.message
+                : language === 'en'
+                  ? 'Failed to process pasted image'
+                  : '处理粘贴图片失败',
+            variant: 'destructive',
+          })
         }
       }
     }
@@ -1380,7 +1683,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     return () => {
       window.removeEventListener('paste', handlePaste)
     }
-  }, [language, processImageFile])
+  }, [language, processImageFile, generationMode, selectedModel, referenceImages.length, processReferenceImage])
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8" data-page="gen">
@@ -1424,7 +1727,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                     ? 'Flux Kontext Pro'
                     : selectedModel === 'max'
                       ? 'Flux Kontext Max'
-                      : 'Gemini 2.5 Flash Image'}
+                      : 'Nano Banana (Gemini 2.5 Flash Image)'}
               </span>
             </h1>
             <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto">
@@ -1503,12 +1806,189 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           </div>
         </motion.div>
 
+        {/* Mode Toggle */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="mb-6"
+        >
+          <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <Label className="text-white/80">
+                    {language === 'en' ? 'Generation Mode:' : '生成模式：'}
+                  </Label>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setGenerationMode('image-to-image')
+                        // 从多图参考模式切换时，使用第一张参考图作为输入图
+                        if (generationMode === 'multi-reference' && referenceImages.length > 0) {
+                          setInputImage(referenceImages[0].url)
+                          // 清理参考图片
+                          referenceImages.forEach(img => {
+                            if (img.url.startsWith('blob:')) {
+                              URL.revokeObjectURL(img.url)
+                            }
+                          })
+                          setReferenceImages([])
+                        }
+                      }}
+                      className={generationMode === 'image-to-image'
+                        ? "bg-purple-600 hover:bg-purple-700 text-white" 
+                        : "bg-transparent border border-white/40 text-white/80 hover:bg-white/20 hover:text-white hover:border-white/60"}
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      {language === 'en' ? 'Image Edit' : '图片编辑'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setGenerationMode('text-to-image')
+                        // 从多图参考模式切换时，清理参考图片
+                        if (generationMode === 'multi-reference') {
+                          referenceImages.forEach(img => {
+                            if (img.url.startsWith('blob:')) {
+                              URL.revokeObjectURL(img.url)
+                            }
+                          })
+                          setReferenceImages([])
+                        }
+                      }}
+                      className={generationMode === 'text-to-image'
+                        ? "bg-purple-600 hover:bg-purple-700 text-white" 
+                        : "bg-transparent border border-white/40 text-white/80 hover:bg-white/20 hover:text-white hover:border-white/60"}
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      {language === 'en' ? 'Text to Image' : '文生图'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setGenerationMode('multi-reference')
+                        // 从图生图模式切换时，将当前输入图作为第一张参考图
+                        if (generationMode === 'image-to-image' && inputImage) {
+                          const fakeFile = new File([], 'converted-image.png', { type: 'image/png' })
+                          setReferenceImages([{ url: inputImage, file: fakeFile }])
+                          setInputImage(null)
+                          
+                          toast({
+                            title: language === 'en' ? 'Image transferred' : '图片已转移',
+                            description: language === 'en' 
+                              ? 'Your input image is now a reference image' 
+                              : '您的输入图片现在是参考图片',
+                          })
+                        }
+                      }}
+                      className={generationMode === 'multi-reference'
+                        ? "bg-purple-600 hover:bg-purple-700 text-white" 
+                        : "bg-transparent border border-white/40 text-white/80 hover:bg-white/20 hover:text-white hover:border-white/60"}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      {language === 'en' ? 'Multi-Ref' : '多图参考'}
+                      <span className="text-xs opacity-75 ml-1">
+                        ({selectedModel === 'gemini' ? 3 : 2})
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Text-to-image and multi-reference options */}
+                {(generationMode === 'text-to-image' || generationMode === 'multi-reference') && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div>
+                        <Label className="text-white/60 text-xs mb-1 block flex items-center gap-2">
+                          <span>{language === 'en' ? 'Aspect Ratio' : '宽高比'}</span>
+                          {selectedModel === 'gemini' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                              <Info className="w-3 h-3" />
+                              {language === 'en' ? 'AI controlled' : 'AI 控制'}
+                            </span>
+                          )}
+                        </Label>
+                        <Select value={aspectRatio} onValueChange={(value: any) => setAspectRatio(value)}>
+                          <SelectTrigger className="w-40 h-10 bg-white/10 border-white/20 text-white hover:border-white/40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-slate-900 border-white/20 text-white">
+                            <SelectItem value="1:1" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-5 h-5 bg-white/80 rounded-sm" />
+                                <span>1:1</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Square' : '正方形'}</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="16:9" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-4 bg-white/80 rounded-sm" />
+                                <span>16:9</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Wide' : '宽屏'}</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="9:16" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-4 h-7 bg-white/80 rounded-sm" />
+                                <span>9:16</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Portrait' : '竖屏'}</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="4:3" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-6 h-[18px] bg-white/80 rounded-sm" />
+                                <span>4:3</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Standard' : '标准'}</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="3:4" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-[18px] h-6 bg-white/80 rounded-sm" />
+                                <span>3:4</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Vertical' : '竖向'}</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="1:2" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-3.5 h-7 bg-white/80 rounded-sm" />
+                                <span>1:2</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Tall' : '高竖'}</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="2:1" className="hover:bg-white/20 focus:bg-white/20 text-white hover:text-white focus:text-white data-[highlighted]:bg-white/20 data-[highlighted]:text-white">
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-3.5 bg-white/80 rounded-sm" />
+                                <span>2:1</span>
+                                <span className="text-xs text-white/60 ml-auto">{language === 'en' ? 'Panoramic' : '全景'}</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* 主要内容区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 输入图片 */}
+        <div className={cn(
+          "grid grid-cols-1 gap-6",
+          isTextToImageMode ? "lg:grid-cols-2" : "lg:grid-cols-3"
+        )}>
+          {/* 输入图片 - 在图片编辑模式和多图参考模式下显示 */}
+          {generationMode !== 'text-to-image' && (
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <Card
@@ -1519,15 +1999,144 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-purple-400" />
-                  {language === 'en' ? 'Input Image' : '输入图片'}
+                  {generationMode === 'multi-reference'
+                    ? (language === 'en' ? 'Reference Images' : '参考图片')
+                    : (language === 'en' ? 'Input Image' : '输入图片')}
                 </CardTitle>
                 <CardDescription className="text-white/60">
-                  {language === 'en' ? 'Upload an image to transform' : '上传要转换的图片'}
+                  {generationMode === 'multi-reference'
+                    ? (language === 'en' 
+                        ? `Upload up to ${selectedModel === 'gemini' ? 3 : 2} reference images` 
+                        : `上传最多${selectedModel === 'gemini' ? 3 : 2}张参考图片`)
+                    : (language === 'en' ? 'Upload an image to transform' : '上传要转换的图片')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div
-                  {...getRootProps()}
+                {/* Multi-reference mode UI */}
+                {generationMode === 'multi-reference' ? (
+                  <div className="space-y-4">
+                    {/* Display existing reference images */}
+                    {referenceImages.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {referenceImages.map((img, index) => (
+                          <div key={index} className="relative group">
+                            <div className="aspect-square rounded-lg overflow-hidden bg-black/40 border border-white/10">
+                              <Image
+                                src={img.url}
+                                alt={`Reference ${index + 1}`}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const newImages = [...referenceImages]
+                                URL.revokeObjectURL(newImages[index].url)
+                                newImages.splice(index, 1)
+                                setReferenceImages(newImages)
+                              }}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                            {processingImageIndex === index && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
+                                <Loader2 className="w-6 h-6 animate-spin text-white" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {/* Add more images button */}
+                        {referenceImages.length < (selectedModel === 'gemini' ? 3 : 2) && (
+                          <div
+                            className="aspect-square rounded-lg border-2 border-dashed border-white/20 hover:border-purple-400 bg-white/5 hover:bg-purple-400/10 transition-all cursor-pointer flex items-center justify-center"
+                            onClick={() => {
+                              const input = document.createElement('input')
+                              input.type = 'file'
+                              input.accept = 'image/*'
+                              input.onchange = async (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0]
+                                if (file) {
+                                  await processReferenceImage(file)
+                                }
+                              }
+                              input.click()
+                            }}
+                          >
+                            <div className="text-center">
+                              <Plus className="w-8 h-8 text-white/40 mx-auto mb-2" />
+                              <p className="text-xs text-white/60">
+                                {language === 'en' ? 'Add image' : '添加图片'}
+                              </p>
+                              <p className="text-xs text-purple-400 mt-1">
+                                {language === 'en' ? 'or paste' : '或粘贴'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Drag and drop zone for initial upload */}
+                    {referenceImages.length === 0 && (
+                      <div
+                        {...getRootProps()}
+                        className={cn(
+                          'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all',
+                          isDragActive || dragActive
+                            ? 'border-purple-400 bg-purple-400/10'
+                            : 'border-white/20 hover:border-white/40 hover:bg-white/5'
+                        )}
+                      >
+                        <input {...getInputProps()} multiple accept="image/*" />
+                        <Upload className="w-12 h-12 text-white/40 mx-auto mb-4" />
+                        <p className="text-white/80 mb-2">
+                          {language === 'en'
+                            ? 'Drop images here or click to upload'
+                            : '将图片拖放到此处或点击上传'}
+                        </p>
+                        <p className="text-sm text-white/60">
+                          {language === 'en'
+                            ? `Select up to ${selectedModel === 'gemini' ? 3 : 2} images as reference`
+                            : `选择最多${selectedModel === 'gemini' ? 3 : 2}张图片作为参考`}
+                        </p>
+                        <p className="text-xs text-purple-400 mt-2">
+                          {language === 'en'
+                            ? 'Tip: You can paste multiple images with Ctrl+V / Cmd+V'
+                            : '提示：您可以使用 Ctrl+V / Cmd+V 粘贴多张图片'}
+                        </p>
+                        <p className="text-xs text-white/50 mt-1">
+                          {language === 'en'
+                            ? 'Images larger than 1080p will be resized'
+                            : '大于1080p的图片将自动调整大小'}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Info about multi-reference mode */}
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-purple-200">
+                          {selectedModel === 'gemini' 
+                            ? (language === 'en' 
+                                ? 'The AI will use these images as style and content references to generate a new image based on your prompt.'
+                                : 'AI 将使用这些图片作为风格和内容参考，根据您的提示词生成新图片。')
+                            : (language === 'en' 
+                                ? 'Flux will combine exactly 2 reference images based on your prompt. Both images are required.'
+                                : 'Flux 将根据您的提示词组合恰好2张参考图片。两张图片都是必需的。')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Original single image mode UI */
+                  <div
+                    {...getRootProps()}
                   className={cn(
                     'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all',
                     isDragActive || dragActive
@@ -1607,8 +2216,10 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                     </div>
                   )}
                 </div>
+                )}
 
-                {/* 独立的图片编辑功能区域 */}
+                {/* 独立的图片编辑功能区域 - 仅在非多图参考模式下显示 */}
+                {generationMode !== 'multi-reference' && (
                 <div className="mt-6 pt-4 border-t border-white/10">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
@@ -1633,9 +2244,11 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                     </Button>
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
+          )}
 
           {/* 提示词输入 */}
           <motion.div
@@ -1654,9 +2267,13 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                   {language === 'en' ? 'Prompt' : '提示词'}
                 </CardTitle>
                 <CardDescription className="text-white/60">
-                  {language === 'en'
-                    ? 'Describe how you want to transform the image'
-                    : '描述您希望如何转换图片'}
+                  {isTextToImageMode
+                    ? (language === 'en'
+                        ? 'Describe the image you want to generate'
+                        : '描述您想要生成的图片')
+                    : (language === 'en'
+                        ? 'Describe how you want to transform the image'
+                        : '描述您希望如何转换图片')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1669,6 +2286,40 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                     value={selectedModel}
                     onValueChange={(value: 'pro' | 'max' | 'gemini') => {
                       setSelectedModel(value)
+                      
+                      // 处理多图参考模式下的图片数量限制
+                      if (generationMode === 'multi-reference' && referenceImages.length > 0) {
+                        // 从 Gemini（3张）切换到 Flux（2张）时，保留前两张
+                        if (value !== 'gemini' && referenceImages.length > 2) {
+                          const keptImages = referenceImages.slice(0, 2)
+                          setReferenceImages(keptImages)
+                          
+                          // 同步更新缓存
+                          if (typeof window !== 'undefined') {
+                            try {
+                              const imageUrls = keptImages.map(img => img.url)
+                              const metadata = keptImages.map(img => ({
+                                name: img.file?.name || 'image.png',
+                                type: img.file?.type || 'image/png',
+                                size: img.file?.size || 0
+                              }))
+                              
+                              localStorage.setItem('flux_reference_images', JSON.stringify(imageUrls))
+                              localStorage.setItem('flux_reference_metadata', JSON.stringify(metadata))
+                            } catch (error) {
+                              console.error('Failed to update cache after model switch:', error)
+                            }
+                          }
+                          
+                          toast({
+                            title: language === 'en' ? 'Images adjusted' : '图片已调整',
+                            description: language === 'en' 
+                              ? 'Kept first 2 images for Flux model' 
+                              : '为 Flux 模型保留前 2 张图片',
+                          })
+                        }
+                      }
+                      
                       // 切换路由但保留当前状态
                       const modelPath =
                         value === 'pro'
@@ -1697,7 +2348,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                       </SelectItem>
                       <SelectItem value="gemini" className="text-white">
                         <div className="flex items-center justify-between w-full">
-                          <span>Gemini 2.5 Flash</span>
+                          <span>Nano Banana</span>
                           <span className="text-xs text-blue-400 ml-2">30 积分</span>
                         </div>
                       </SelectItem>
@@ -1774,11 +2425,14 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                 <Button
                   onClick={generateImage}
                   disabled={
-                    !inputImage ||
+                    (generationMode === 'multi-reference' ? 
+                      (selectedModel === 'gemini' ? (referenceImages.length === 0 || referenceImages.length > 3) : referenceImages.length !== 2) : 
+                     generationMode === 'image-to-image' ? !inputImage : false) ||
                     !prompt.trim() ||
                     isGenerating ||
                     isProcessingImage ||
                     isTranslating ||
+                    processingImageIndex !== null ||
                     (creditsInfo?.credits || 0) <
                       (selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10)
                   }
@@ -1804,10 +2458,8 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 mr-2" />
-                      {language === 'en'
-                        ? `Generate Image (${selectedModel.toUpperCase()})`
-                        : `生成图片 (${selectedModel.toUpperCase()})`}
-                      <span className="ml-1 text-xs opacity-75">
+                      {language === 'en' ? 'Generate' : '生成'}
+                      <span className="ml-2 text-sm">
                         ({selectedModel === 'max' ? '20' : selectedModel === 'gemini' ? '30' : '10'}{' '}
                         {language === 'en' ? 'credits' : '积分'})
                       </span>
@@ -1888,7 +2540,14 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                   </div>
                 ) : outputImage ? (
                   <div className="space-y-4">
-                    <OutputImagePreview src={outputImage} onError={handleOutputImageError} />
+                    <div className="relative group cursor-pointer" onClick={() => setViewingImage(outputImage)}>
+                      <OutputImagePreview src={outputImage} onError={handleOutputImageError} />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-lg">
+                        <div className="bg-black/70 backdrop-blur-sm rounded-full p-3">
+                          <Eye className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
                     {isMobile ? (
                       <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
                         <p className="text-sm text-white/80 mb-2">
@@ -1968,252 +2627,20 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                   {language === 'en' ? 'Model Introduction' : '模型介绍'}
                 </TabsTrigger>
               </TabsList>
-              {session?.user && activeTab === 'history' && (
-                <Button
-                  onClick={() => fetchGenerationHistory(0, true)}
-                  disabled={isLoadingHistory}
-                  variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10 bg-transparent"
-                >
-                  {isLoadingHistory ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  {language === 'en' ? 'Refresh' : '刷新'}
-                </Button>
-              )}
+              {/* Refresh button is now in OptimizedGenerationHistory component */}
             </div>
 
             {/* 历史记录选项卡 */}
             {session?.user && (
               <TabsContent value="history" className="mt-0">
-                {isLoadingHistory ? (
-                  <div className="flex flex-col items-center justify-center h-32 space-y-4">
-                    <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-                    <p className="text-white/80 text-center">
-                      {language === 'en' ? 'Loading history...' : '加载历史中...'}
-                    </p>
-                  </div>
-                ) : historyRecords.length === 0 ? (
-                  <Card
-                    className="!bg-black/20 backdrop-blur-lg border-white/10 text-white"
-                    data-card="gen-card"
-                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
-                  >
-                    <CardContent className="p-8 text-center">
-                      <History className="w-12 h-12 text-white/40 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">
-                        {language === 'en' ? 'No generations yet' : '暂无生成记录'}
-                      </h3>
-                      <p className="text-white/60">
-                        {language === 'en'
-                          ? 'Your generation history will appear here'
-                          : '您的生成历史将显示在这里'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-6">
-                    {/* 历史记录网格 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {historyRecords.map((record, index) => (
-                        <motion.div
-                          key={record.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
-                        >
-                          <Card
-                            className="!bg-black/20 backdrop-blur-lg border-white/10 text-white"
-                            data-card="gen-card"
-                            style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
-                          >
-                            <CardHeader className="pb-3">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <CardTitle className="text-sm mb-1" title={record.prompt}>
-                                    <span className="line-clamp-2">{record.prompt}</span>
-                                  </CardTitle>
-                                  <CardDescription className="text-white/60 text-xs">
-                                    {formatDate(record.createdAt)} • {record.creditsUsed}{' '}
-                                    {language === 'en' ? 'credits' : '积分'}
-                                  </CardDescription>
-                                </div>
-                                <div
-                                  className={cn(
-                                    'text-xs px-2 py-1 rounded-full shrink-0 ml-2',
-                                    getStatusColor(record.status)
-                                  )}
-                                >
-                                  {getStatusText(record.status)}
-                                </div>
-                              </div>
-                            </CardHeader>
-
-                            <CardContent className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                {/* 原图 */}
-                                <div className="space-y-2">
-                                  <h4 className="text-xs font-medium text-white/80">
-                                    {language === 'en' ? 'Input Image' : '输入图片'}
-                                  </h4>
-                                  <HistoryImagePreview
-                                    src={record.inputImageUrl}
-                                    alt="Input"
-                                    onError={handleHistoryImageError}
-                                  />
-                                  {/* 原图操作按钮 */}
-                                  <div className="flex gap-1">
-                                    <Button
-                                      onClick={() =>
-                                        downloadHistoryImage(
-                                          record.inputImageUrl,
-                                          record.prompt + '-input',
-                                          record.id
-                                        )
-                                      }
-                                      size="sm"
-                                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs h-7"
-                                    >
-                                      download
-                                    </Button>
-                                    <Button
-                                      onClick={() =>
-                                        setHistoryImageAsInput(record.inputImageUrl, true)
-                                      }
-                                      size="sm"
-                                      variant="outline"
-                                      className="flex-1 border-purple-400/50 text-purple-200 hover:bg-purple-400/20 hover:text-purple-100 hover:border-purple-300 bg-purple-500/10 text-xs h-7 font-medium"
-                                      title={language === 'en' ? 'Use as Input' : 'Use as Input'}
-                                      data-button="purple-outline"
-                                    >
-                                      use as input
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                {/* 生成结果 */}
-                                <div className="space-y-2">
-                                  <h4 className="text-xs font-medium text-white/80">
-                                    {language === 'en' ? 'Generated Result' : '生成结果'}
-                                  </h4>
-                                  {record.status === 'completed' &&
-                                  (record.localOutputImageUrl || record.outputImageUrl) ? (
-                                    <>
-                                      <HistoryImagePreview
-                                        src={record.localOutputImageUrl || record.outputImageUrl!}
-                                        alt="Generated"
-                                        onError={handleHistoryImageError}
-                                      />
-                                      {/* 结果图操作按钮 */}
-                                      <div className="flex gap-1">
-                                        <Button
-                                          onClick={() =>
-                                            downloadHistoryImage(
-                                              record.localOutputImageUrl || record.outputImageUrl!,
-                                              record.prompt,
-                                              record.id
-                                            )
-                                          }
-                                          size="sm"
-                                          className="flex-1 bg-green-600 hover:bg-green-700 text-xs h-7"
-                                        >
-                                          download
-                                        </Button>
-                                        <Button
-                                          onClick={() =>
-                                            setHistoryImageAsInput(
-                                              record.localOutputImageUrl || record.outputImageUrl!,
-                                              false
-                                            )
-                                          }
-                                          size="sm"
-                                          variant="outline"
-                                          className="flex-1 border-purple-400/50 text-purple-200 hover:bg-purple-400/20 hover:text-purple-100 hover:border-purple-300 bg-purple-500/10 text-xs h-7 font-medium"
-                                          title={
-                                            language === 'en' ? 'Use as Input' : 'Use as Input'
-                                          }
-                                          data-button="purple-outline"
-                                        >
-                                          use as input
-                                        </Button>
-                                      </div>
-                                    </>
-                                  ) : record.status === 'failed' ? (
-                                    <div className="aspect-square flex items-center justify-center bg-red-500/10 border border-red-500/20 rounded-lg">
-                                      <div className="text-center">
-                                        <p className="text-xs text-red-400 mb-1">
-                                          {language === 'en' ? 'Generation Failed' : '生成失败'}
-                                        </p>
-                                        {record.errorMessage && (
-                                          <p className="text-xs text-red-300/80 line-clamp-2">
-                                            {record.errorMessage}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="aspect-square flex items-center justify-center bg-white/5 rounded-lg border border-white/10">
-                                      <div className="text-center">
-                                        <Loader2 className="w-6 h-6 text-yellow-400 animate-spin mx-auto mb-1" />
-                                        <p className="text-xs text-yellow-400">
-                                          {language === 'en' ? 'Processing...' : '处理中...'}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* 删除按钮 */}
-                              <div className="flex justify-center pt-2 border-t border-white/10">
-                                <Button
-                                  onClick={() => deleteRecord(record.id)}
-                                  disabled={deletingId === record.id}
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-red-500/50 text-red-400 hover:bg-red-500/20"
-                                >
-                                  {deletingId === record.id ? (
-                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="w-3 h-3 mr-1" />
-                                  )}
-                                  {language === 'en' ? 'Delete' : '删除'}
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {/* 加载更多按钮 */}
-                    {hasMoreHistory && (
-                      <div className="flex justify-center pt-6">
-                        <Button
-                          onClick={loadMoreHistory}
-                          disabled={isLoadingMore}
-                          variant="outline"
-                          className="border-white/20 text-white hover:bg-white/10 bg-transparent"
-                        >
-                          {isLoadingMore ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              {language === 'en' ? 'Loading more...' : '加载更多...'}
-                            </>
-                          ) : (
-                            <>
-                              <History className="w-4 h-4 mr-2" />
-                              {language === 'en' ? 'Load More' : '加载更多'}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <OptimizedGenerationHistory 
+                  onUseAsInput={(imageUrl, type, metadata) => {
+                    if (type === 'input' || type === 'output') {
+                      setHistoryImageAsInput(imageUrl, type === 'input', metadata)
+                    }
+                  }}
+                  onRefreshReady={handleRefreshReady}
+                />
               </TabsContent>
             )}
 
@@ -2498,14 +2925,14 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                     <div className="space-y-4">
                       <h3 className="text-xl font-bold text-white mb-4">
                         {language === 'en'
-                          ? 'About Gemini 2.5 Flash Image'
-                          : '关于 Gemini 2.5 Flash Image'}
+                          ? 'About Nano Banana (Gemini 2.5 Flash Image)'
+                          : '关于 Nano Banana (Gemini 2.5 Flash Image)'}
                       </h3>
                       <div className="prose prose-invert max-w-none space-y-4 text-white/90">
                         <p>
                           {language === 'en'
-                            ? "Gemini 2.5 Flash Image is Google's state-of-the-art image generation and editing model. It enables blending multiple images, maintaining character consistency, and performing targeted transformations using natural language."
-                            : 'Gemini 2.5 Flash Image 是Google最先进的图像生成和编辑模型。它能够混合多张图像、保持角色一致性，并使用自然语言执行有针对性的转换。'}
+                            ? "Nano Banana is powered by Google's state-of-the-art Gemini 2.5 Flash Image model. It enables blending multiple images, maintaining character consistency, and performing targeted transformations using natural language - all with a playful twist!"
+                            : 'Nano Banana 由 Google 最先进的 Gemini 2.5 Flash Image 模型驱动。它能够混合多张图像、保持角色一致性，并使用自然语言执行有针对性的转换 - 一切都带着趣味性！'}
                         </p>
                         <div className="bg-white/5 rounded-lg p-4">
                           <h4 className="text-lg font-semibold mb-2">
@@ -2554,11 +2981,11 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                             </li>
                           </ul>
                         </div>
-                        <div className="bg-green-500/10 border border-green-400/30 rounded-lg p-4">
+                        <div className="bg-yellow-500/10 border border-yellow-400/30 rounded-lg p-4">
                           <p className="text-sm">
                             {language === 'en'
-                              ? 'Gemini 2.5 Flash Image combines world knowledge with advanced image generation, enabling semantically intelligent creations and narrative sequences that maintain consistency across multiple generations.'
-                              : 'Gemini 2.5 Flash Image 结合世界知识与先进的图像生成技术，实现语义智能创作和叙事序列，在多次生成中保持一致性。'}
+                              ? '🍌 Nano Banana combines world knowledge with advanced image generation, enabling semantically intelligent creations and narrative sequences that maintain consistency across multiple generations - with a touch of banana magic!'
+                              : '🍌 Nano Banana 结合世界知识与先进的图像生成技术，实现语义智能创作和叙事序列，在多次生成中保持一致性 - 还带着香蕉魔法！'}
                           </p>
                         </div>
                         <div className="flex items-center gap-4 pt-4">
@@ -2614,6 +3041,56 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
       {/* 积分不足提醒 */}
       <CreditsAlert open={showCreditsAlert} onOpenChange={setShowCreditsAlert} />
+      
+      {/* 图片查看器 */}
+      <AnimatePresence>
+        {viewingImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setViewingImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="relative max-w-6xl max-h-[90vh] w-full h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={viewingImage}
+                alt="Full size generated image"
+                className="w-full h-full object-contain"
+              />
+              <div className="absolute top-4 right-4 flex gap-2">
+                <div className="bg-black/60 backdrop-blur-sm rounded px-3 py-1">
+                  <span className="text-sm text-white">
+                    {language === 'en' ? 'Generated Image' : '生成的图片'}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setViewingImage(null)}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  {language === 'en' ? 'Close' : '关闭'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={downloadImage}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {language === 'en' ? 'Download' : '下载'}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

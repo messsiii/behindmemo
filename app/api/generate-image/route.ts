@@ -21,13 +21,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { prompt, input_image, model = 'pro' } = await request.json()
+    const { prompt, input_image, reference_images, model = 'pro', mode = 'image-to-image', aspectRatio } = await request.json()
     
 
     // 验证输入
-    if (!prompt || !input_image) {
+    if (!prompt) {
       return NextResponse.json(
-        { error: 'Missing prompt or input image' },
+        { error: 'Missing prompt' },
+        { status: 400 }
+      )
+    }
+
+    // 对于图片编辑模式，需要输入图片
+    if (mode === 'image-to-image' && !input_image) {
+      return NextResponse.json(
+        { error: 'Missing input image for image-to-image mode' },
+        { status: 400 }
+      )
+    }
+
+    // 对于多图参考模式，需要参考图片
+    if (mode === 'multi-reference' && (!reference_images || reference_images.length === 0)) {
+      return NextResponse.json(
+        { error: 'Missing reference images for multi-reference mode' },
+        { status: 400 }
+      )
+    }
+    
+    // Flux 多图参考模式需要恰好2张图片
+    if (mode === 'multi-reference' && model !== 'gemini' && reference_images.length !== 2) {
+      return NextResponse.json(
+        { error: 'Flux multi-reference mode requires exactly 2 images' },
+        { status: 400 }
+      )
+    }
+
+    // 验证参考图片数量 - Flux 只支持2张，Gemini 支持多张
+    if (mode === 'multi-reference' && model !== 'gemini' && reference_images.length > 2) {
+      return NextResponse.json(
+        { error: 'Flux models support maximum 2 reference images' },
+        { status: 400 }
+      )
+    }
+    
+    if (mode === 'multi-reference' && model === 'gemini' && reference_images.length > 3) {
+      return NextResponse.json(
+        { error: 'Maximum 3 reference images allowed for Gemini' },
         { status: 400 }
       )
     }
@@ -43,11 +82,11 @@ export async function POST(request: NextRequest) {
 
     // 确保数据类型正确
     const cleanPrompt = String(prompt).trim()
-    const cleanInputImage = String(input_image).trim()
+    const cleanInputImage = input_image ? String(input_image).trim() : null
     
-    if (!cleanPrompt || !cleanInputImage) {
+    if (!cleanPrompt) {
       return NextResponse.json(
-        { error: 'Invalid prompt or input image format' },
+        { error: 'Invalid prompt format' },
         { status: 400 }
       )
     }
@@ -88,10 +127,24 @@ export async function POST(request: NextRequest) {
         data: {
           userId: session.user.id,
           prompt: cleanPrompt,
-          inputImageUrl: cleanInputImage,
+          inputImageUrl: mode === 'multi-reference' && reference_images?.length > 0 
+            ? reference_images[0]  // 对于多图参考，保存第一张图作为主图
+            : cleanInputImage || '',  // 使用空字符串代替 null
           model: model,
           status: 'pending',
           creditsUsed: creditsRequired,
+          metadata: mode === 'multi-reference' && reference_images?.length > 0
+            ? {
+                mode: 'multi-reference',
+                referenceImages: reference_images,  // 保存所有参考图片
+                aspectRatio: aspectRatio
+              }
+            : mode === 'text-to-image' && aspectRatio
+            ? {
+                mode: 'text-to-image',
+                aspectRatio: aspectRatio
+              }
+            : undefined,
         }
       })
 
@@ -124,8 +177,108 @@ export async function POST(request: NextRequest) {
           throw new Error('Gemini API key is not configured')
         }
         
-        // 准备包含输入图像的prompt
-        const fullPrompt = `Based on this image, ${cleanPrompt}`
+        // Prepare request body based on mode
+        let requestParts
+        if (mode === 'text-to-image') {
+          // Text-to-image mode - only text prompt
+          // Add aspect ratio hint to the prompt for Gemini
+          let enhancedPrompt = cleanPrompt
+          if (aspectRatio && aspectRatio !== '1:1') {
+            const aspectHints: Record<string, string> = {
+              '16:9': 'widescreen landscape format (16:9 aspect ratio)',
+              '9:16': 'vertical portrait format (9:16 aspect ratio)',
+              '4:3': 'standard landscape format (4:3 aspect ratio)',
+              '3:4': 'standard portrait format (3:4 aspect ratio)',
+              '1:2': 'tall portrait format (1:2 aspect ratio)',
+              '2:1': 'wide panoramic format (2:1 aspect ratio)'
+            }
+            enhancedPrompt = `${cleanPrompt}. Generate in ${aspectHints[aspectRatio] || aspectRatio + ' aspect ratio'}.`
+          }
+          requestParts = [
+            {
+              text: enhancedPrompt
+            }
+          ]
+        } else if (mode === 'multi-reference') {
+          // Multi-reference mode - text + multiple images
+          console.log(`Processing ${reference_images?.length || 0} reference images for Gemini multi-reference mode`)
+          
+          let enhancedPrompt = `Using the following ${reference_images?.length || 0} reference images for style, composition, and elements, ${cleanPrompt}`
+          if (aspectRatio && aspectRatio !== '1:1') {
+            const aspectHints: Record<string, string> = {
+              '16:9': 'widescreen landscape format (16:9 aspect ratio)',
+              '9:16': 'vertical portrait format (9:16 aspect ratio)',
+              '4:3': 'standard landscape format (4:3 aspect ratio)',
+              '3:4': 'standard portrait format (3:4 aspect ratio)',
+              '1:2': 'tall portrait format (1:2 aspect ratio)',
+              '2:1': 'wide panoramic format (2:1 aspect ratio)'
+            }
+            enhancedPrompt += `. Generate in ${aspectHints[aspectRatio] || aspectRatio + ' aspect ratio'}.`
+          }
+          
+          requestParts = [
+            {
+              text: enhancedPrompt
+            }
+          ]
+          
+          // Add all reference images
+          if (reference_images && reference_images.length > 0) {
+            reference_images.forEach((imageData: string, index: number) => {
+              // 验证图片数据格式
+              if (!imageData || typeof imageData !== 'string') {
+                console.error(`Invalid reference image at index ${index}:`, imageData)
+                throw new Error(`Invalid reference image data at index ${index}`)
+              }
+              
+              // 确保是 base64 数据格式
+              if (!imageData.startsWith('data:')) {
+                console.error(`Reference image ${index} is not in data URL format:`, imageData.substring(0, 100))
+                throw new Error(`Reference image ${index} must be in data URL format`)
+              }
+              
+              // 提取 base64 数据
+              const base64Split = imageData.split(',')
+              if (base64Split.length !== 2) {
+                console.error(`Invalid data URL format for reference image ${index}`)
+                throw new Error(`Invalid data URL format for reference image ${index}`)
+              }
+              
+              const base64Data = base64Split[1]
+              if (!base64Data || base64Data.length === 0) {
+                console.error(`Empty base64 data for reference image ${index}`)
+                throw new Error(`Empty base64 data for reference image ${index}`)
+              }
+              
+              // 获取 MIME 类型
+              const mimeMatch = imageData.match(/^data:([^;]+);base64,/)
+              const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg'
+              
+              console.log(`Reference image ${index + 1}: MIME type = ${mimeType}, data length = ${base64Data.length}`)
+              
+              requestParts.push({
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Data
+                }
+              })
+            })
+          }
+        } else {
+          // Image-to-image mode - text + image
+          const fullPrompt = `Based on this image, ${cleanPrompt}`
+          requestParts = [
+            {
+              text: fullPrompt
+            },
+            {
+              inline_data: {
+                mime_type: cleanInputImage!.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                data: cleanInputImage!.split(',')[1] // 获取base64数据部分
+              }
+            }
+          ]
+        }
         
         const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent', {
           method: 'POST',
@@ -137,17 +290,7 @@ export async function POST(request: NextRequest) {
             contents: [
               {
                 role: 'user',
-                parts: [
-                  {
-                    text: fullPrompt
-                  },
-                  {
-                    inline_data: {
-                      mime_type: cleanInputImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
-                      data: cleanInputImage.split(',')[1] // 获取base64数据部分
-                    }
-                  }
-                ]
+                parts: requestParts
               }
             ],
             generation_config: {
@@ -162,7 +305,18 @@ export async function POST(request: NextRequest) {
 
         if (!geminiResponse.ok) {
           const errorData = await geminiResponse.json()
-          throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`)
+          console.error('Gemini API error:', errorData)
+          console.error('Request parts summary:', {
+            partsCount: requestParts.length,
+            textPart: requestParts[0],
+            imageParts: requestParts.slice(1).map((part: any, idx: number) => ({
+              index: idx + 1,
+              hasData: !!part.inline_data?.data,
+              dataLength: part.inline_data?.data?.length || 0,
+              mimeType: part.inline_data?.mime_type
+            }))
+          })
+          throw new Error(`Gemini API error: ${errorData.error?.message || JSON.stringify(errorData) || 'Unknown error'}`)
         }
 
         const geminiData = await geminiResponse.json()
@@ -193,25 +347,69 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // Replicate API 调用
-        const modelName = model === 'max' 
-          ? "black-forest-labs/flux-kontext-max"
-          : "black-forest-labs/flux-kontext-pro"
+        let modelName
+        let modelVersion
         
-        output = await replicate.run(modelName, {
-          input: {
+        // 根据模式选择不同的模型
+        if (mode === 'multi-reference') {
+          // 使用专门的多图参考模型
+          modelName = "flux-kontext-apps/multi-image-kontext-pro"
+          modelVersion = "f3545943bdffdf06420f0d8ececf86a36ce401b9df0ad5ec0124234c0665cfed"
+        } else {
+          // 使用标准模型
+          modelName = model === 'max' 
+            ? "black-forest-labs/flux-kontext-max"
+            : "black-forest-labs/flux-kontext-pro"
+        }
+        
+        // Prepare input based on mode
+        let replicateInput: any = {}
+        
+        if (mode === 'multi-reference') {
+          // 多图参考模式使用不同的参数结构
+          replicateInput = {
             prompt: cleanPrompt,
-            input_image: cleanInputImage,
-            ...(model === 'pro' && {
-              num_inference_steps: 30,
-              guidance_scale: 7.5,
-              width: 1024,
-              height: 1024,
-            }),
-            ...(model === 'max' && {
-              output_format: "jpg"
-            })
+            input_image_1: reference_images[0],
+            input_image_2: reference_images[1],
+            aspect_ratio: aspectRatio || '1:1',
+            output_format: "png",
+            safety_tolerance: 2,
           }
-        })
+        } else {
+          // 标准模式参数
+          replicateInput = {
+            prompt: cleanPrompt,
+            output_format: model === 'max' ? "jpg" : "png",
+            safety_tolerance: 2,
+            prompt_upsampling: false,
+          }
+
+          // Add aspect ratio or input image based on mode
+          if (mode === 'image-to-image') {
+            replicateInput.input_image = cleanInputImage
+            replicateInput.aspect_ratio = "match_input_image"
+          } else {
+            // For text-to-image, use the provided aspect ratio
+            replicateInput.aspect_ratio = aspectRatio || '1:1'
+          }
+        }
+
+        // Model-specific settings
+        if (model === 'pro') {
+          replicateInput.num_inference_steps = 30
+          replicateInput.guidance_scale = 7.5
+        }
+
+        // 根据是否有版本ID来决定如何调用
+        if (modelVersion) {
+          output = await replicate.run(`${modelName}:${modelVersion}` as `${string}/${string}:${string}`, {
+            input: replicateInput
+          })
+        } else {
+          output = await replicate.run(modelName as `${string}/${string}`, {
+            input: replicateInput
+          })
+        }
       }
 
       // 处理输出
@@ -244,11 +442,13 @@ export async function POST(request: NextRequest) {
         
         // 直接上传到 Blob 存储
         const { put } = await import('@vercel/blob')
-        const blob = await put(`flux-generated-${generationRecord.id}.png`, Buffer.from(imageBuffer), {
+        // 生成不可猜测的文件名（使用generation ID + 随机字符串）
+        const secureFileName = `flux-${generationRecord.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}.png`
+        const blob = await put(secureFileName, Buffer.from(imageBuffer), {
           access: 'public',
           token: process.env.BLOB_READ_WRITE_TOKEN,
           contentType: 'image/png',
-          addRandomSuffix: true,
+          addRandomSuffix: false, // 我们已经有了随机后缀
         })
         
         blobUrl = blob.url
