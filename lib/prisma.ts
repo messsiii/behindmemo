@@ -17,6 +17,13 @@ export const prisma =
     errorFormat: 'minimal',
   })
 
+// 注释掉立即连接，避免构建时触发配额错误
+// if (process.env.NODE_ENV === 'production') {
+//   prisma.$connect().catch((error) => {
+//     console.error('[PRISMA] Initial connection failed:', error)
+//   })
+// }
+
 // 处理连接关闭错误的健康检查机制
 let isConnected = true
 let healthCheckInterval: NodeJS.Timeout | null = null
