@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import { ImageCreditsAlert } from '@/components/ImageCreditsAlert'
@@ -157,6 +158,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [referenceImages, setReferenceImages] = useState<Array<{url: string, file: File}>>([])
   const [processingImageIndex, setProcessingImageIndex] = useState<number | null>(null)
   const [imageInfo, setImageInfo] = useState<ImageInfo>({})
+  const [showImageLabels, setShowImageLabels] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationInfo, setTranslationInfo] = useState<{
@@ -651,7 +653,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         setProcessingImageIndex(null)
       }
     },
-    [language, referenceImages]
+    [language, referenceImages, selectedModel]
   )
 
   // 处理单图片文件（原有功能）
@@ -932,7 +934,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         }
       }
     },
-    [language, processImageFile, processReferenceImage, generationMode, referenceImages.length]
+    [language, processImageFile, processReferenceImage, generationMode, referenceImages.length, selectedModel]
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -1122,18 +1124,27 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                 fileSize: img.file?.size || 0,
                 fileName: img.file?.name || 'no name'
               })
+              
+              // 如果需要添加标记
+              let processedUrl = img.url
+              if (showImageLabels && img.url) {
+                const labelText = `img${index + 1}`
+                processedUrl = await addImageLabel(img.url, labelText)
+                console.log(`🏷️ Added label "${labelText}" to image ${index + 1}`)
+              }
+              
               // 如果图片有 URL
-              if (img.url) {
+              if (processedUrl) {
                 // 如果是 data URL，直接使用
-                if (img.url.startsWith('data:')) {
-                  return img.url
+                if (processedUrl.startsWith('data:')) {
+                  return processedUrl
                 }
                 
                 // 如果是 HTTP URL，需要下载并转换为 data URL
-                if (img.url.startsWith('http')) {
+                if (processedUrl.startsWith('http')) {
                   try {
-                    console.log(`📥 Downloading image from: ${img.url.substring(0, 50)}...`)
-                    const response = await fetch(img.url)
+                    console.log(`📥 Downloading image from: ${processedUrl.substring(0, 50)}...`)
+                    const response = await fetch(processedUrl)
                     if (!response.ok) {
                       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
                     }
@@ -1152,14 +1163,14 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                       reader.readAsDataURL(blob)
                     })
                   } catch (error) {
-                    console.error(`❌ Failed to download image from ${img.url}:`, error)
+                    console.error(`❌ Failed to download image from ${processedUrl}:`, error)
                     throw new Error(`Failed to download reference image: ${error}`)
                   }
                 }
                 // 如果是 blob URL，需要转换
-                if (img.url.startsWith('blob:')) {
+                if (processedUrl.startsWith('blob:')) {
                   try {
-                    const response = await fetch(img.url)
+                    const response = await fetch(processedUrl)
                     const blob = await response.blob()
                     return new Promise<string>((resolve, reject) => {
                       const reader = new FileReader()
@@ -1556,6 +1567,53 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
   // History-related functions are now handled in OptimizedGenerationHistory component
 
+
+  // 为图片添加标记的函数
+  const addImageLabel = async (imageUrl: string, labelText: string): Promise<string> => {
+    try {
+      // 创建一个新的 canvas
+      const img = new window.Image()
+      img.crossOrigin = 'anonymous'
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = reject
+        img.src = imageUrl
+      })
+      
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')
+      
+      if (!ctx) throw new Error('Failed to get canvas context')
+      
+      // 绘制原始图片
+      ctx.drawImage(img, 0, 0)
+      
+      // 设置标记样式
+      const padding = 4
+      const fontSize = Math.max(16, Math.min(24, img.width / 40))
+      ctx.font = `bold ${fontSize}px Arial`
+      
+      // 添加白色描边效果，让红色文字更清晰
+      ctx.strokeStyle = '#FFFFFF'
+      ctx.lineWidth = 2
+      ctx.textBaseline = 'top'
+      ctx.strokeText(labelText, padding, padding)
+      
+      // 绘制红色文字
+      ctx.fillStyle = '#FF0000'
+      ctx.textBaseline = 'top'
+      ctx.fillText(labelText, padding, padding)
+      
+      // 转换为 data URL
+      return canvas.toDataURL('image/png')
+    } catch (error) {
+      console.error('Failed to add image label:', error)
+      return imageUrl // 返回原始图片
+    }
+  }
 
   // 获取语言名称的辅助函数
   const getLanguageName = (langCode: string): string => {
@@ -2190,12 +2248,28 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                 {/* Multi-reference mode UI */}
                 {generationMode === 'multi-reference' ? (
                   <div className="space-y-4">
+                    {/* Image label toggle */}
+                    {referenceImages.length > 0 && (
+                      <div className="flex items-center space-x-2 p-2 bg-white/5 rounded-lg">
+                        <Switch
+                          id="image-labels"
+                          checked={showImageLabels}
+                          onCheckedChange={setShowImageLabels}
+                        />
+                        <Label htmlFor="image-labels" className="text-sm text-white/80 cursor-pointer">
+                          {language === 'en' 
+                            ? 'Add reference labels (img1, img2, img3) to images' 
+                            : '为图片添加参考标记（img1, img2, img3）'}
+                        </Label>
+                      </div>
+                    )}
+                    
                     {/* Display existing reference images */}
                     {referenceImages.length > 0 && (
                       <div className="grid grid-cols-3 gap-2">
                         {referenceImages.map((img, index) => (
                           <div key={index} className="relative group">
-                            <div className="aspect-square rounded-lg overflow-hidden bg-black/40 border border-white/10">
+                            <div className="aspect-square rounded-lg overflow-hidden bg-black/40 border border-white/10 relative">
                               <Image
                                 src={img.url}
                                 alt={`Reference ${index + 1}`}
@@ -2203,6 +2277,14 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                                 className="object-cover"
                                 unoptimized
                               />
+                              {showImageLabels && (
+                                <div className="absolute top-1 left-1 text-red-600 text-xs font-bold" 
+                                     style={{ 
+                                       textShadow: '0 0 1px white, 0 0 1px white, 0 0 1px white, 0 0 1px white' 
+                                     }}>
+                                  img{index + 1}
+                                </div>
+                              )}
                             </div>
                             <Button
                               variant="ghost"
