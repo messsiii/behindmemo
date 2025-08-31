@@ -108,7 +108,7 @@ const questions = [
 ]
 
 export default function LoveLetterForm() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const { language } = useLanguage()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -811,6 +811,19 @@ export default function LoveLetterForm() {
     async (e?: React.FormEvent) => {
       e?.preventDefault()
       console.log('=== 提交处理开始 ===')
+      console.log('Session 状态:', status, 'Session 数据:', session?.user?.id ? '已登录' : '未登录')
+
+      // 检查登录状态
+      if (status === 'loading') {
+        console.log('Session 正在加载中...')
+        return
+      }
+
+      if (!session || !session.user?.id) {
+        console.log('用户未登录或 session 已过期，显示登录弹窗')
+        setShowLoginDialog(true)
+        return
+      }
 
       // 完整的表单验证
       if (!formData.name?.trim()) {
@@ -1031,7 +1044,9 @@ export default function LoveLetterForm() {
           audioRef.current.currentTime = 0
         }
 
-        router.push(`/result/${generateData.letterId}`)
+        // 使用 window.location.href 确保认证状态正确传递
+        // 这是最可靠的方案，虽然会有页面刷新
+        window.location.href = `/result/${generateData.letterId}`
       } catch (error) {
         setIsLoading(false)
         setIsSubmitting(false)
@@ -1051,7 +1066,10 @@ export default function LoveLetterForm() {
       handleErrorResponse,
       router,
       triggerShake,
-      handleSubmitSuccess
+      handleSubmitSuccess,
+      session,
+      status,
+      setShowLoginDialog
     ]
   )
   

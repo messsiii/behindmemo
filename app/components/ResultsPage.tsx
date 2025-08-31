@@ -1794,7 +1794,7 @@ export default function ResultsPage({ id }: { id: string }) {
                 : "opacity-20" // 其他模板保持原有蒙版效果
             )}>
               <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-purple-500/10 to-blue-500/10" />
-              {letter.imageUrl && (
+              {letter?.imageUrl && (
                 <Image
                   src={imageError ? '/placeholder.svg' : letter.imageUrl}
                   alt="Background"
@@ -1820,7 +1820,7 @@ export default function ResultsPage({ id }: { id: string }) {
                     {/* 移除标题和分隔线 */}
 
                     {/* 图片容器 */}
-                    {letter.imageUrl && (
+                    {letter?.imageUrl && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -1832,7 +1832,7 @@ export default function ResultsPage({ id }: { id: string }) {
                               'relative w-full pt-[56.25%]', // 16:9 默认比例
                               'max-h-[80vh]', // 最大高度限制
                               'transition-opacity duration-500',
-                              imageLoaded ? 'opacity-100' : 'opacity-0'
+                              imageLoaded ? 'opacity-100' : 'opacity-50' // 改为半透明而不是完全透明
                             )}
                           >
                             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10"></div>
@@ -1846,19 +1846,18 @@ export default function ResultsPage({ id }: { id: string }) {
                                 letter.metadata?.orientation === 3 && 'rotate-180',
                                 letter.metadata?.orientation === 8 && '-rotate-90'
                               )}
-                              onError={() => setImageError(true)}
+                              onError={() => {
+                                setImageError(true);
+                              }}
                               onLoad={(e) => {
-                                // 获取图片实际尺寸
+                                setImageError(false);
                                 const img = e.target as HTMLImageElement
                                 const container = img.parentElement
                                 if (container) {
-                                  // 计算宽高比
                                   const ratio = img.naturalHeight / img.naturalWidth
-                                  // 如果图片高度超过宽度的1.5倍（3:2），则限制高度
                                   if (ratio > 1.5) {
                                     container.style.paddingTop = '150%'
                                   } else {
-                                    // 否则使用实际比例
                                     container.style.paddingTop = `${ratio * 100}%`
                                   }
                                 }

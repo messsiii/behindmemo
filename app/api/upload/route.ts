@@ -1,8 +1,8 @@
-import { put } from '@vercel/blob'
 import { NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { getServerSession } from 'next-auth'
 import { authConfig } from '@/auth'
+import { uploadFile, getStorageInfo } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // 设置最大执行时间为 60 秒
@@ -134,30 +134,30 @@ export async function POST(request: Request): Promise<NextResponse> {
       // 准备上传到Blob存储
       console.log(`准备上传到Blob存储, 文件名: ${file.name}, 大小: ${(optimizedBuffer.length/1024).toFixed(2)}KB`);
       
-      // 上传到 Vercel Blob
+      // 上传到存储服务
       try {
-        console.log('开始上传到Blob存储...');
-        // 生成安全的文件名，结合用户ID和随机字符串
-        const secureFileName = `upload-${session.user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}.jpg`
+        const storageInfo = getStorageInfo();
+        console.log(`开始上传到${storageInfo.provider}存储...`);
         
-        const blob = await put(secureFileName, optimizedBuffer, {
-          access: 'public',
-          token: process.env.BLOB_READ_WRITE_TOKEN,
+        // 生成安全的文件名，使用时间戳和更长的随机字符串
+        const randomString = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+        const secureFileName = `img-${Date.now()}-${randomString}.jpg`
+        
+        const { url, provider } = await uploadFile(optimizedBuffer, secureFileName, {
           contentType: 'image/jpeg', // 统一使用 JPEG 格式
-          addRandomSuffix: false, // 已经有安全的随机后缀
         })
         
-        console.log(`上传成功, URL: ${blob.url.substring(0, 60)}...`);
-        console.log(`URL长度: ${blob.url.length}字符`);
+        console.log(`上传成功到 ${provider}, URL: ${url.substring(0, 60)}...`);
+        console.log(`URL长度: ${url.length}字符`);
 
         // 添加额外的日志信息
         console.log('=== 图片处理后分析 ===');
-        console.log(`Blob URL长度: ${blob.url.length} 字符`);
+        console.log(`${provider} URL长度: ${url.length} 字符`);
         
         // 创建返回数据
         const responseData = {
           success: true,
-          url: blob.url,
+          url,
           size: optimizedBuffer.length,
           dimensions: {
             width: optimizedInfo.width,
@@ -168,6 +168,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             compressionRatio,
           },
           metadata: userMetadata || {},
+          storageProvider: provider,
         };
         
         // 计算响应大小

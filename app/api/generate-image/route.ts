@@ -1,5 +1,5 @@
 import { authConfig } from '@/auth'
-import { downloadImageToBlob } from '@/lib/downloadToBlob'
+import { downloadImageToStorage } from '@/lib/downloadToStorage'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
@@ -440,18 +440,16 @@ export async function POST(request: NextRequest) {
           offset += chunk.length
         }
         
-        // 直接上传到 Blob 存储
-        const { put } = await import('@vercel/blob')
-        // 生成不可猜测的文件名（使用generation ID + 随机字符串）
-        const secureFileName = `flux-${generationRecord.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}.png`
-        const blob = await put(secureFileName, Buffer.from(imageBuffer), {
-          access: 'public',
-          token: process.env.BLOB_READ_WRITE_TOKEN,
+        // 使用统一的存储接口
+        const { uploadFile } = await import('@/lib/storage')
+        // 生成不可猜测的文件名（使用时间戳 + 更长的随机字符串）
+        const randomString = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+        const secureFileName = `ai-${Date.now()}-${randomString}.png`
+        const { url } = await uploadFile(Buffer.from(imageBuffer), secureFileName, {
           contentType: 'image/png',
-          addRandomSuffix: false, // 我们已经有了随机后缀
         })
         
-        blobUrl = blob.url
+        blobUrl = url
         
       } else {
         // 处理其他类型的输出 - 使用类型断言
@@ -471,9 +469,7 @@ export async function POST(request: NextRequest) {
         // 添加重试机制下载图片
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
-            blobUrl = await downloadImageToBlob(imageUrl, {
-              filename: `flux-generated-${generationRecord.id}.jpg`,
-            })
+            blobUrl = await downloadImageToStorage(imageUrl)
             break
           } catch (error) {
             // 如果不是最后一次尝试，等待后重试

@@ -1143,13 +1143,19 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       }
 
       const data = await response.json()
-      console.log('Generation successful, received data')
+      console.log('Generation successful, received data:', {
+        hasOutput: !!data.output,
+        hasLocalUrl: !!data.localOutputImageUrl,
+        outputType: data.output ? (data.output.startsWith('data:') ? 'base64' : 'url') : 'none'
+      })
 
-      if (!data.output) {
+      if (!data.output && !data.localOutputImageUrl) {
         throw new Error('No output received from API')
       }
 
-      setOutputImage(data.output)
+      // 优先使用 localOutputImageUrl（R2 URL），否则使用 output
+      const imageUrl = data.localOutputImageUrl || data.output
+      setOutputImage(imageUrl)
       // 刷新积分信息和历史记录
       mutateCredits()
       

@@ -5,7 +5,14 @@ import { NextResponse } from 'next/server'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getServerSession(authConfig)
+    let session = null
+    try {
+      session = await getServerSession(authConfig)
+    } catch (sessionError) {
+      console.error('[GET_LETTER_SESSION_ERROR]', sessionError)
+      // 继续处理，但 session 为 null
+    }
+    
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
