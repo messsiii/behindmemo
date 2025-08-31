@@ -166,6 +166,7 @@ export default function OptimizedGenerationHistory({
   const [viewingImage, setViewingImage] = useState<{ url: string, type: 'input' | 'output' } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
   // 用户登录后自动开始获取数据
@@ -303,10 +304,15 @@ export default function OptimizedGenerationHistory({
 
   // 刷新数据 - 移除缓存逻辑
   const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true)
     setPage(0)
-    setRecords([]) // 清空现有记录
+    // 不清空现有记录，让 loading 状态处理显示
     setShouldFetch(true)
-    await mutate()
+    try {
+      await mutate()
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [mutate])
 
   // 向父组件提供刷新函数
@@ -435,9 +441,9 @@ export default function OptimizedGenerationHistory({
               // 确保文字可见性
               "backdrop-blur-sm"
             )}
-            disabled={isLoading}
+            disabled={isRefreshing}
           >
-            {isLoading ? (
+            {isRefreshing ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <RefreshCw className="w-4 h-4 mr-2" />

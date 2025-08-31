@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
-import { CreditsAlert } from '@/components/CreditsAlert'
+import { ImageCreditsAlert } from '@/components/ImageCreditsAlert'
 import { useLanguage } from '@/contexts/LanguageContext'
 import {
   formatFileSize,
@@ -21,6 +21,7 @@ import {
   resizeImageTo1080p,
 } from '@/lib/imageUtils'
 import { cn } from '@/lib/utils'
+import { imageCache, urlToBlob } from '@/lib/imageCache'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -57,6 +58,11 @@ interface CreditsInfo {
   credits: number
   isVIP: boolean
   vipExpiresAt: string | null
+}
+
+type ReferenceImage = {
+  url: string
+  file: File
 }
 
 // 图片信息接口
@@ -179,6 +185,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
+  const [requiredCreditsForAlert, setRequiredCreditsForAlert] = useState(10)
   // 移除了 newGenerationTrigger，不再自动重新创建历史记录组件
   
   const [generationMode, setGenerationMode] = useState<'image-to-image' | 'text-to-image' | 'multi-reference'>('multi-reference')
@@ -253,52 +260,101 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
   // 页面加载时恢复保存的状态
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedPrompt = localStorage.getItem('flux_prompt')
-      const savedInputImage = localStorage.getItem('flux_input_image')
-      const savedOutputImage = localStorage.getItem('flux_output_image')
-      const savedImageInfo = localStorage.getItem('flux_image_info')
+    const restoreState = async () => {
+      if (typeof window !== 'undefined') {
+        const savedPrompt = localStorage.getItem('flux_prompt')
+        const savedInputImage = localStorage.getItem('flux_input_image')
+        const isInputCached = localStorage.getItem('flux_input_image_cached') === 'true'
+        const savedOutputImage = localStorage.getItem('flux_output_image')
+        const savedImageInfo = localStorage.getItem('flux_image_info')
 
-      if (savedPrompt) setPrompt(savedPrompt)
-      if (savedInputImage) setInputImage(savedInputImage)
-      if (savedOutputImage) setOutputImage(savedOutputImage)
-      if (savedImageInfo) {
-        try {
-          setImageInfo(JSON.parse(savedImageInfo))
-        } catch (e) {
-          setImageInfo({})
-        }
-      }
-      
-      // 恢复多图参考模式的图片（如果有保存的话）
-      try {
-        const savedReferenceImages = localStorage.getItem('flux_reference_images')
-        const savedReferenceMetadata = localStorage.getItem('flux_reference_metadata')
+        if (savedPrompt) setPrompt(savedPrompt)
         
-        if (savedReferenceImages && savedReferenceMetadata) {
-          const imageUrls = JSON.parse(savedReferenceImages)
-          const metadata = JSON.parse(savedReferenceMetadata)
-          
-          if (Array.isArray(imageUrls) && imageUrls.length > 0) {
-            const restoredImages = imageUrls.map((url: string, index: number) => ({
-              url,
-              file: new File([], metadata[index]?.name || `reference-${index}.png`, {
-                type: metadata[index]?.type || 'image/png'
-              })
-            }))
-            
-            setReferenceImages(restoredImages)
+        // 恢复输入图片
+        if (isInputCached) {
+          // 从 IndexedDB 恢复
+          try {
+            const cached = await imageCache.getImage('flux_input_image')
+            if (cached) {
+              const url = URL.createObjectURL(cached.blob)
+              setInputImage(url)
+            }
+          } catch (error) {
+            console.error('Failed to restore cached input image:', error)
+          }
+        } else if (savedInputImage) {
+          // 外部 URL 直接使用
+          setInputImage(savedInputImage)
+        }
+        
+        if (savedOutputImage) setOutputImage(savedOutputImage)
+        if (savedImageInfo) {
+          try {
+            setImageInfo(JSON.parse(savedImageInfo))
+          } catch (e) {
+            setImageInfo({})
           }
         }
-      } catch (error) {
-        console.error('Failed to restore reference images:', error)
+        
+        // 恢复多图参考模式的图片（如果有保存的话）
+        try {
+          const savedReferenceImages = localStorage.getItem('flux_reference_images')
+          const savedReferenceMetadata = localStorage.getItem('flux_reference_metadata')
+          
+          if (savedReferenceImages && savedReferenceMetadata) {
+            const savedUrls = JSON.parse(savedReferenceImages)
+            const metadata = JSON.parse(savedReferenceMetadata)
+            
+            if (Array.isArray(savedUrls) && savedUrls.length > 0) {
+              const restoredImages: ReferenceImage[] = []
+              
+              for (let i = 0; i < savedUrls.length; i++) {
+                const savedUrl = savedUrls[i]
+                if (!savedUrl) continue
+                
+                if (savedUrl.startsWith('flux_ref_')) {
+                  // 从 IndexedDB 恢复
+                  try {
+                    const cached = await imageCache.getImage(savedUrl)
+                    if (cached) {
+                      const url = URL.createObjectURL(cached.blob)
+                      restoredImages.push({
+                        url,
+                        file: new File([cached.blob], metadata[i]?.name || `reference-${i}.png`, {
+                          type: metadata[i]?.type || 'image/png'
+                        })
+                      })
+                    }
+                  } catch (error) {
+                    console.error(`Failed to restore reference image ${i}:`, error)
+                  }
+                } else {
+                  // 外部 URL
+                  restoredImages.push({
+                    url: savedUrl,
+                    file: new File([], metadata[i]?.name || `reference-${i}.png`, {
+                      type: metadata[i]?.type || 'image/png'
+                    })
+                  })
+                }
+              }
+              
+              if (restoredImages.length > 0) {
+                setReferenceImages(restoredImages)
+                console.log(`Restored ${restoredImages.length} reference images`)
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to restore reference images:', error)
+          // 清理损坏的缓存
+          localStorage.removeItem('flux_reference_images')
+          localStorage.removeItem('flux_reference_metadata')
+        }
       }
-      
-      // Generation mode and aspect ratio are already initialized from localStorage in useState
-      // Don't override the model if it was explicitly set by the route
-      // The initialModel prop takes precedence over localStorage
-      // Only use savedModel if we're on a generic route without a specific model
     }
+    
+    restoreState()
   }, [])
 
   // 设置默认选项卡
@@ -331,16 +387,35 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     }
   }, [])
 
-  // 保存图片状态（优化版本 - 只在本地保存）
-  const saveImageState = useCallback(() => {
+
+  // 保存图片状态（使用 IndexedDB 存储原始数据）
+  const saveImageState = useCallback(async () => {
     if (typeof window !== 'undefined') {
       try {
-        // 只保存图片URL到本地，不上传到服务器
+        // 保存输入图片
         if (inputImage) {
-          // 如果是 base64 或者是已上传的URL，直接保存
-          localStorage.setItem('flux_input_image', inputImage)
+          if (inputImage.startsWith('blob:') || inputImage.startsWith('data:')) {
+            // 本地图片：保存到 IndexedDB
+            try {
+              const blob = await urlToBlob(inputImage)
+              await imageCache.saveImage('flux_input_image', blob, {
+                type: 'input',
+                url: inputImage
+              })
+              localStorage.setItem('flux_input_image_cached', 'true')
+            } catch (error) {
+              console.error('Failed to cache input image:', error)
+            }
+          } else {
+            // 外部 URL：只保存 URL
+            localStorage.setItem('flux_input_image', inputImage)
+            localStorage.removeItem('flux_input_image_cached')
+            await imageCache.deleteImage('flux_input_image')
+          }
         } else {
           localStorage.removeItem('flux_input_image')
+          localStorage.removeItem('flux_input_image_cached')
+          await imageCache.deleteImage('flux_input_image')
         }
 
         if (outputImage) {
@@ -356,27 +431,56 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         }
         localStorage.setItem('flux_image_info', JSON.stringify(simpleImageInfo))
         
-        // 保存多图参考模式的图片（优化版本）
+        // 保存多图参考模式的图片（使用 IndexedDB）
         if (referenceImages.length > 0 && generationMode === 'multi-reference') {
           try {
-            // 保存所有参考图片（现在都是持久化的URL：data或HTTP）
-            const urls = referenceImages.map(img => img.url)
-            const metadata = referenceImages.map(img => ({
-              name: img.file?.name || 'reference.png',
-              type: img.file?.type || 'image/png',
-              size: img.file?.size || 0
-            }))
+            const savedUrls: string[] = []
+            const metadata: any[] = []
+
+            for (let i = 0; i < referenceImages.length; i++) {
+              const img = referenceImages[i]
+              const cacheId = `flux_ref_${i}`
+              
+              if (img.url.startsWith('blob:') || img.url.startsWith('data:')) {
+                // 本地图片：保存到 IndexedDB
+                try {
+                  const blob = await urlToBlob(img.url)
+                  await imageCache.saveImage(cacheId, blob, {
+                    type: 'reference',
+                    index: i,
+                    name: img.file?.name || `reference-${i}.png`
+                  })
+                  savedUrls.push(cacheId) // 保存缓存 ID
+                } catch (error) {
+                  console.error(`Failed to cache reference image ${i}:`, error)
+                  savedUrls.push('') // 保存失败
+                }
+              } else {
+                // 外部 URL：直接保存
+                savedUrls.push(img.url)
+              }
+              
+              metadata.push({
+                name: img.file?.name || 'reference.png',
+                type: img.file?.type || 'image/png',
+                size: img.file?.size || 0
+              })
+            }
             
-            localStorage.setItem('flux_reference_images', JSON.stringify(urls))
+            localStorage.setItem('flux_reference_images', JSON.stringify(savedUrls))
             localStorage.setItem('flux_reference_metadata', JSON.stringify(metadata))
-            console.log(`Saved ${referenceImages.length} reference images to cache`)
+            console.log(`Saved ${referenceImages.length} reference images info`)
           } catch (error) {
             console.error('Failed to save reference images:', error)
           }
         } else if (generationMode !== 'multi-reference') {
-          // 如果不是多图模式，清除保存的参考图片
+          // 清理参考图片缓存
           localStorage.removeItem('flux_reference_images')
           localStorage.removeItem('flux_reference_metadata')
+          // 清理 IndexedDB
+          for (let i = 0; i < 3; i++) {
+            await imageCache.deleteImage(`flux_ref_${i}`)
+          }
         }
       } catch (error) {
         // localStorage可能满了，清理旧数据
@@ -842,8 +946,9 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   })
 
   // 生成图片
-  const generateImage = async () => {
-    // 未登录时保存状态并跳转到登录页面
+  // 处理生成按钮点击
+  const handleGenerateClick = () => {
+    // 检查是否登录
     if (!session?.user) {
       // 保存当前状态
       savePrompt(prompt)
@@ -858,10 +963,23 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           : selectedModel === 'max'
             ? 'flux-kontext-max'
             : 'gemini-2.5-flash-image'
-      router.push(`/auth/signin?callbackUrl=/${modelPath}`)
+      router.push(`/auth/signin?callbackUrl=${encodeURIComponent(`/${modelPath}`)}`)
       return
     }
 
+    // 检查积分是否充足
+    const requiredCredits = selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10
+    if ((creditsInfo?.credits || 0) < requiredCredits) {
+      setRequiredCreditsForAlert(requiredCredits)
+      setShowCreditsAlert(true)
+      return
+    }
+
+    // 调用生成函数
+    generateImage()
+  }
+
+  const generateImage = async () => {
     // 验证输入条件
     if (!prompt.trim()) {
       toast({
@@ -929,11 +1047,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       }
     }
 
-    const requiredCredits = selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10
-    if ((creditsInfo?.credits || 0) < requiredCredits) {
-      setShowCreditsAlert(true)
-      return
-    }
+    // 积分检查已经在 handleGenerateClick 中完成
 
     // 创建AbortController来管理请求
     const abortController = new AbortController()
@@ -1250,19 +1364,42 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
   const useAsInput = () => {
     if (!outputImage) return
 
+    // 如果当前是多图参考模式，将图片添加到参考图片
+    if (generationMode === 'multi-reference') {
+      const maxImages = selectedModel === 'gemini' ? 3 : 2
+      if (referenceImages.length < maxImages) {
+        const placeholderFile = new File([new Blob([''])], 'generated-output.png', { type: 'image/png' })
+        setReferenceImages(prev => [...prev, { url: outputImage, file: placeholderFile }])
+        
+        toast({
+          title: language === 'en' ? 'Added to references' : '已添加到参考图片',
+          description: language === 'en' 
+            ? `Reference ${referenceImages.length + 1}/${maxImages}` 
+            : `参考图片 ${referenceImages.length + 1}/${maxImages}`,
+        })
+      } else {
+        toast({
+          title: language === 'en' ? 'Reference limit reached' : '参考图片已达上限',
+          description: language === 'en' 
+            ? `Maximum ${maxImages} images for ${selectedModel === 'gemini' ? 'Gemini' : 'Flux'}` 
+            : `${selectedModel === 'gemini' ? 'Gemini' : 'Flux'} 最多允许 ${maxImages} 张图片`,
+          variant: 'destructive',
+        })
+      }
+      // 滚动到页面顶部查看参考图片区域
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    // 只有文生图模式需要切换到图生图模式
+    if (generationMode === 'text-to-image') {
+      setGenerationMode('image-to-image')
+    }
+    
     // 设置生成的图片为新的输入图片
     setInputImage(outputImage)
-    // 清空输出图片和翻译信息
-    setOutputImage(null)
-    setTranslationInfo(null)
-
-    // 重置图片信息为默认值
-    setImageInfo({
-      processedDimensions: { width: 1024, height: 1024 },
-      processedSize: 0,
-    })
-
-    // 滚动到页面顶部
+    
+    // 滚动到页面顶部查看输入图片区域
     window.scrollTo({ top: 0, behavior: 'smooth' })
 
     toast({
@@ -1276,6 +1413,52 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
   // 使用历史记录中的图片作为输入
   const setHistoryImageAsInput = (imageUrl: string, isInputImage = false, metadata?: any) => {
+    // 如果点击的是输出图片（isInputImage 为 false）
+    if (!isInputImage && imageUrl) {
+      // 如果当前是多图参考模式，将图片添加到参考图片
+      if (generationMode === 'multi-reference') {
+        const maxImages = selectedModel === 'gemini' ? 3 : 2
+        if (referenceImages.length < maxImages) {
+          const placeholderFile = new File([new Blob([''])], 'history-output.png', { type: 'image/png' })
+          setReferenceImages(prev => [...prev, { url: imageUrl, file: placeholderFile }])
+          
+          toast({
+            title: language === 'en' ? 'Added to references' : '已添加到参考图片',
+            description: language === 'en' 
+              ? `Reference ${referenceImages.length + 1}/${maxImages}` 
+              : `参考图片 ${referenceImages.length + 1}/${maxImages}`,
+          })
+          // 滚动到页面顶部查看参考图片
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        } else {
+          toast({
+            title: language === 'en' ? 'Reference limit reached' : '参考图片已达上限',
+            description: language === 'en' 
+              ? `Maximum ${maxImages} images for ${selectedModel === 'gemini' ? 'Gemini' : 'Flux'}` 
+              : `${selectedModel === 'gemini' ? 'Gemini' : 'Flux'} 最多允许 ${maxImages} 张图片`,
+            variant: 'destructive',
+          })
+        }
+      } else {
+        // 文生图模式需要切换到图生图模式
+        if (generationMode === 'text-to-image') {
+          setGenerationMode('image-to-image')
+        }
+        // 设置为输入图片
+        setInputImage(imageUrl)
+        
+        toast({
+          title: language === 'en' ? 'Image set as input' : '图片已设为输入',
+          description: language === 'en'
+            ? 'Using generated result as new input for transformation'
+            : '已将生成结果设为新的转换输入',
+        })
+        // 滚动到页面顶部查看输入图片
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      return
+    }
+    
     // 检查是否是多图参考的历史记录
     if (metadata?.mode === 'multi-reference' && metadata?.referenceImages?.length > 0) {
       // 恢复多图参考模式
@@ -1295,6 +1478,8 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           ? `${metadata.referenceImages.length} reference images loaded` 
           : `已加载 ${metadata.referenceImages.length} 张参考图片`,
       })
+      // 滚动到页面顶部查看参考图片
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } else if (generationMode === 'multi-reference') {
       // 多图参考模式：将图片添加到参考图片数组
       const maxImages = selectedModel === 'gemini' ? 3 : 2
@@ -1309,6 +1494,8 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
             ? `${referenceImages.length + 1}/${maxImages} reference images` 
             : `参考图片 ${referenceImages.length + 1}/${maxImages}`,
         })
+        // 滚动到页面顶部查看参考图片
+        window.scrollTo({ top: 0, behavior: 'smooth' })
       } else {
         toast({
           title: language === 'en' ? 'Reference limit reached' : '参考图片已达上限',
@@ -1321,15 +1508,6 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     } else if (generationMode === 'image-to-image') {
       // 图生图模式：设置为输入图片
       setInputImage(imageUrl)
-      // 清空输出图片和翻译信息
-      setOutputImage(null)
-      setTranslationInfo(null)
-
-      // 重置图片信息为默认值
-      setImageInfo({
-        processedDimensions: { width: 1024, height: 1024 },
-        processedSize: 0,
-      })
 
       const imageType = isInputImage
         ? language === 'en'
@@ -1362,15 +1540,6 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         // 默认情况：切换到图生图模式并设置图片
         setGenerationMode('image-to-image')
         setInputImage(imageUrl)
-        // 清空输出图片和翻译信息
-        setOutputImage(null)
-        setTranslationInfo(null)
-
-        // 重置图片信息为默认值
-        setImageInfo({
-          processedDimensions: { width: 1024, height: 1024 },
-          processedSize: 0,
-        })
 
         toast({
           title: language === 'en' ? 'Switched to Image-to-Image mode' : '已切换到图生图模式',
@@ -2300,22 +2469,8 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                           const keptImages = referenceImages.slice(0, 2)
                           setReferenceImages(keptImages)
                           
-                          // 同步更新缓存
-                          if (typeof window !== 'undefined') {
-                            try {
-                              const imageUrls = keptImages.map(img => img.url)
-                              const metadata = keptImages.map(img => ({
-                                name: img.file?.name || 'image.png',
-                                type: img.file?.type || 'image/png',
-                                size: img.file?.size || 0
-                              }))
-                              
-                              localStorage.setItem('flux_reference_images', JSON.stringify(imageUrls))
-                              localStorage.setItem('flux_reference_metadata', JSON.stringify(metadata))
-                            } catch (error) {
-                              console.error('Failed to update cache after model switch:', error)
-                            }
-                          }
+                          // 同步更新缓存（调用保存函数）
+                          setTimeout(() => saveImageState(), 100)
                           
                           toast({
                             title: language === 'en' ? 'Images adjusted' : '图片已调整',
@@ -2429,7 +2584,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
                 {/* 生成按钮 */}
                 <Button
-                  onClick={generateImage}
+                  onClick={handleGenerateClick}
                   disabled={
                     (generationMode === 'multi-reference' ? 
                       (selectedModel === 'gemini' ? (referenceImages.length === 0 || referenceImages.length > 3) : referenceImages.length !== 2) : 
@@ -2438,9 +2593,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                     isGenerating ||
                     isProcessingImage ||
                     isTranslating ||
-                    processingImageIndex !== null ||
-                    (creditsInfo?.credits || 0) <
-                      (selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10)
+                    processingImageIndex !== null
                   }
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -3046,7 +3199,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       />
 
       {/* 积分不足提醒 */}
-      <CreditsAlert open={showCreditsAlert} onOpenChange={setShowCreditsAlert} />
+      <ImageCreditsAlert 
+        open={showCreditsAlert} 
+        onOpenChange={setShowCreditsAlert}
+        requiredCredits={requiredCreditsForAlert}
+        currentCredits={creditsInfo?.credits || 0}
+      />
       
       {/* 图片查看器 */}
       <AnimatePresence>

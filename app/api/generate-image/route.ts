@@ -321,28 +321,53 @@ export async function POST(request: NextRequest) {
 
         const geminiData = await geminiResponse.json()
         
+        // 添加调试日志
+        console.log('Gemini response structure:', {
+          hasPromptFeedback: !!geminiData.promptFeedback,
+          blockReason: geminiData.promptFeedback?.blockReason,
+          candidatesCount: geminiData.candidates?.length || 0,
+          firstCandidateFinishReason: geminiData.candidates?.[0]?.finishReason,
+          hasSafetyRatings: !!geminiData.candidates?.[0]?.safetyRatings,
+          hasContent: !!geminiData.candidates?.[0]?.content,
+          partsCount: geminiData.candidates?.[0]?.content?.parts?.length || 0
+        })
+        
         // 检查是否有内容审核错误
         if (geminiData.promptFeedback?.blockReason || 
             geminiData.candidates?.[0]?.finishReason === 'SAFETY' ||
             geminiData.candidates?.[0]?.safetyRatings) {
+          console.log('Content blocked by safety filters:', {
+            promptFeedback: geminiData.promptFeedback,
+            finishReason: geminiData.candidates?.[0]?.finishReason,
+            safetyRatings: geminiData.candidates?.[0]?.safetyRatings
+          })
           throw new Error('HARM_CATEGORY: Content was blocked by safety filters')
         }
         
         // 提取生成的图像
         if (geminiData.candidates?.[0]?.content?.parts) {
+          console.log('Processing parts:', geminiData.candidates[0].content.parts.length)
           for (const part of geminiData.candidates[0].content.parts) {
+            console.log('Part structure:', {
+              hasText: !!part.text,
+              hasInlineData: !!part.inlineData,
+              hasInline_data: !!part.inline_data,
+              keys: Object.keys(part)
+            })
             // 同时检查 inlineData 和 inline_data 以兼容不同的响应格式
             const inlineData = part.inlineData || part.inline_data
             if (inlineData?.data) {
               // 将 base64 数据转换为 data URL
               const mimeType = inlineData.mimeType || inlineData.mime_type || 'image/png'
               output = `data:${mimeType};base64,${inlineData.data}`
+              console.log('Found image data, mimeType:', mimeType)
               break
             }
           }
         }
         
         if (!output) {
+          console.error('No image found in Gemini response:', JSON.stringify(geminiData, null, 2))
           throw new Error('Gemini did not return an image')
         }
       } else {
