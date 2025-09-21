@@ -165,8 +165,18 @@ export function LoginDialog({ isOpen, onClose, callbackType = 'write', letterId 
     
     // 根据不同场景设置不同的标记和回调URL
     if (callbackType === 'write') {
-      // 写作页面的处理逻辑保持不变
-      localStorage.setItem('hasFormDataPending', 'true');
+      // 写作页面的处理逻辑
+      // 检查是否真的有待恢复的表单数据，只有在确实有数据时才设置标记
+      const hasPendingData = localStorage.getItem('pendingFormData');
+      if (hasPendingData) {
+        localStorage.setItem('hasFormDataPending', 'true');
+        console.log('检测到有待恢复的表单数据，设置hasFormDataPending标记');
+        console.log('待恢复的数据:', hasPendingData);
+      } else {
+        // 如果没有待恢复的数据，确保清除可能存在的错误标记
+        localStorage.removeItem('hasFormDataPending');
+        console.log('没有检测到待恢复的表单数据，清除hasFormDataPending标记');
+      }
       
       // 检查页面类型并确保导航到正确的页面
       const isWritePage = window.location.pathname.includes('/write');

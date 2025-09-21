@@ -147,21 +147,45 @@ export default function LoveLetterForm() {
   const handleInputChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value, type } = e.target
+      let newFormData: FormData
+      
       if (type === 'file') {
         const fileInput = e.target as HTMLInputElement
         const file = fileInput.files?.[0]
-        setFormData(prev => ({
-          ...prev,
+        newFormData = {
+          ...formData,
           [name]: file || null // 确保当没有文件时设置为 null
-        }))
+        }
+        setFormData(newFormData)
       } else {
-        setFormData(prev => ({
-          ...prev,
+        newFormData = {
+          ...formData,
           [name]: value,
-        }))
+        }
+        setFormData(newFormData)
+      }
+      
+      // 实时保存表单数据到localStorage（未登录用户）
+      if (status !== 'loading' && !session?.user) {
+        try {
+          // 只保存基本文本数据，不保存文件
+          const basicData = {
+            name: newFormData.name,
+            loverName: newFormData.loverName,
+            story: newFormData.story,
+          }
+          
+          // 只有当有实际内容时才保存
+          if (basicData.name || basicData.loverName || basicData.story) {
+            localStorage.setItem('pendingFormData', JSON.stringify(basicData))
+            console.log('实时保存表单数据:', basicData)
+          }
+        } catch (error) {
+          console.error('实时保存表单数据失败:', error)
+        }
       }
     },
-    []
+    [formData, status, session?.user]
   )
 
   const triggerShake = useCallback(() => {
@@ -820,7 +844,26 @@ export default function LoveLetterForm() {
       }
 
       if (!session || !session.user?.id) {
-        console.log('用户未登录或 session 已过期，显示登录弹窗')
+        console.log('用户未登录或 session 已过期，保存表单数据并显示登录弹窗')
+        
+        // 在显示登录弹窗前，确保保存当前的表单数据
+        try {
+          const basicData = {
+            name: formData.name,
+            loverName: formData.loverName,
+            story: formData.story,
+          }
+          
+          // 只有当有实际内容时才保存
+          if (basicData.name || basicData.loverName || basicData.story) {
+            localStorage.setItem('pendingFormData', JSON.stringify(basicData))
+            localStorage.setItem('hasFormDataPending', 'true')
+            console.log('提交时保存表单数据:', basicData)
+          }
+        } catch (error) {
+          console.error('保存表单数据失败:', error)
+        }
+        
         setShowLoginDialog(true)
         return
       }
@@ -1280,10 +1323,23 @@ export default function LoveLetterForm() {
       typeof window !== 'undefined' && 
       localStorage.getItem('hasFormDataPending') === 'true';
     
+    // 检查是否确实有待恢复的表单数据
+    const actualPendingData = 
+      typeof window !== 'undefined' && 
+      localStorage.getItem('pendingFormData');
+    
     console.log('User returned from login:', isReturningFromLogin);
     console.log('Has form data pending:', hasFormDataPending);
+    console.log('Has actual pending data:', !!actualPendingData);
     
-    if (isReturningFromLogin && hasFormDataPending) {
+    // 如果有待恢复的数据但没有标记，自动设置标记
+    if (actualPendingData && !hasFormDataPending) {
+      console.log('Found pending data without flag, setting flag');
+      localStorage.setItem('hasFormDataPending', 'true');
+    }
+    
+    // 只有在真正有数据且有恢复标记时才进行恢复
+    if (isReturningFromLogin && hasFormDataPending && actualPendingData) {
       console.log('User returned from login, attempting to restore data');
       restoreFormDataAfterLogin();
       
@@ -1291,27 +1347,19 @@ export default function LoveLetterForm() {
       const url = new URL(window.location.href);
       url.searchParams.delete('returnFrom');
       window.history.replaceState({}, '', url.toString());
-    } else if (hasFormDataPending && !isRestoringAfterLogin) {
-      // 如果有未恢复的表单数据但不是从登录返回的情况
-      // 检查当前是否已登录
-      fetch('/api/auth/session')
-        .then(res => res.json())
-        .then(session => {
-          if (session && session.user) {
-            // 用户已登录，可以恢复表单数据
-            console.log('User is logged in, can restore cached form data');
-            restoreFormDataAfterLogin();
-          } else {
-            // 用户未登录，保留表单数据直到用户登录
-            console.log('User is not logged in, keeping cached form data for later');
-          }
-        })
-        .catch(err => {
-          console.error('Failed to check session:', err);
-          // 出错时保留表单数据
-        });
+    } else if (actualPendingData && status === 'authenticated' && session?.user && !isRestoringAfterLogin) {
+      // 如果有未恢复的表单数据且用户已登录
+      console.log('User is logged in and has cached data, attempting to restore');
+      restoreFormDataAfterLogin();
+    } else if (hasFormDataPending && actualPendingData && status === 'unauthenticated' && !isRestoringAfterLogin) {
+      // 如果有未恢复的表单数据但用户未登录，保留数据
+      console.log('User is not logged in, keeping cached form data for later');
+    } else if (hasFormDataPending && !actualPendingData) {
+      // 如果有恢复标记但没有实际数据，清除错误的标记
+      console.log('Found hasFormDataPending flag but no actual data, clearing flag');
+      localStorage.removeItem('hasFormDataPending');
     }
-  }, [restoreFormDataAfterLogin, isRestoringAfterLogin]);
+  }, [restoreFormDataAfterLogin, isRestoringAfterLogin, status, session]);
 
   // 登录对话框关闭逻辑
   const handleLoginDialogClose = useCallback(() => {
@@ -1319,7 +1367,9 @@ export default function LoveLetterForm() {
     
     // 检查是否有存储的数据且用户已登录
     const hasPendingData = localStorage.getItem('hasFormDataPending') === 'true';
-    if (hasPendingData && session) {
+    const actualPendingData = localStorage.getItem('pendingFormData');
+    
+    if (hasPendingData && actualPendingData && session) {
       console.log('Login dialog closed with pending form data, attempting to restore...');
       // 尝试恢复表单数据
       restoreFormDataAfterLogin();
@@ -1333,6 +1383,10 @@ export default function LoveLetterForm() {
         newUrl.searchParams.delete('returnFrom');
         window.history.replaceState({}, document.title, newUrl.toString());
       }
+    } else if (hasPendingData && !actualPendingData) {
+      // 如果有恢复标记但没有实际数据，清除错误的标记
+      console.log('Found hasFormDataPending flag but no actual data in close handler, clearing flag');
+      localStorage.removeItem('hasFormDataPending');
     }
   }, [session, restoreFormDataAfterLogin]);
 

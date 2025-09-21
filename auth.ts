@@ -1,10 +1,10 @@
 import { verifyCode } from '@/lib/auth-utils'
 import {
-    isAccountLocked,
-    recordFailedLoginAttempt,
-    recordLoginAttempt,
-    recordSuccessfulLogin,
-    resetFailedLoginAttempts
+  isAccountLocked,
+  recordFailedLoginAttempt,
+  recordLoginAttempt,
+  recordSuccessfulLogin,
+  resetFailedLoginAttempts,
 } from '@/lib/login-monitoring'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { PrismaClient } from '@prisma/client'
@@ -98,7 +98,7 @@ export const authConfig = {
         // 1. 规范化 URL
         const urlObj = new URL(url, baseUrl)
         const pathname = urlObj.pathname
-        
+
         // 只在开发环境且启用调试时记录路径名
         if (process.env.NODE_ENV === 'development' && process.env.DEBUG_AUTH === 'true') {
           console.debug('Processing redirect:', pathname)
@@ -118,12 +118,12 @@ export const authConfig = {
 
         // 2. 获取并处理 callbackUrl
         let finalCallbackUrl = urlObj.searchParams.get('callbackUrl')
-        
+
         // 3. 如果是 OAuth 回调
         if (pathname.includes('/api/auth/callback')) {
           // 尝试从 state 获取 callbackUrl
           const state = urlObj.searchParams.get('state')
-          
+
           if (state) {
             try {
               const decodedState = JSON.parse(decodeURIComponent(state))
@@ -150,12 +150,12 @@ export const authConfig = {
         // 5. 处理最终的重定向
         if (finalCallbackUrl) {
           // 确保 callbackUrl 是完整的 URL 或相对路径
-          const redirectUrl = finalCallbackUrl.startsWith('http') 
-            ? finalCallbackUrl 
-            : finalCallbackUrl.startsWith('/') 
+          const redirectUrl = finalCallbackUrl.startsWith('http')
+            ? finalCallbackUrl
+            : finalCallbackUrl.startsWith('/')
               ? `${baseUrl}${finalCallbackUrl}`
               : `${baseUrl}/${finalCallbackUrl}`
-          
+
           return redirectUrl
         }
 
@@ -179,8 +179,8 @@ export const authConfig = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       authorization: {
         params: {
-          prompt: 'consent',
-          access_type: 'offline',
+          prompt: 'select_account',
+          access_type: 'online',
           response_type: 'code',
           state: undefined,
         },
@@ -191,77 +191,79 @@ export const authConfig = {
       name: 'Email Verification',
       credentials: {
         email: { label: '邮箱', type: 'email' },
-        code: { label: '验证码', type: 'text' }
+        code: { label: '验证码', type: 'text' },
       },
       async authorize(credentials, req) {
         try {
           if (!credentials?.email || !credentials?.code) {
             return null
           }
-          
+
           // 验证邮箱和验证码
           const { email, code } = credentials
-          
+
           // 获取客户端IP
-          const clientIp = 
-            req?.headers?.['x-forwarded-for']?.split(',')[0] || 
-            req?.headers?.['x-real-ip'] || 
+          const clientIp =
+            req?.headers?.['x-forwarded-for']?.split(',')[0] ||
+            req?.headers?.['x-real-ip'] ||
             '127.0.0.1'
-          
+
           // 检查账户是否被锁定
           const locked = await isAccountLocked(email)
           console.log(`登录检查: 邮箱=${email}, 锁定状态=${JSON.stringify(locked)}`)
           if (locked.locked) {
-            console.warn(`账户 ${email} 已被锁定，拒绝登录尝试，剩余锁定时间: ${locked.remainingTime} 秒`)
+            console.warn(
+              `账户 ${email} 已被锁定，拒绝登录尝试，剩余锁定时间: ${locked.remainingTime} 秒`
+            )
             recordLoginAttempt(email, clientIp, false)
             return null
           }
-          
+
           // 查询验证码记录
           const verificationToken = await prisma.verificationToken.findUnique({
             where: {
               identifier_token: {
                 identifier: email,
-                token: code
-              }
-            }
+                token: code,
+              },
+            },
           })
-          
+
           // 如果没有找到，尝试直接通过code字段查询
           if (!verificationToken) {
             console.log(`未找到使用identifier_token复合键的验证码记录，尝试通过code字段直接查询`)
-            
+
             const tokenByCode = await prisma.verificationToken.findFirst({
               where: {
                 identifier: email,
                 code: code,
                 expires: {
-                  gt: new Date() // 只查找未过期的验证码
-                }
-              }
+                  gt: new Date(), // 只查找未过期的验证码
+                },
+              },
             })
-            
+
             if (tokenByCode) {
               console.log(`找到有效的验证码记录: ${email}`)
-              
+
               // 验证通过后删除验证码
               await prisma.verificationToken.delete({
                 where: {
                   identifier_token: {
                     identifier: tokenByCode.identifier,
-                    token: tokenByCode.token
-                  }
-                }
+                    token: tokenByCode.token,
+                  },
+                },
               })
-              
+
               // 重置失败次数
               await resetFailedLoginAttempts(email)
-              
+
               // 查找或创建用户
               let user = await prisma.user.findUnique({
-                where: { email }
+                where: { email },
               })
-              
+
               if (!user) {
                 // 创建新用户
                 user = await prisma.user.create({
@@ -275,7 +277,7 @@ export const authConfig = {
                     createdAt: new Date(),
                     updatedAt: new Date(),
                     isVIP: false,
-                  }
+                  },
                 })
                 console.log(`新用户已创建: ${email}`)
               } else {
@@ -284,24 +286,24 @@ export const authConfig = {
                   where: { id: user.id },
                   data: {
                     lastLoginAt: new Date(),
-                    emailVerified: user.emailVerified || new Date()
-                  }
+                    emailVerified: user.emailVerified || new Date(),
+                  },
                 })
               }
-              
+
               // 记录成功登录
               recordLoginAttempt(email, clientIp, true)
-              
+
               return {
                 id: user.id,
                 email: user.email,
                 name: user.name,
                 image: user.image,
-                credits: user.credits
+                credits: user.credits,
               }
             }
           }
-          
+
           // 验证码不存在或已过期
           if (!verificationToken) {
             console.log('验证码无效或已过期')
@@ -311,25 +313,25 @@ export const authConfig = {
             recordLoginAttempt(email, clientIp, false)
             return null
           }
-          
+
           // 验证通过后删除验证码
           await prisma.verificationToken.delete({
             where: {
               identifier_token: {
                 identifier: email,
-                token: code
-              }
-            }
+                token: code,
+              },
+            },
           })
-          
+
           // 重置失败次数
           await resetFailedLoginAttempts(email)
-          
+
           // 查找或创建用户
           let user = await prisma.user.findUnique({
-            where: { email }
+            where: { email },
           })
-          
+
           if (!user) {
             // 创建新用户
             user = await prisma.user.create({
@@ -343,7 +345,7 @@ export const authConfig = {
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 isVIP: false,
-              }
+              },
             })
             console.log(`新用户已创建: ${email}`)
           } else {
@@ -352,97 +354,101 @@ export const authConfig = {
               where: { id: user.id },
               data: {
                 lastLoginAt: new Date(),
-                emailVerified: user.emailVerified || new Date()
-              }
+                emailVerified: user.emailVerified || new Date(),
+              },
             })
           }
-          
+
           // 记录成功登录
           recordLoginAttempt(email, clientIp, true)
-          
+
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             image: user.image,
-            credits: user.credits
+            credits: user.credits,
           }
         } catch (error) {
           console.error('Email login error:', error)
           return null
         }
-      }
+      },
     }),
     CredentialsProvider({
       id: 'email-verification',
       name: 'Email Verification',
       credentials: {
         email: { label: 'Email', type: 'email' },
-        verificationCode: { label: 'Verification Code', type: 'text' }
+        verificationCode: { label: 'Verification Code', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.verificationCode) {
           throw new Error('Missing email or verification code')
         }
-        
+
         const { email, verificationCode } = credentials
-        
+
         try {
           // 检查账户是否被锁定
           const accountStatus = await isAccountLocked(email)
           if (accountStatus.locked) {
-            throw new Error(`Account is locked. Try again in ${Math.ceil(accountStatus.remainingTime! / 60)} minutes.`)
+            throw new Error(
+              `Account is locked. Try again in ${Math.ceil(accountStatus.remainingTime! / 60)} minutes.`
+            )
           }
-          
+
           // 验证验证码
           const isValid = await verifyCode(email, verificationCode)
-          
+
           if (!isValid) {
             // 记录失败尝试
             const remainingAttempts = await recordFailedLoginAttempt(email)
             if (remainingAttempts === 0) {
-              throw new Error('Account locked due to too many failed attempts. Try again in 1 hour.')
+              throw new Error(
+                'Account locked due to too many failed attempts. Try again in 1 hour.'
+              )
             } else {
               throw new Error(`Invalid verification code. ${remainingAttempts} attempts remaining.`)
             }
           }
-          
+
           // 验证成功，查找或创建用户
           let user = await prisma.user.findUnique({
-            where: { email }
+            where: { email },
           })
-          
+
           if (!user) {
             // 创建新用户
             user = await prisma.user.create({
               data: {
                 email,
-                emailVerified: new Date()
-              }
+                emailVerified: new Date(),
+              },
             })
           } else {
             // 更新用户的 emailVerified 字段
             await prisma.user.update({
               where: { id: user.id },
-              data: { emailVerified: new Date() }
+              data: { emailVerified: new Date() },
             })
           }
-          
+
           // 记录成功登录
           await recordSuccessfulLogin(email)
-          
+
           return {
             id: user.id,
             email: user.email,
             name: user.name,
-            image: user.image
+            image: user.image,
           }
         } catch (error) {
           console.error('Email verification error:', error)
           throw error
         }
-      }
-    })
+      },
+    }),
   ],
   session: {
     strategy: 'jwt' as const,
