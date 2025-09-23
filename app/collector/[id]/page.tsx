@@ -139,10 +139,16 @@ export default function CollectorDetailPage({ params }: PageProps) {
       '秒'
     )
     try {
-      // 根据blob类型或浏览器类型决定文件扩展名
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-      const fileName =
-        isSafari || audioBlob.type.includes('mp4') ? 'recording.mp4' : 'recording.webm'
+      // 根据blob类型决定文件扩展名
+      let fileName = 'recording.webm'
+      if (audioBlob.type.includes('mp4')) {
+        fileName = 'recording.mp4'
+      } else if (audioBlob.type.includes('wav')) {
+        fileName = 'recording.wav'
+      } else if (audioBlob.type.includes('webm')) {
+        fileName = 'recording.webm'
+      }
+      console.log('[handleSendAudio] Blob类型:', audioBlob.type, '文件名:', fileName)
 
       // 上传音频文件
       const formData = new FormData()

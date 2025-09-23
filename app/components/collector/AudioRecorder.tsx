@@ -4,6 +4,16 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Mic, Square, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import AudioRecorderPolyfill from 'audio-recorder-polyfill'
+
+// 为Safari设置polyfill
+if (typeof window !== 'undefined') {
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  if (isSafari && (!window.MediaRecorder || !MediaRecorder.isTypeSupported('audio/webm'))) {
+    AudioRecorderPolyfill.prototype.mimeType = 'audio/wav'
+    window.MediaRecorder = AudioRecorderPolyfill as any
+  }
+}
 
 interface AudioRecorderProps {
   onSend: (audioBlob: Blob, duration: number) => Promise<void>
@@ -29,24 +39,13 @@ export default function AudioRecorder({ onSend, disabled }: AudioRecorderProps) 
 
   const startRecording = async () => {
     try {
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
-      // 请求音频权限 - Safari需要特殊配置
-      const audioConstraints = isSafari
-        ? {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            sampleRate: 44100,
-          }
-        : {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-
+      // 请求音频权限 - 对所有浏览器使用相同配置
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
       })
 
       // 检查音轨是否正常
@@ -55,46 +54,25 @@ export default function AudioRecorder({ onSend, disabled }: AudioRecorderProps) 
       if (audioTracks.length > 0) {
         const settings = audioTracks[0].getSettings()
         console.log('[AudioRecorder] 音频轨道设置:', settings)
-
-        // 确保音轨已启用
         audioTracks[0].enabled = true
       }
 
-      // 创建 MediaRecorder - Safari 必须不指定 mimeType
+      // 创建 MediaRecorder - polyfill会自动处理Safari
       let mediaRecorder: MediaRecorder
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
-      if (isSafari) {
-        // Safari: 绝对不能指定 mimeType，否则会产生0字节文件
-        console.log('[AudioRecorder] Safari: 创建 MediaRecorder (不指定MIME类型)')
-        mediaRecorder = new MediaRecorder(stream)
-        console.log(
-          '[AudioRecorder] Safari MediaRecorder 类型:',
-          mediaRecorder.mimeType || '未指定'
-        )
+      // 对于支持原生MediaRecorder的浏览器，使用最佳的MIME类型
+      if (
+        !isSafari &&
+        MediaRecorder.isTypeSupported &&
+        MediaRecorder.isTypeSupported('audio/webm')
+      ) {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+        console.log('[AudioRecorder] 使用原生MediaRecorder: audio/webm')
       } else {
-        // 其他浏览器：使用 webm
-        let mimeType = ''
-        const types = [
-          'audio/webm;codecs=opus',
-          'audio/webm',
-          'video/webm;codecs=vp8,opus',
-          'video/webm',
-        ]
-
-        for (const type of types) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            mimeType = type
-            break
-          }
-        }
-
-        if (mimeType) {
-          mediaRecorder = new MediaRecorder(stream, { mimeType })
-          console.log('[AudioRecorder] 使用MIME类型:', mimeType)
-        } else {
-          mediaRecorder = new MediaRecorder(stream)
-          console.log('[AudioRecorder] 使用默认类型')
-        }
+        // Safari或不支持webm的浏览器，使用polyfill（已在文件顶部设置）
+        mediaRecorder = new MediaRecorder(stream)
+        console.log('[AudioRecorder] 使用MediaRecorder (可能是polyfill):', mediaRecorder.mimeType)
       }
 
       mediaRecorderRef.current = mediaRecorder

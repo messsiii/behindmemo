@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证文件类型 - 增加 Safari 支持的格式
+    // 验证文件类型 - 增加 Safari 支持的格式和WAV
     const allowedTypes =
       type === 'audio'
         ? [
@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
             'audio/mp4',
             'audio/aac',
             'audio/wav',
+            'audio/x-wav',
+            'audio/wave',
             'audio/ogg',
             'video/webm',
             'video/mp4',
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (type === 'audio') {
       const ext = file.name.split('.').pop()?.toLowerCase()
       const isValidExtension =
-        ext && ['webm', 'mp3', 'mp4', 'm4a', 'aac', 'wav', 'ogg'].includes(ext)
+        ext && ['webm', 'mp3', 'mp4', 'm4a', 'aac', 'wav', 'ogg', 'wave'].includes(ext)
       const isValidMimeType =
         !file.type || file.type === 'application/octet-stream' || allowedTypes.includes(file.type)
 
