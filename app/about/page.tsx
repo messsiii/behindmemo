@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
 import { useLanguage } from '@/contexts/LanguageContext'
