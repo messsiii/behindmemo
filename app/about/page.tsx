@@ -7,6 +7,7 @@ import { Nav } from '@/components/nav'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { Suspense } from 'react'
 
 const content = {
   en: {
@@ -41,7 +42,7 @@ const content = {
   },
 }
 
-export default function About() {
+function AboutContent() {
   const { language } = useLanguage()
 
   return (
@@ -143,5 +144,22 @@ export default function About() {
 
       <Footer />
     </div>
+  )
+}
+
+export default function About() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-primary mx-auto" />
+            <p className="mt-4 text-gray-500">加载中...</p>
+          </div>
+        </div>
+      }
+    >
+      <AboutContent />
+    </Suspense>
   )
 }

@@ -9,10 +9,10 @@ import { Loader2 } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { toast } from 'sonner'
 
-export default function SignIn() {
+function SignInContent() {
   const { language } = useLanguage()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams?.get('callbackUrl') || '/write'
@@ -150,5 +150,22 @@ export default function SignIn() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function SignIn() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-primary mx-auto" />
+            <p className="mt-4 text-gray-500">加载中...</p>
+          </div>
+        </div>
+      }
+    >
+      <SignInContent />
+    </Suspense>
   )
 }

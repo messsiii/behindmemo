@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { Footer } from '@/components/footer'
 import { Nav } from '@/components/nav'
 import { SimpleImageUpload } from '@/components/SimpleImageUpload'
@@ -14,7 +16,7 @@ import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 
 // 为Vimeo Player声明类型
 declare global {
@@ -76,7 +78,7 @@ export interface ContentLanguages {
   zh: ContentVariant
 }
 
-export default function Home() {
+function HomeContent() {
   const { language } = useLanguage()
   const { status: sessionStatus } = useSession()
   const searchParams = useSearchParams()
@@ -1908,5 +1910,22 @@ export default function Home() {
 
       <Footer />
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-primary mx-auto" />
+            <p className="mt-4 text-gray-500">加载中...</p>
+          </div>
+        </div>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   )
 }

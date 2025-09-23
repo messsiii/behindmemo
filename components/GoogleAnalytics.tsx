@@ -2,9 +2,13 @@
 
 import { usePathname, useSearchParams } from 'next/navigation'
 import Script from 'next/script'
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 
-export default function GoogleAnalytics({ GA_MEASUREMENT_ID = 'G-9CSJJFEZRJ' }: { GA_MEASUREMENT_ID?: string }) {
+function GoogleAnalyticsInner({
+  GA_MEASUREMENT_ID = 'G-9CSJJFEZRJ',
+}: {
+  GA_MEASUREMENT_ID?: string
+}) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -43,6 +47,14 @@ export default function GoogleAnalytics({ GA_MEASUREMENT_ID = 'G-9CSJJFEZRJ' }: 
   )
 }
 
+export default function GoogleAnalytics({ GA_MEASUREMENT_ID }: { GA_MEASUREMENT_ID?: string }) {
+  return (
+    <Suspense fallback={null}>
+      <GoogleAnalyticsInner GA_MEASUREMENT_ID={GA_MEASUREMENT_ID} />
+    </Suspense>
+  )
+}
+
 // 全局可用的GA事件跟踪函数
 export function trackEvent(action: string, category: string, label?: string, value?: number) {
   window.gtag?.('event', action, {
@@ -62,4 +74,4 @@ declare global {
     ) => void
     dataLayer?: any[]
   }
-} 
+}
