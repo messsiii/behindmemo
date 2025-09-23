@@ -9,11 +9,11 @@ export type StorageProvider = 'vercel-blob' | 'r2'
 export function getActiveStorageProvider(): StorageProvider {
   // 优先使用环境变量配置
   const storageProvider = process.env.STORAGE_PROVIDER?.toLowerCase()
-  
+
   if (storageProvider === 'r2' && isR2Configured()) {
     return 'r2'
   }
-  
+
   // 如果明确指定了 vercel-blob 或 R2 未配置，使用 Vercel Blob
   return 'vercel-blob'
 }
@@ -34,28 +34,35 @@ export async function uploadFile(
   console.log(`[存储服务] 使用存储提供商: ${provider}`)
   console.log(`[存储服务] 文件名: ${filename}`)
   console.log(`[存储服务] 文件大小: ${buffer.length} bytes`)
-  
+
   try {
     if (provider === 'r2') {
+      console.log('[存储服务] 尝试使用 R2 上传...')
       const url = await uploadToR2(buffer, filename, options.contentType)
       if (url) {
+        console.log('[存储服务] R2 上传成功:', url)
         return { url, provider: 'r2' }
       }
       // 如果 R2 上传失败，回退到 Vercel Blob
-      console.warn('R2 上传失败，回退到 Vercel Blob')
+      console.warn('[存储服务] R2 上传失败，回退到 Vercel Blob')
     }
-    
+
     // 使用 Vercel Blob
+    console.log('[存储服务] 使用 Vercel Blob 上传...')
+    console.log('[存储服务] Blob token 是否存在:', !!process.env.BLOB_READ_WRITE_TOKEN)
     const blob = await put(filename, buffer, {
       access: 'public',
       token: process.env.BLOB_READ_WRITE_TOKEN,
       contentType: options.contentType || 'application/octet-stream',
       addRandomSuffix: false,
     })
-    
+    console.log('[存储服务] Vercel Blob 上传成功:', blob.url)
+
     return { url: blob.url, provider: 'vercel-blob' }
-  } catch (error) {
-    console.error('文件上传失败:', error)
+  } catch (error: any) {
+    console.error('[存储服务] 文件上传失败:', error)
+    console.error('[存储服务] 错误消息:', error.message)
+    console.error('[存储服务] 错误堆栈:', error.stack)
     throw error
   }
 }
@@ -75,7 +82,7 @@ export async function deleteFile(url: string): Promise<boolean> {
       // R2 存储
       return await deleteFromR2(url)
     }
-    
+
     console.warn('无法识别文件 URL 的存储提供商:', url)
     return false
   } catch (error) {
@@ -90,7 +97,7 @@ export async function deleteFile(url: string): Promise<boolean> {
 export function getStorageInfo() {
   const provider = getActiveStorageProvider()
   const isR2 = provider === 'r2'
-  
+
   return {
     provider,
     isR2,

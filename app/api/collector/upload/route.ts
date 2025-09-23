@@ -81,8 +81,21 @@ export async function POST(request: NextRequest) {
     console.log(`[文件上传] 上传成功，URL: ${url}, 存储提供商: ${provider}`)
 
     return NextResponse.json({ url, type })
-  } catch (error) {
+  } catch (error: any) {
     console.error('文件上传失败:', error)
-    return NextResponse.json({ error: '上传失败' }, { status: 500 })
+    console.error('错误堆栈:', error.stack)
+    console.error('错误详情:', JSON.stringify(error, null, 2))
+
+    // 返回更详细的错误信息（仅在开发环境）
+    const errorMessage =
+      process.env.NODE_ENV === 'development' ? `上传失败: ${error.message || error}` : '上传失败'
+
+    return NextResponse.json(
+      {
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      },
+      { status: 500 }
+    )
   }
 }
