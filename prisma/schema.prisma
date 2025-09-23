@@ -37,30 +37,33 @@ model Session {
 }
 
 model User {
-  id                       String         @id @default(cuid())
+  id                       String                     @id @default(cuid())
   name                     String?
-  email                    String?        @unique
+  email                    String?                    @unique
   emailVerified            DateTime?
   image                    String?
-  totalUsage               Int            @default(0)
-  lastLoginAt              DateTime       @default(now())
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
-  isVIP                    Boolean        @default(false)
+  totalUsage               Int                        @default(0)
+  lastLoginAt              DateTime                   @default(now())
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  isVIP                    Boolean                    @default(false)
   vipExpiresAt             DateTime?
-  credits                  Int            @default(30)
-  paddleCustomerId         String?        @unique
-  paddleSubscriptionId     String?        @unique
+  credits                  Int                        @default(30)
+  paddleCustomerId         String?                    @unique
+  paddleSubscriptionId     String?                    @unique
   paddleSubscriptionStatus String?
   accounts                 Account[]
+  collectionAccesses       CollectionAccess[]
+  collectionMessages       CollectionMessage[]
+  collections              Collection[]
+  imageGenerations         ImageGeneration[]
+  templatePreferences      LetterTemplatePreference[]
   letters                  Letter[]
   sessions                 Session[]
-  Subscription             Subscription[]
-  transactions             Transaction[]
-  templateUnlocks          TemplateUnlock[]
   sharedLetters            SharedLetter[]
-  templatePreferences      LetterTemplatePreference[]
-  imageGenerations         ImageGeneration[]
+  Subscription             Subscription[]
+  templateUnlocks          TemplateUnlock[]
+  transactions             Transaction[]
 
   @@map("users")
 }
@@ -76,24 +79,24 @@ model VerificationToken {
 }
 
 model Letter {
-  id         String   @id @default(cuid())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  content    String
-  imageUrl   String?
-  userId     String
-  prompt     String
-  isPublic   Boolean  @default(false)
-  likeCount  Int      @default(0)
-  shareCount Int      @default(0)
-  language   String   @default("zh")
-  metadata   Json?
-  status     String   @default("pending")
-  error      String?
-  videoUrl   String?
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sharedLetters SharedLetter[]
+  id                  String                     @id @default(cuid())
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  content             String
+  imageUrl            String?
+  userId              String
+  prompt              String
+  isPublic            Boolean                    @default(false)
+  likeCount           Int                        @default(0)
+  shareCount          Int                        @default(0)
+  language            String                     @default("zh")
+  metadata            Json?
+  status              String                     @default("pending")
+  error               String?
+  videoUrl            String?
   templatePreferences LetterTemplatePreference[]
+  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedLetters       SharedLetter[]
 
   @@index([userId])
   @@map("letters")
@@ -186,15 +189,15 @@ model TemplateUnlock {
 model SharedLetter {
   id            String   @id @default(cuid())
   letterId      String
-  letter        Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken   String   @unique
   templateStyle String   @default("classic")
-  hideWatermark Boolean  @default(false)
   viewCount     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  hideWatermark Boolean  @default(false)
+  letter        Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([letterId])
   @@index([userId])
@@ -210,8 +213,8 @@ model LetterTemplatePreference {
   hideWatermark Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   letter        Letter   @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, letterId])
   @@index([userId])
@@ -220,23 +223,100 @@ model LetterTemplatePreference {
 }
 
 model ImageGeneration {
-  id                   String   @id @default(cuid())
-  userId               String
-  prompt               String
-  inputImageUrl        String
-  outputImageUrl       String?
-  localOutputImageUrl  String?  // 本地存储的图片URL
-  model                String   @default("flux-kontext-pro")
-  status               String   @default("pending") // pending, completed, failed
-  creditsUsed          Int      @default(10)
-  errorMessage         String?
-  metadata             Json?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String   @id @default(cuid())
+  userId              String
+  prompt              String
+  inputImageUrl       String
+  outputImageUrl      String?
+  model               String   @default("flux-kontext-pro")
+  status              String   @default("pending")
+  creditsUsed         Int      @default(10)
+  errorMessage        String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  localOutputImageUrl String?
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
   @@index([createdAt])
   @@map("image_generations")
+}
+
+model Collection {
+  id        String              @id @default(cuid())
+  title     String              @default("未命名收集")
+  creatorId String
+  mainImage String?
+  shareUrl  String              @unique
+  isPublic  Boolean             @default(false)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  accesses  CollectionAccess[]
+  messages  CollectionMessage[]
+  creator   User                @relation(fields: [creatorId], references: [id])
+
+  @@index([creatorId])
+  @@index([shareUrl])
+  @@map("collections")
+}
+
+model CollectionMessage {
+  id           String      @id @default(cuid())
+  collectionId String
+  userId       String?
+  tempUserId   String?
+  type         MessageType
+  content      String?
+  audioUrl     String?
+  imageUrl     String?
+  duration     Int?
+  userAvatar   String?
+  userName     String?
+  createdAt    DateTime    @default(now())
+  collection   Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  tempUser     TempUser?   @relation(fields: [tempUserId], references: [id])
+  user         User?       @relation(fields: [userId], references: [id])
+
+  @@index([collectionId])
+  @@index([createdAt])
+  @@map("collection_messages")
+}
+
+model TempUser {
+  id                 String              @id @default(cuid())
+  browserFingerprint String              @unique
+  randomAvatar       String
+  randomName         String
+  createdAt          DateTime            @default(now())
+  lastActiveAt       DateTime            @updatedAt
+  accesses           CollectionAccess[]
+  messages           CollectionMessage[]
+
+  @@index([browserFingerprint])
+  @@map("temp_users")
+}
+
+model CollectionAccess {
+  id           String     @id @default(cuid())
+  collectionId String
+  userId       String?
+  tempUserId   String?
+  accessCount  Int        @default(1)
+  lastAccessAt DateTime   @updatedAt
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  tempUser     TempUser?  @relation(fields: [tempUserId], references: [id])
+  user         User?      @relation(fields: [userId], references: [id])
+
+  @@unique([collectionId, userId])
+  @@unique([collectionId, tempUserId])
+  @@index([collectionId])
+  @@map("collection_accesses")
+}
+
+enum MessageType {
+  AUDIO
+  IMAGE
+  TEXT
 }

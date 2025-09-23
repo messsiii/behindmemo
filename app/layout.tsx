@@ -11,7 +11,8 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Behind Memory - AI Memory Generator',
-  description: 'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
+  description:
+    'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
   authors: [{ name: 'Behind Memory Team' }],
   generator: 'Next.js',
   applicationName: 'Behind Memory',
@@ -28,12 +29,13 @@ export const metadata: Metadata = {
     canonical: '/',
     languages: {
       'en-US': '/',
-      'zh-CN': '/zh'
+      'zh-CN': '/zh',
     },
   },
   openGraph: {
     title: 'Behind Memory - AI Memory Generator',
-    description: 'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
+    description:
+      'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
     url: 'https://behindmemo.com',
     siteName: 'Behind Memory',
     images: [
@@ -66,15 +68,19 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: '/favicon.ico',
-    apple: [
-      { url: '/icon-192x192.png' },
-    ],
+    apple: [{ url: '/icon-192x192.png' }],
   },
   manifest: '/manifest.json',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authConfig)
+  let session = null
+  try {
+    session = await getServerSession(authConfig)
+  } catch (error) {
+    // Ignore decryption errors in development
+    console.log('Session fetch error (likely old cookie):', error)
+  }
 
   return (
     <html lang="en">

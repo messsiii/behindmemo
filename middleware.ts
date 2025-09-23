@@ -42,6 +42,11 @@ const isPublicPath = (path: string) => {
     return true
   }
 
+  // 收集页面的分享链接是公开的
+  if (path.startsWith('/collector/share/')) {
+    return true
+  }
+
   return false
 }
 

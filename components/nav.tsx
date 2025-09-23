@@ -30,6 +30,7 @@ export function Nav() {
 
   const links = [
     { href: '/write', label: language === 'en' ? 'Write' : '写信' },
+    { href: '/collector', label: language === 'en' ? 'Collect' : '收集' },
     { href: '/flux-kontext-pro', label: language === 'en' ? 'AI Images' : 'AI 图像' },
     ...(status === 'authenticated'
       ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }]
