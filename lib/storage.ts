@@ -1,21 +1,16 @@
-import { put } from '@vercel/blob'
 import { uploadToR2, deleteFromR2, isR2Configured } from './r2-storage'
 
-export type StorageProvider = 'vercel-blob' | 'r2'
+export type StorageProvider = 'r2'
 
 /**
  * 获取当前激活的存储提供商
  */
 export function getActiveStorageProvider(): StorageProvider {
-  // 优先使用环境变量配置
-  const storageProvider = process.env.STORAGE_PROVIDER?.toLowerCase()
-
-  if (storageProvider === 'r2' && isR2Configured()) {
-    return 'r2'
+  // 只使用 R2 存储
+  if (!isR2Configured()) {
+    throw new Error('R2 storage is not configured. Please check your R2 environment variables.')
   }
-
-  // 如果明确指定了 vercel-blob 或 R2 未配置，使用 Vercel Blob
-  return 'vercel-blob'
+  return 'r2'
 }
 
 /**
@@ -36,31 +31,15 @@ export async function uploadFile(
   console.log(`[存储服务] 文件大小: ${buffer.length} bytes`)
 
   try {
-    if (provider === 'r2') {
-      console.log('[存储服务] 尝试使用 R2 上传...')
-      const url = await uploadToR2(buffer, filename, options.contentType)
-      if (url) {
-        console.log('[存储服务] R2 上传成功:', url)
-        return { url, provider: 'r2' }
-      }
-      // 如果 R2 上传失败，回退到 Vercel Blob
-      console.warn('[存储服务] R2 上传失败，回退到 Vercel Blob')
+    console.log('[存储服务] 使用 R2 上传...')
+    const url = await uploadToR2(buffer, filename, options.contentType)
+    if (!url) {
+      throw new Error('R2 上传失败')
     }
-
-    // 使用 Vercel Blob
-    console.log('[存储服务] 使用 Vercel Blob 上传...')
-    console.log('[存储服务] Blob token 是否存在:', !!process.env.BLOB_READ_WRITE_TOKEN)
-    const blob = await put(filename, buffer, {
-      access: 'public',
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType: options.contentType || 'application/octet-stream',
-      addRandomSuffix: false,
-    })
-    console.log('[存储服务] Vercel Blob 上传成功:', blob.url)
-
-    return { url: blob.url, provider: 'vercel-blob' }
+    console.log('[存储服务] R2 上传成功:', url)
+    return { url, provider: 'r2' }
   } catch (error: any) {
-    console.error('[存储服务] 文件上传失败:', error)
+    console.error('[存储服务] R2 上传失败:', error)
     console.error('[存储服务] 错误消息:', error.message)
     console.error('[存储服务] 错误堆栈:', error.stack)
     throw error
@@ -73,20 +52,15 @@ export async function uploadFile(
  */
 export async function deleteFile(url: string): Promise<boolean> {
   try {
-    // 判断 URL 属于哪个存储提供商
-    if (url.includes('blob.vercel-storage.com')) {
-      // Vercel Blob 暂不支持删除操作
-      console.warn('Vercel Blob 不支持删除操作')
-      return false
-    } else if (process.env.R2_PUBLIC_URL && url.includes(process.env.R2_PUBLIC_URL)) {
-      // R2 存储
+    // 只处理 R2 存储的文件删除
+    if (process.env.R2_PUBLIC_URL && url.includes(process.env.R2_PUBLIC_URL)) {
       return await deleteFromR2(url)
     }
 
-    console.warn('无法识别文件 URL 的存储提供商:', url)
+    console.warn('文件 URL 不属于 R2 存储，无法删除:', url)
     return false
   } catch (error) {
-    console.error('文件删除失败:', error)
+    console.error('R2 文件删除失败:', error)
     return false
   }
 }
@@ -95,13 +69,9 @@ export async function deleteFile(url: string): Promise<boolean> {
  * 获取存储提供商信息
  */
 export function getStorageInfo() {
-  const provider = getActiveStorageProvider()
-  const isR2 = provider === 'r2'
-
   return {
-    provider,
-    isR2,
-    isVercelBlob: !isR2,
-    publicUrl: isR2 ? process.env.R2_PUBLIC_URL : null,
+    provider: 'r2' as const,
+    isR2: true,
+    publicUrl: process.env.R2_PUBLIC_URL || null,
   }
 }

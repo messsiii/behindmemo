@@ -4,7 +4,7 @@ import { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Gemini 2.5 Flash Image - AI Image Generation | Behind Memory',
   description:
-    'Experience Google Gemini 2.5 Flash for AI image generation. Premium quality transformations at 30 credits per generation.',
+    'Experience Google Gemini 2.5 Flash for AI image generation. Premium quality transformations at 10 credits per generation.',
   openGraph: {
     title: 'Gemini 2.5 Flash Image - AI Image Generation',
     description:

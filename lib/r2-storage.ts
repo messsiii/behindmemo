@@ -149,6 +149,9 @@ export function isR2Configured(): boolean {
  * 获取存储类型
  * @returns 当前使用的存储类型
  */
-export function getStorageType(): 'r2' | 'vercel-blob' {
-  return isR2Configured() ? 'r2' : 'vercel-blob'
+export function getStorageType(): 'r2' {
+  if (!isR2Configured()) {
+    throw new Error('R2 storage is not configured')
+  }
+  return 'r2'
 }

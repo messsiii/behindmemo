@@ -970,7 +970,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     }
 
     // 检查积分是否充足
-    const requiredCredits = selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 30 : 10
+    const requiredCredits = selectedModel === 'max' ? 20 : selectedModel === 'gemini' ? 10 : 10
     if ((creditsInfo?.credits || 0) < requiredCredits) {
       setRequiredCreditsForAlert(requiredCredits)
       setShowCreditsAlert(true)
@@ -2592,7 +2592,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                       <SelectItem value="gemini" className="text-white">
                         <div className="flex items-center justify-between w-full">
                           <span>Nano Banana</span>
-                          <span className="text-xs text-blue-400 ml-2">30 积分</span>
+                          <span className="text-xs text-blue-400 ml-2">10 积分</span>
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -2701,7 +2701,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                       <Sparkles className="w-4 h-4 mr-2" />
                       {language === 'en' ? 'Generate' : '生成'}
                       <span className="ml-2 text-sm">
-                        ({selectedModel === 'max' ? '20' : selectedModel === 'gemini' ? '30' : '10'}{' '}
+                        ({selectedModel === 'max' ? '20' : selectedModel === 'gemini' ? '10' : '10'}{' '}
                         {language === 'en' ? 'credits' : '积分'})
                       </span>
                     </>

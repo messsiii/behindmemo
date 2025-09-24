@@ -285,8 +285,8 @@ NEXTAUTH_URL=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# 存储
-BLOB_READ_WRITE_TOKEN=
+# 存储（已迁移到 Cloudflare R2）
+# BLOB_READ_WRITE_TOKEN= # 已弃用，使用 R2 配置
 
 # 缓存
 KV_URL=
@@ -497,7 +497,7 @@ npm run dev
 - Framer Motion
 - MiniMax AI API
 - Google OAuth 2.0
-- Vercel Blob Storage
+- Cloudflare R2 Storage
 - Neon Serverless Postgres
 
 ## 开始使用
@@ -527,7 +527,7 @@ npm run dev
 
 ## 环境变量
 
-- `BLOB_READ_WRITE_TOKEN`: Vercel Blob 存储令牌
+- `R2_*`: Cloudflare R2 存储配置（已替换 Vercel Blob）
 - `MINIMAX_API_KEY`: MiniMax API 密钥
 - `GOOGLE_CLIENT_ID`: Google OAuth 客户端 ID
 - `GOOGLE_CLIENT_SECRET`: Google OAuth 客户端密钥

@@ -36,6 +36,15 @@ import {
 } from '@/components/ui/alert-dialog'
 // 移除缓存机制，直接从服务端加载历史记录
 
+// 检查图片URL是否有效（过滤占位符和无效URL）
+const isValidImageUrl = (url: string | null | undefined): url is string => {
+  if (!url) return false
+  if (url === 'data:image/placeholder') return false
+  if (url === 'data:too-large') return false
+  if (url.startsWith('data:image/placeholder')) return false
+  return true
+}
+
 interface ImageGenerationRecord {
   id: string
   prompt: string
@@ -610,8 +619,8 @@ export default function OptimizedGenerationHistory({
                           : ''
                       }
                     >
-                      {/* 输入图片 - 仅在有输入图片时显示 */}
-                      {(record.inputImageUrl || record.metadata?.referenceImages?.length) && (
+                      {/* 输入图片 - 仅在有有效输入图片时显示 */}
+                      {(isValidImageUrl(record.inputImageUrl) || record.metadata?.referenceImages?.length) && (
                         <div className="relative aspect-square group bg-slate-900 overflow-hidden">
                           {/* 多图参考模式显示多张图片 */}
                           {record.metadata?.mode === 'multi-reference' &&
@@ -652,15 +661,17 @@ export default function OptimizedGenerationHistory({
                                 }}
                               />
                             </div>
-                          ) : record.inputImageUrl ? (
+                          ) : isValidImageUrl(record.inputImageUrl) ? (
                             <>
                               <img
                                 src={record.inputImageUrl}
                                 alt="Input image"
                                 className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() =>
-                                  setViewingImage({ url: record.inputImageUrl, type: 'input' })
-                                }
+                                onClick={() => {
+                                  if (isValidImageUrl(record.inputImageUrl)) {
+                                    setViewingImage({ url: record.inputImageUrl, type: 'input' })
+                                  }
+                                }}
                                 loading="lazy"
                               />
                             </>
@@ -739,16 +750,15 @@ export default function OptimizedGenerationHistory({
                       <div
                         className={`relative aspect-square group bg-slate-900 overflow-hidden ${!record.inputImageUrl && !record.metadata?.referenceImages?.length ? 'col-span-2' : ''}`}
                       >
-                        {record.status === 'completed' && record.outputImageUrl ? (
+                        {record.status === 'completed' && (isValidImageUrl(record.localOutputImageUrl) || isValidImageUrl(record.outputImageUrl)) ? (
                           <>
                             <img
-                              src={record.localOutputImageUrl || record.outputImageUrl}
+                              src={record.localOutputImageUrl || record.outputImageUrl || ''}
                               alt="Output image"
                               className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                               onClick={() => {
-                                const url =
-                                  record.localOutputImageUrl || record.outputImageUrl || ''
-                                if (url) {
+                                const url = record.localOutputImageUrl || record.outputImageUrl || ''
+                                if (isValidImageUrl(url)) {
                                   setViewingImage({ url, type: 'output' })
                                 }
                               }}
@@ -782,7 +792,7 @@ export default function OptimizedGenerationHistory({
                           </span>
                         </div>
                         {/* 输出图片操作按钮 */}
-                        {record.status === 'completed' && record.outputImageUrl && (
+                        {record.status === 'completed' && (isValidImageUrl(record.localOutputImageUrl) || isValidImageUrl(record.outputImageUrl)) && (
                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2">
                             <div className="flex gap-1">
                               {onUseAsInput && (

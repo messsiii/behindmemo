@@ -4,16 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Mic, Square, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import AudioRecorderPolyfill from 'audio-recorder-polyfill'
-
-// 为Safari设置polyfill
-if (typeof window !== 'undefined') {
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-  if (isSafari && (!window.MediaRecorder || !MediaRecorder.isTypeSupported('audio/webm'))) {
-    AudioRecorderPolyfill.prototype.mimeType = 'audio/wav'
-    window.MediaRecorder = AudioRecorderPolyfill as any
-  }
-}
 
 interface AudioRecorderProps {
   onSend: (audioBlob: Blob, duration: number) => Promise<void>

@@ -6,7 +6,13 @@ import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Image as ImageIcon, Share2, Home } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import AudioRecorder from '@/app/components/collector/AudioRecorder'
+import dynamic from 'next/dynamic'
+
+// 动态导入避免SSR问题
+const AudioRecorder = dynamic(() => import('@/app/components/collector/AudioRecorder'), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-4">Loading...</div>
+})
 import MessageList from '@/app/components/collector/MessageList'
 import ImageUpload from '@/app/components/collector/ImageUpload'
 import { compressImage, blobToFile } from '@/lib/imageCompress'
@@ -391,7 +397,7 @@ export default function CollectorSharePage({ params }: PageProps) {
 
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl p-4">
+        <div className="mx-auto max-w-4xl p-4 pb-20 sm:pb-4">
           {collection.messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-4 text-gray-400">
@@ -428,18 +434,19 @@ export default function CollectorSharePage({ params }: PageProps) {
         </div>
       )}
 
-      {/* 底部输入区 */}
-      <div className="border-t bg-white p-4">
-        <div className="mx-auto flex max-w-4xl items-center justify-center gap-4">
+      {/* 底部输入区 - 移动端固定在屏幕底部 */}
+      <div className="border-t bg-white p-3 sm:p-4 sticky bottom-0 z-10 shadow-lg sm:shadow-none">
+        <div className="mx-auto flex max-w-4xl items-center justify-center gap-2 sm:gap-4">
           <Button
             variant="outline"
             size="lg"
             onClick={() => setShowImageUpload(true)}
             disabled={uploadingImage}
-            className="rounded-full"
+            className="rounded-full text-sm sm:text-base"
           >
-            <ImageIcon className="mr-2 h-5 w-5" />
-            上传图片
+            <ImageIcon className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">上传图片</span>
+            <span className="sm:hidden">图片</span>
           </Button>
           <AudioRecorder onSend={handleSendAudio} />
         </div>

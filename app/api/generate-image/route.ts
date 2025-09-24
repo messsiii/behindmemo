@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 根据模型类型设置积分消耗
-    const creditsRequired = model === 'max' ? 20 : model === 'gemini' ? 30 : 10
+    const creditsRequired = model === 'max' ? 20 : model === 'gemini' ? 10 : 10
     if (user.credits < creditsRequired) {
       return NextResponse.json(
         { error: 'Insufficient credits' },
@@ -438,11 +438,33 @@ export async function POST(request: NextRequest) {
       }
 
       // 处理输出
-      let blobUrl: string = ''
-      
-      // Gemini 返回的是 data URL，直接使用
+      let imageUrl: string = ''
+
+      // Gemini 返回的是 data URL，需要转换为 Buffer 并上传到 R2
       if (model === 'gemini' && typeof output === 'string' && output.startsWith('data:')) {
-        blobUrl = output
+        try {
+          // 解析 data URL，提取 base64 数据
+          const base64Data = output.split(',')[1]
+          if (!base64Data) {
+            throw new Error('Invalid data URL: missing base64 data')
+          }
+
+          // 将 base64 转换为 Buffer
+          const imageBuffer = Buffer.from(base64Data, 'base64')
+
+          // 使用统一的存储接口上传到 R2
+          const { uploadFile } = await import('@/lib/storage')
+          const randomString = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+          const secureFileName = `gemini-${Date.now()}-${randomString}.png`
+          const { url } = await uploadFile(imageBuffer, secureFileName, {
+            contentType: 'image/png',
+          })
+
+          imageUrl = url
+        } catch (error) {
+          console.error('Error processing Gemini data URL:', error)
+          throw new Error(`Failed to process Gemini image: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
       } else if (output instanceof ReadableStream) {
         // 如果是流，直接处理流数据
         
@@ -474,7 +496,7 @@ export async function POST(request: NextRequest) {
           contentType: 'image/png',
         })
         
-        blobUrl = url
+        imageUrl = url
         
       } else {
         // 处理其他类型的输出 - 使用类型断言
@@ -494,7 +516,7 @@ export async function POST(request: NextRequest) {
         // 添加重试机制下载图片
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
-            blobUrl = await downloadImageToStorage(imageUrl)
+            imageUrl = await downloadImageToStorage(imageUrl)
             break
           } catch (error) {
             // 如果不是最后一次尝试，等待后重试
@@ -505,9 +527,9 @@ export async function POST(request: NextRequest) {
         }
         
         // 如果所有重试都失败了
-        if (!blobUrl) {
+        if (!imageUrl) {
           // 作为备选方案，直接使用原始URL
-          blobUrl = imageUrl
+          imageUrl = outputData[0] || outputData
         }
       }
 
@@ -516,15 +538,15 @@ export async function POST(request: NextRequest) {
         where: { id: generationRecord.id },
         data: {
           status: 'completed',
-          outputImageUrl: blobUrl, // 只存储本地URL
-          localOutputImageUrl: blobUrl,
+          outputImageUrl: imageUrl, // 只存储本地URL
+          localOutputImageUrl: imageUrl,
           updatedAt: new Date(),
         }
       })
 
       return NextResponse.json({
         success: true,
-        output: blobUrl,
+        output: imageUrl,
         recordId: updatedRecord.id,
       })
 

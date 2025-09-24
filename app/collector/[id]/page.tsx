@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Share2, Edit2, Check, X, Image as ImageIcon, Upload, Home } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import AudioRecorder from '@/app/components/collector/AudioRecorder'
+import dynamic from 'next/dynamic'
+
+// 动态导入避免SSR问题
+const AudioRecorder = dynamic(() => import('@/app/components/collector/AudioRecorder'), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-4">Loading...</div>
+})
 import MessageList from '@/app/components/collector/MessageList'
 import { SimpleImageUpload } from '@/components/SimpleImageUpload'
 import { compressImage, blobToFile } from '@/lib/imageCompress'
@@ -417,7 +423,7 @@ export default function CollectorDetailPage({ params }: PageProps) {
 
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl p-4">
+        <div className="mx-auto max-w-4xl p-4 pb-20 sm:pb-4">
           {collection.messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-4 text-gray-400">
@@ -455,8 +461,8 @@ export default function CollectorDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* 底部输入区 */}
-      <div className="border-t bg-white p-3 sm:p-4">
+      {/* 底部输入区 - 移动端固定在屏幕底部 */}
+      <div className="border-t bg-white p-3 sm:p-4 sticky bottom-0 z-10 shadow-lg sm:shadow-none">
         <div className="mx-auto flex max-w-4xl items-center justify-center gap-2 sm:gap-4">
           <Button
             variant="outline"
