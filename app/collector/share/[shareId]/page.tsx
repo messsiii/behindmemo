@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Image as ImageIcon, Share2 } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Share2, Home } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import AudioRecorder from '@/app/components/collector/AudioRecorder'
 import MessageList from '@/app/components/collector/MessageList'
@@ -337,9 +337,9 @@ export default function CollectorSharePage({ params }: PageProps) {
       {/* 顶部标题栏 */}
       <div className="border-b bg-white px-4 py-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.push('/')}>
-              <ArrowLeft className="h-5 w-5" />
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="回到首页">
+              <Home className="h-5 w-5" />
             </Button>
             <div>
               <h1 className="text-lg font-semibold">{collection.title}</h1>

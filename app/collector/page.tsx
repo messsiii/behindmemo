@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Plus, Calendar, MessageSquare, MoreVertical, Trash2 } from 'lucide-react'
+import { Plus, Calendar, MessageSquare, MoreVertical, Trash2, Home } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -116,9 +116,14 @@ export default function CollectorPage() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* 页面标题和创建按钮 */}
         <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">记忆收集</h1>
-            <p className="mt-2 text-gray-600">和朋友一起收集美好的回忆</p>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="回到首页">
+              <Home className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">记忆收集</h1>
+              <p className="mt-2 text-gray-600">和朋友一起收集美好的回忆</p>
+            </div>
           </div>
           <Button onClick={handleCreate} disabled={creating} className="flex items-center gap-2">
             <Plus className="h-5 w-5" />

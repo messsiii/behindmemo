@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Share2, Edit2, Check, X, Image as ImageIcon, Upload } from 'lucide-react'
+import { ArrowLeft, Share2, Edit2, Check, X, Image as ImageIcon, Upload, Home } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import AudioRecorder from '@/app/components/collector/AudioRecorder'
 import MessageList from '@/app/components/collector/MessageList'
@@ -305,8 +305,16 @@ export default function CollectorDetailPage({ params }: PageProps) {
       {/* 顶部标题栏 */}
       <div className="border-b bg-white px-4 py-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.push('/collector')}>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="回到首页">
+              <Home className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push('/collector')}
+              title="返回收集列表"
+            >
               <ArrowLeft className="h-5 w-5" />
             </Button>
 
