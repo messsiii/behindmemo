@@ -45,16 +45,21 @@ export default function CollectorDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [editingTitle, setEditingTitle] = useState(false)
   const [title, setTitle] = useState('')
+  const [originalTitle, setOriginalTitle] = useState('')
   const [showImageUpload, setShowImageUpload] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingMainImage, setUploadingMainImage] = useState(false)
 
   useEffect(() => {
     fetchCollection()
-    // 轮询新消息
-    const interval = setInterval(fetchCollection, 5000)
+    // 轮询新消息，但在编辑标题时暂停
+    const interval = setInterval(() => {
+      if (!editingTitle) {
+        fetchCollection()
+      }
+    }, 5000)
     return () => clearInterval(interval)
-  }, [id])
+  }, [id, editingTitle])
 
   const fetchCollection = async () => {
     try {
@@ -62,7 +67,11 @@ export default function CollectorDetailPage({ params }: PageProps) {
       if (!response.ok) throw new Error('获取失败')
       const data = await response.json()
       setCollection(data)
-      setTitle(data.title)
+      // 只在不编辑标题时更新 title 状态，避免干扰用户输入
+      if (!editingTitle) {
+        setTitle(data.title)
+        setOriginalTitle(data.title)
+      }
       setLoading(false)
     } catch (error) {
       console.error('获取收集详情失败:', error)
@@ -243,42 +252,61 @@ export default function CollectorDetailPage({ params }: PageProps) {
     }
 
     const shareUrl = `${window.location.origin}/collector/share/${collection.shareUrl}`
+    const creatorName = collection.creator.name || '朋友'
+
+    // 检测用户语言环境
+    const isEnglish = navigator.language.startsWith('en')
+
+    const shareTitle = isEnglish
+      ? `${creatorName} invites you to complete the memory`
+      : `${creatorName}请你一起完成回忆`
+
+    const shareText = isEnglish
+      ? `Join "${collection.title}" memory collection! Upload photos and record audio to capture beautiful moments together.\n\n${shareUrl}`
+      : `来参与「${collection.title}」的记忆收集吧！一起上传照片和录制语音，记录美好时刻。\n\n${shareUrl}`
 
     try {
       // 尝试使用原生分享 API（移动端）
       if (navigator.share && /mobile|android|iphone/i.test(navigator.userAgent)) {
         await navigator.share({
-          title: collection.title,
-          text: `来参与「${collection.title}」的记忆收集吧！`,
+          title: shareTitle,
+          text: shareText, // 将URL包含在text中，确保所有平台都能获取到完整链接
           url: shareUrl,
         })
-        toast.success('分享成功')
+        toast.success(isEnglish ? 'Shared successfully' : '分享成功')
       } else {
         // 桌面端复制到剪贴板
         await navigator.clipboard.writeText(shareUrl)
-        toast.success('分享链接已复制到剪贴板')
+        toast.success(isEnglish ? 'Share link copied to clipboard' : '分享链接已复制到剪贴板')
         console.log('[分享] 链接已复制:', shareUrl)
       }
     } catch (error) {
-      // 如果剪贴板 API 失败，使用备用方法
-      const textArea = document.createElement('textarea')
-      textArea.value = shareUrl
-      textArea.style.position = 'fixed'
-      textArea.style.opacity = '0'
-      document.body.appendChild(textArea)
-      textArea.select()
-
+      // 如果原生分享失败，回退到复制链接
       try {
-        document.execCommand('copy')
-        toast.success('分享链接已复制')
-        console.log('[分享] 链接已复制（备用方法）:', shareUrl)
-      } catch (e) {
-        console.error('[分享] 复制失败:', e)
-        // 显示链接让用户手动复制
-        toast.error('复制失败，请手动复制链接')
-        prompt('请手动复制分享链接：', shareUrl)
-      } finally {
-        document.body.removeChild(textArea)
+        await navigator.clipboard.writeText(shareUrl)
+        toast.success(isEnglish ? 'Share link copied to clipboard' : '分享链接已复制到剪贴板')
+        console.log('[分享] 链接已复制:', shareUrl)
+      } catch (clipboardError) {
+        // 如果剪贴板 API 也失败，使用备用方法
+        const textArea = document.createElement('textarea')
+        textArea.value = shareUrl
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.select()
+
+        try {
+          document.execCommand('copy')
+          toast.success(isEnglish ? 'Share link copied' : '分享链接已复制')
+          console.log('[分享] 链接已复制（备用方法）:', shareUrl)
+        } catch (e) {
+          console.error('[分享] 复制失败:', e)
+          // 显示链接让用户手动复制
+          toast.error(isEnglish ? 'Copy failed, please copy manually' : '复制失败，请手动复制链接')
+          prompt(isEnglish ? 'Please copy the share link manually:' : '请手动复制分享链接：', shareUrl)
+        } finally {
+          document.body.removeChild(textArea)
+        }
       }
     }
   }
@@ -339,7 +367,7 @@ export default function CollectorDetailPage({ params }: PageProps) {
                   size="icon"
                   variant="ghost"
                   onClick={() => {
-                    setTitle(collection.title)
+                    setTitle(originalTitle)
                     setEditingTitle(false)
                   }}
                 >
@@ -350,7 +378,14 @@ export default function CollectorDetailPage({ params }: PageProps) {
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold">{collection.title}</h1>
                 {isCreator && (
-                  <Button size="icon" variant="ghost" onClick={() => setEditingTitle(true)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setOriginalTitle(collection?.title || '')
+                      setEditingTitle(true)
+                    }}
+                  >
                     <Edit2 className="h-4 w-4" />
                   </Button>
                 )}
