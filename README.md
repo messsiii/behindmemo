@@ -4,13 +4,13 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 
 ## 技术栈
 
-- **前端框架**: Next.js 14 (App Router)
+- **前端框架**: Next.js 15 (App Router)
 - **样式**: Tailwind CSS + Shadcn/ui
 - **数据库**: PostgreSQL (Neon)
 - **缓存**: Upstash Redis
 - **认证**: NextAuth.js
-- **AI**: MiniMax
-- **存储**: Vercel Blob
+- **AI**: MiniMax / Gemini / GPT-4
+- **存储**: Cloudflare R2 (图片、音频、媒体文件)
 - **部署**: Vercel
 
 ## 核心功能
@@ -75,6 +75,7 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ## 数据模型
 
 ### User 用户模型
+
 ```typescript
 {
   id: string            // 用户唯一标识符
@@ -102,6 +103,7 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ```
 
 ### Letter 信件模型
+
 ```typescript
 {
   id: string          // 信件唯一标识符
@@ -129,6 +131,7 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ```
 
 ### Subscription 订阅模型
+
 ```typescript
 {
   id: string               // 订阅唯一标识符
@@ -148,6 +151,7 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ```
 
 ### Transaction 交易模型
+
 ```typescript
 {
   id: string               // 交易唯一标识符
@@ -165,18 +169,20 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ```
 
 ### TemplateUnlock 模板解锁模型
+
 ```typescript
 {
-  id: string               // 唯一标识符
-  userId: string           // 关联的用户 ID
-  letterId: string         // 关联的信件 ID
-  templateId: string       // 模板ID
-  createdAt: Date          // 创建时间
-  updatedAt: Date          // 更新时间
+  id: string // 唯一标识符
+  userId: string // 关联的用户 ID
+  letterId: string // 关联的信件 ID
+  templateId: string // 模板ID
+  createdAt: Date // 创建时间
+  updatedAt: Date // 更新时间
 }
 ```
 
 ### Account 账号模型（OAuth）
+
 ```typescript
 {
   id: string               // 账号唯一标识符
@@ -195,39 +201,45 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ```
 
 ### Session 会话模型
+
 ```typescript
 {
-  id: string        // 会话唯一标识符
+  id: string // 会话唯一标识符
   sessionToken: string // 会话令牌（唯一）
-  userId: string    // 关联的用户 ID
-  expires: Date     // 过期时间
+  userId: string // 关联的用户 ID
+  expires: Date // 过期时间
 }
 ```
 
 ### VerificationToken 验证令牌模型
+
 ```typescript
 {
   identifier: string // 标识符
-  token: string     // 验证令牌（唯一）
-  expires: Date     // 过期时间
+  token: string // 验证令牌（唯一）
+  expires: Date // 过期时间
 }
 ```
 
 ### WebhookEvent Webhook事件模型
+
 ```typescript
 {
-  id: string           // 唯一标识符  
+  id: string // 唯一标识符
   paddleEventId: string // Paddle事件ID
-  eventType: string     // 事件类型
-  eventData: object     // 事件数据
-  processedAt: Date?    // 处理时间
-  status: string        // 状态
-  error: string?        // 错误信息
-  createdAt: Date       // 创建时间
+  eventType: string // 事件类型
+  eventData: object // 事件数据
+  processedAt: Date // 处理时间
+    ? status
+    : string // 状态
+  error: string // 错误信息
+    ? createdAt
+    : Date // 创建时间
 }
 ```
 
 ### Price 价格模型
+
 ```typescript
 {
   id: string          // 价格ID
@@ -246,6 +258,7 @@ Behind Memory 是一个基于 AI 的情书生成器，帮助用户通过照片�
 ```
 
 ### AnonymousRequest 匿名请求模型
+
 ```typescript
 {
   id: string         // 唯一标识符
@@ -303,28 +316,33 @@ NEXT_PUBLIC_PADDLE_CREDITS_1000_PRICE_ID=
 ## 开发指南
 
 1. 克隆项目
+
 ```bash
 git clone https://github.com/messsiii/behindmemo.git
 cd behindmemo
 ```
 
 2. 安装依赖
+
 ```bash
 npm install
 ```
 
 3. 配置环境变量
+
 ```bash
 cp .env.example .env.local
 # 编辑 .env.local 填入必要的环境变量
 ```
 
 4. 运行开发服务器
+
 ```bash
 npm run dev
 ```
 
 5. 开发注意事项
+
 - 使用 `npm run lint` 检查代码规范
 - 使用 `npm run test` 运行测试
 - 使用 `npm run build` 构建生产版本
@@ -369,12 +387,14 @@ npm run dev
 ### 1. 性能优化
 
 1. 流式生成优化
+
    - 实现 SSE (Server-Sent Events)
    - 分块返回生成的内容
    - 前端实时显示生成进度
    - 优化超时处理机制
 
 2. 数据库性能优化
+
    - 减少不必要的数据库查询
    - 优化 Prisma 查询性能
    - 使用缓存减少重复操作
@@ -389,6 +409,7 @@ npm run dev
 ### 2. 架构优化
 
 1. 服务器限制适配
+
    - 适配 Vercel Hobby 计划限制
    - 实现任务队列处理
    - 添加任务状态管理
@@ -427,6 +448,7 @@ npm run dev
 ## 页面结构
 
 ### 主页 (app/page.tsx)
+
 - 响应式英雄区设计
 - 特性展示区
 - 动态导航栏
@@ -434,6 +456,7 @@ npm run dev
 - 登录状态管理
 
 ### 写作页面 (app/write/page.tsx)
+
 - 照片上传组件
 - 表单验证
 - 实时预览
@@ -441,6 +464,7 @@ npm run dev
 - 错误处理
 
 ### 结果页面 (app/result/page.tsx)
+
 - 信件展示
 - 导出功能
 - 分享功能
@@ -448,6 +472,7 @@ npm run dev
 - 返回首页
 
 ### 历史记录 (app/history/page.tsx)
+
 - 信件列表
 - 分页功能
 - 筛选功能
@@ -762,20 +787,20 @@ app/
 ```typescript
 const TEMPLATES = {
   // 现有模板...
-  // 当前已有模板包括: classic, postcard, magazine, artisan, natural, darkWine, 
+  // 当前已有模板包括: classic, postcard, magazine, artisan, natural, darkWine,
   // paperMemo, oceanBreeze, darkCrimson, purpleDream, elegantPaper, roseParchment
-  
+
   myNewTemplate: {
     name: '模板名称',
     style: {
-      width: 1200,            // 推荐宽度1173-1200px
-      padding: 60,            // 内边距大小影响内容区域
+      width: 1200, // 推荐宽度1173-1200px
+      padding: 60, // 内边距大小影响内容区域
       background: 'url(/images/my-bg.jpg) no-repeat center center / cover', // 背景可使用图片或渐变色
-      titleFont: '"Source Serif Pro", serif',  // 标题字体
+      titleFont: '"Source Serif Pro", serif', // 标题字体
       contentFont: '"Source Serif Pro", serif', // 内容字体
     },
-    isFree: false // 是否为免费模板，true表示免费，false表示需要VIP或解锁
-  }
+    isFree: false, // 是否为免费模板，true表示免费，false表示需要VIP或解锁
+  },
 }
 ```
 
@@ -808,8 +833,8 @@ case 'myNewTemplate':
           overflow: hidden;
           box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         ">
-          <img 
-            src="${letter.imageUrl}" 
+          <img
+            src="${letter.imageUrl}"
             style="
               width: 100%;
               height: auto;
@@ -862,7 +887,7 @@ key === 'myNewTemplate' && "overflow-hidden", // 使用背景图时设置overflo
 // 2. 如果使用背景图，添加背景图层
 {key === 'myNewTemplate' && (
   <>
-    <div className="absolute inset-0 bg-cover bg-center" 
+    <div className="absolute inset-0 bg-cover bg-center"
          style={{ backgroundImage: 'url(/images/my-bg.jpg)' }}></div>
     <div className="absolute inset-0 bg-black/10"></div> // 添加轻微遮罩提高文字可见度
   </>
@@ -895,8 +920,8 @@ key === 'myNewTemplate'
 // 页面级背景适配
 <div className={cn(
   "min-h-screen overflow-x-hidden",
-  selectedTemplate === 'myNewTemplate' 
-    ? "bg-[url('/images/my-bg.jpg')] bg-cover bg-center bg-fixed" 
+  selectedTemplate === 'myNewTemplate'
+    ? "bg-[url('/images/my-bg.jpg')] bg-cover bg-center bg-fixed"
     : // 其他模板的背景
 )}>
 
@@ -904,7 +929,7 @@ key === 'myNewTemplate'
 <div className={cn(
   "backdrop-blur-lg rounded-2xl p-8 md:p-10 shadow-2xl border transition-all duration-500",
   selectedTemplate === 'myNewTemplate'
-    ? "bg-[#颜色代码]/80 border-[#颜色代码]/10" 
+    ? "bg-[#颜色代码]/80 border-[#颜色代码]/10"
     : "bg-white/90 border-black/5"
 )}>
 ```
@@ -928,16 +953,19 @@ key === 'myNewTemplate'
 
 #### 6. 注意事项和最佳实践
 
-1. **水印选择**: 
+1. **水印选择**:
+
    - 浅色背景模板（如Postcard、Magazine）使用浅色水印（`watermark-light.svg`）
    - 深色背景模板（如Classic Dark、Dark Wine）使用深色水印（`watermark-dark.svg`）
 
 2. **背景图片**:
+
    - 背景图尺寸建议为1200×1600px或更大，以适应不同屏幕
    - 优化图片文件大小，保持质量的同时减少加载时间
    - 图片放置于`/public/images/`目录下
 
 3. **文字和图片区域**:
+
    - 文字区域应有足够的对比度，确保可读性
    - 为图片区域添加适当的阴影和圆角，提升视觉效果
    - 根据内容类型（情书、明信片等）调整布局和间距

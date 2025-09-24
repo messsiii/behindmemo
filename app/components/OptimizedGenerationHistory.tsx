@@ -4,18 +4,18 @@ import { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
-import { 
-  Download, 
-  Trash2, 
-  Loader2, 
-  Eye, 
+import {
+  Download,
+  Trash2,
+  Loader2,
+  Eye,
   AlertCircle,
   CheckCircle2,
   XCircle,
   Clock,
   RefreshCw,
   Copy,
-  Check
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -55,6 +55,18 @@ interface ImageGenerationRecord {
   } | null
 }
 
+interface GenerationHistoryResponse {
+  records: ImageGenerationRecord[]
+  pagination?: {
+    offset: number
+    limit: number
+    totalCount?: number
+    hasMore?: boolean
+  }
+  warning?: string
+  error?: string
+}
+
 interface OptimizedGenerationHistoryProps {
   onUseAsInput?: (imageUrl: string, type: 'input' | 'output', metadata?: any) => void
   className?: string
@@ -62,84 +74,85 @@ interface OptimizedGenerationHistoryProps {
 }
 
 // 图片懒加载组件
-const LazyImage = memo(({ 
-  src, 
-  alt, 
-  className,
-  priority = false,
-  onError,
-  onClick
-}: { 
-  src: string
-  alt: string
-  className?: string
-  priority?: boolean
-  onError?: () => void
-  onClick?: () => void
-}) => {
-  const [isInView, setIsInView] = useState(false)
-  const [hasError, setHasError] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+const LazyImage = memo(
+  ({
+    src,
+    alt,
+    className,
+    priority = false,
+    onError,
+    onClick,
+  }: {
+    src: string
+    alt: string
+    className?: string
+    priority?: boolean
+    onError?: () => void
+    onClick?: () => void
+  }) => {
+    const [isInView, setIsInView] = useState(false)
+    const [hasError, setHasError] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!ref.current || priority) {
-      setIsInView(true)
-      return
+    useEffect(() => {
+      if (!ref.current || priority) {
+        setIsInView(true)
+        return
+      }
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setIsInView(true)
+            observer.disconnect()
+          }
+        },
+        {
+          rootMargin: '50px',
+          threshold: 0.01,
+        }
+      )
+
+      observer.observe(ref.current)
+
+      return () => observer.disconnect()
+    }, [priority])
+
+    const handleError = () => {
+      setHasError(true)
+      onError?.()
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true)
-          observer.disconnect()
-        }
-      },
-      { 
-        rootMargin: '50px',
-        threshold: 0.01 
-      }
+    return (
+      <div
+        ref={ref}
+        className={cn('relative w-full h-full overflow-hidden bg-black/20', className)}
+        onClick={onClick}
+      >
+        {isInView && !hasError ? (
+          <Image
+            src={src}
+            alt={alt}
+            fill
+            sizes="(max-width: 768px) 50vw, 33vw"
+            className="object-cover"
+            unoptimized
+            onError={handleError}
+            loading={priority ? 'eager' : 'lazy'}
+          />
+        ) : hasError ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-white/40" />
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
     )
-
-    observer.observe(ref.current)
-
-    return () => observer.disconnect()
-  }, [priority])
-
-  const handleError = () => {
-    setHasError(true)
-    onError?.()
   }
-
-
-  return (
-    <div 
-      ref={ref} 
-      className={cn("relative w-full h-full overflow-hidden bg-black/20", className)}
-      onClick={onClick}
-    >
-      {isInView && !hasError ? (
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          sizes="(max-width: 768px) 50vw, 33vw"
-          className="object-cover"
-          unoptimized
-          onError={handleError}
-          loading={priority ? "eager" : "lazy"}
-        />
-      ) : hasError ? (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <AlertCircle className="w-8 h-8 text-white/40" />
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-        </div>
-      )}
-    </div>
-  )
-})
+)
 
 LazyImage.displayName = 'LazyImage'
 
@@ -152,22 +165,30 @@ const fetcher = async (url: string) => {
   return res.json()
 }
 
-export default function OptimizedGenerationHistory({ 
+export default function OptimizedGenerationHistory({
   onUseAsInput,
   className,
-  onRefreshReady
+  onRefreshReady,
 }: OptimizedGenerationHistoryProps) {
   const { language } = useLanguage()
   const { data: session } = useSession()
   const [page, setPage] = useState(0)
   const [records, setRecords] = useState<ImageGenerationRecord[]>([])
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [viewingImage, setViewingImage] = useState<{ url: string, type: 'input' | 'output' } | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [viewingImage, setViewingImage] = useState<{
+    url: string
+    type: 'input' | 'output'
+  } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const revalidateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const deleteQueueRef = useRef<Promise<void>>(Promise.resolve())
+
+  // 添加一个状态来控制是否开始加载数据
+  const [shouldFetch, setShouldFetch] = useState(false)
 
   // 用户登录后自动开始获取数据
   useEffect(() => {
@@ -175,6 +196,14 @@ export default function OptimizedGenerationHistory({
       setShouldFetch(true)
     }
   }, [session?.user?.id])
+
+  useEffect(() => {
+    return () => {
+      if (revalidateTimeoutRef.current) {
+        clearTimeout(revalidateTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // 完全移除自动更新检查功能，只在用户手动刷新时获取最新数据
 
@@ -185,14 +214,12 @@ export default function OptimizedGenerationHistory({
     if (!session?.user?.id) return null
     const limit = page === 0 ? 10 : 20
     const offset = page === 0 ? 0 : 10 + (page - 1) * 20
-    return `/api/user/generation-history?limit=${limit}&offset=${offset}`
+    // 添加 skipCount 参数以加快查询速度
+    return `/api/user/generation-history?limit=${limit}&offset=${offset}&skipCount=true`
   }, [session?.user?.id, page])
 
-  // 添加一个状态来控制是否开始加载数据
-  const [shouldFetch, setShouldFetch] = useState(false)
-  
   // 使用 SWR 获取数据 - 简化配置，移除缓存fallback
-  const { data, error, mutate, isLoading } = useSWR(
+  const { data, error, mutate, isLoading } = useSWR<GenerationHistoryResponse>(
     shouldFetch ? swrKey : null,
     fetcher,
     {
@@ -200,6 +227,9 @@ export default function OptimizedGenerationHistory({
       revalidateOnReconnect: false,
       dedupingInterval: 5000, // 5秒去重时间
       refreshInterval: 0, // 禁用自动刷新
+      onError: err => {
+        console.error('Failed to fetch generation history:', err)
+      },
     }
   )
 
@@ -213,7 +243,9 @@ export default function OptimizedGenerationHistory({
         // 后续页：累加到现有记录
         setRecords(prev => {
           const existingIds = new Set(prev.map(r => r.id))
-          const newRecords = data.records.filter((r: ImageGenerationRecord) => !existingIds.has(r.id))
+          const newRecords = data.records.filter(
+            (r: ImageGenerationRecord) => !existingIds.has(r.id)
+          )
           return [...prev, ...newRecords]
         })
       }
@@ -253,53 +285,157 @@ export default function OptimizedGenerationHistory({
 
   // 无限滚动加载更多
   useEffect(() => {
-    if (!loadMoreRef.current || !data?.pagination?.hasMore) return
+    // 延迟一帧确保DOM已更新
+    const timer = setTimeout(() => {
+      const element = loadMoreRef.current
+      if (!element) return
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isLoading) {
-          setPage(prev => prev + 1)
+      // 简化判断：只要有hasMore标志且当前没有在加载中就可以
+      if (!data?.pagination?.hasMore) return
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting && !isLoading && data?.pagination?.hasMore) {
+            setPage(prev => prev + 1)
+          }
+        },
+        {
+          rootMargin: '200px',
+          threshold: 0.1,
         }
-      },
-      { rootMargin: '100px' }
-    )
+      )
 
-    observer.observe(loadMoreRef.current)
+      observer.observe(element)
 
-    return () => observer.disconnect()
-  }, [data?.pagination?.hasMore, isLoading])
+      return () => observer.disconnect()
+    }, 100)
 
-  // 删除记录 - 移除缓存逻辑
+    return () => clearTimeout(timer)
+  }, [data?.pagination?.hasMore, isLoading, page])
+
+  // 删除记录 - 支持并发删除
+  const enqueueDelete = useCallback((task: () => Promise<void>) => {
+    const run = deleteQueueRef.current.then(() => task())
+    deleteQueueRef.current = run
+      .catch(error => {
+        console.warn('Delete queue encountered error, continuing with next task', error)
+      })
+      .then(() => undefined)
+    return run
+  }, [])
+
   const handleDelete = async (id: string) => {
-    setDeletingId(id)
-    try {
-      const response = await fetch(`/api/user/generation-history/${id}`, {
-        method: 'DELETE'
-      })
+    let alreadyDeleting = false
 
-      if (!response.ok) throw new Error('Failed to delete')
+    setDeletingIds(prev => {
+      if (prev.has(id)) {
+        alreadyDeleting = true
+        return prev
+      }
 
-      // 立即从列表中移除
-      setRecords(prev => prev.filter(r => r.id !== id))
-      
-      toast({
-        title: language === 'en' ? 'Deleted' : '已删除',
-        description: language === 'en' ? 'Record deleted successfully' : '记录删除成功',
-      })
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
 
-      // 后台更新 SWR 缓存
-      mutate()
-    } catch (error) {
-      console.error('Delete error:', error)
-      toast({
-        title: language === 'en' ? 'Error' : '错误',
-        description: language === 'en' ? 'Failed to delete record' : '删除失败',
-        variant: 'destructive'
-      })
-    } finally {
-      setDeletingId(null)
-      setDeleteConfirmId(null)
+    if (alreadyDeleting) {
+      return
     }
+
+    const executeDelete = async () => {
+      try {
+        const maxAttempts = 2
+        let lastError: Error | null = null
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const response = await fetch(`/api/user/generation-history/${id}`, {
+              method: 'DELETE',
+              headers: {
+                'x-request-attempt': String(attempt),
+              },
+              cache: 'no-store',
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+              throw new Error(errorData.error || `Failed to delete (attempt ${attempt})`)
+            }
+
+            // 删除成功，结束循环
+            lastError = null
+            break
+          } catch (error: any) {
+            lastError = error instanceof Error ? error : new Error(String(error))
+            if (attempt < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, attempt * 150))
+              continue
+            }
+            throw lastError
+          }
+        }
+
+        // 立即从列表中移除
+        setRecords(prev => prev.filter(r => r.id !== id))
+
+        await mutate(
+          (current?: GenerationHistoryResponse) => {
+            if (!current) return current
+
+            const filtered = current.records.filter(record => record.id !== id)
+            const pagination = current.pagination
+              ? {
+                  ...current.pagination,
+                  totalCount:
+                    typeof current.pagination.totalCount === 'number'
+                      ? Math.max(0, current.pagination.totalCount - 1)
+                      : current.pagination.totalCount,
+                }
+              : current?.pagination
+
+            return {
+              ...current,
+              records: filtered,
+              pagination,
+            }
+          },
+          { revalidate: false, populateCache: true }
+        )
+
+        toast({
+          title: language === 'en' ? 'Deleted' : '已删除',
+          description: language === 'en' ? 'Record deleted successfully' : '记录删除成功',
+        })
+
+        if (revalidateTimeoutRef.current) {
+          clearTimeout(revalidateTimeoutRef.current)
+        }
+        revalidateTimeoutRef.current = setTimeout(() => {
+          void mutate()
+        }, 400)
+      } catch (error: any) {
+        console.error('Delete error for id:', id, error)
+
+        toast({
+          title: language === 'en' ? 'Error' : '错误',
+          description: language === 'en' ? 'Failed to delete record' : '删除记录失败',
+          variant: 'destructive',
+        })
+      } finally {
+        // 从正在删除的集合中移除
+        setDeletingIds(prev => {
+          if (!prev.has(id)) return prev
+          const newSet = new Set(prev)
+          newSet.delete(id)
+          return newSet
+        })
+
+        // 如果是当前确认对话框的记录，关闭对话框
+        setDeleteConfirmId(prev => (prev === id ? null : prev))
+      }
+    }
+
+    await enqueueDelete(executeDelete)
   }
 
   // 刷新数据 - 移除缓存逻辑
@@ -347,7 +483,7 @@ export default function OptimizedGenerationHistory({
 
   if (!session?.user) {
     return (
-      <Card className={cn("!bg-black/20 backdrop-blur-lg border-white/10", className)}>
+      <Card className={cn('!bg-black/20 backdrop-blur-lg border-white/10', className)}>
         <CardContent className="py-12 text-center text-white/60">
           <p>{language === 'en' ? 'Please sign in to view history' : '请登录查看历史记录'}</p>
         </CardContent>
@@ -357,7 +493,7 @@ export default function OptimizedGenerationHistory({
 
   if (error) {
     return (
-      <Card className={cn("!bg-black/20 backdrop-blur-lg border-white/10", className)}>
+      <Card className={cn('!bg-black/20 backdrop-blur-lg border-white/10', className)}>
         <CardContent className="py-12 text-center">
           <AlertCircle className="w-8 h-8 mx-auto mb-4 text-red-400" />
           <p className="text-white/80">
@@ -367,15 +503,15 @@ export default function OptimizedGenerationHistory({
             onClick={handleRefresh}
             variant="outline"
             className={cn(
-              "mt-4",
+              'mt-4',
               // 正常状态：深色背景，白色文字，白色边框
-              "bg-black/60 border-white/60 text-white",
+              'bg-black/60 border-white/60 text-white',
               // hover状态：更深的背景，更亮的边框
-              "hover:bg-black/80 hover:border-white/80 hover:text-white",
+              'hover:bg-black/80 hover:border-white/80 hover:text-white',
               // focus状态
-              "focus:bg-black/80 focus:border-white focus:text-white",
+              'focus:bg-black/80 focus:border-white focus:text-white',
               // 确保文字可见性
-              "backdrop-blur-sm font-medium"
+              'backdrop-blur-sm font-medium'
             )}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -388,7 +524,7 @@ export default function OptimizedGenerationHistory({
 
   if (isLoading && records.length === 0) {
     return (
-      <Card className={cn("!bg-black/20 backdrop-blur-lg border-white/10", className)}>
+      <Card className={cn('!bg-black/20 backdrop-blur-lg border-white/10', className)}>
         <CardContent className="py-12">
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
@@ -405,14 +541,14 @@ export default function OptimizedGenerationHistory({
 
   if (records.length === 0) {
     return (
-      <Card className={cn("!bg-black/20 backdrop-blur-lg border-white/10", className)}>
+      <Card className={cn('!bg-black/20 backdrop-blur-lg border-white/10', className)}>
         <CardContent className="py-12 text-center">
           <p className="text-lg font-semibold text-white mb-2">
             {language === 'en' ? 'No generations yet' : '暂无生成记录'}
           </p>
           <p className="text-white/60">
-            {language === 'en' 
-              ? 'Your generation history will appear here' 
+            {language === 'en'
+              ? 'Your generation history will appear here'
               : '您的生成历史将显示在这里'}
           </p>
         </CardContent>
@@ -422,7 +558,7 @@ export default function OptimizedGenerationHistory({
 
   return (
     <>
-      <div className={cn("space-y-4", className)}>
+      <div className={cn('space-y-4', className)}>
         {/* 刷新按钮 */}
         <div className="flex justify-end items-center mb-4">
           <Button
@@ -431,15 +567,15 @@ export default function OptimizedGenerationHistory({
             size="sm"
             className={cn(
               // 正常状态：深色背景，白色文字，白色边框
-              "bg-black/60 border-white/60 text-white",
+              'bg-black/60 border-white/60 text-white',
               // hover状态：更深的背景，更亮的边框
-              "hover:bg-black/80 hover:border-white/80 hover:text-white",
+              'hover:bg-black/80 hover:border-white/80 hover:text-white',
               // focus状态
-              "focus:bg-black/80 focus:border-white focus:text-white",
+              'focus:bg-black/80 focus:border-white focus:text-white',
               // disabled状态：降低透明度但保持对比度
-              "disabled:bg-black/40 disabled:border-white/40 disabled:text-white/70",
+              'disabled:bg-black/40 disabled:border-white/40 disabled:text-white/70',
               // 确保文字可见性
-              "backdrop-blur-sm"
+              'backdrop-blur-sm'
             )}
             disabled={isRefreshing}
           >
@@ -467,108 +603,142 @@ export default function OptimizedGenerationHistory({
                 <Card className="!bg-black/30 backdrop-blur-lg border-white/10 overflow-hidden">
                   <CardContent className="p-0">
                     {/* 图片展示区 */}
-                    <div className={record.inputImageUrl || record.metadata?.referenceImages?.length ? "grid grid-cols-2 gap-0.5" : ""}>
+                    <div
+                      className={
+                        record.inputImageUrl || record.metadata?.referenceImages?.length
+                          ? 'grid grid-cols-2 gap-0.5'
+                          : ''
+                      }
+                    >
                       {/* 输入图片 - 仅在有输入图片时显示 */}
                       {(record.inputImageUrl || record.metadata?.referenceImages?.length) && (
-                      <div className="relative aspect-square group bg-slate-900 overflow-hidden">
-                        {/* 多图参考模式显示多张图片 */}
-                        {record.metadata?.mode === 'multi-reference' && record.metadata?.referenceImages?.length ? (
-                          <div className="relative w-full h-full">
-                            <div className="grid grid-cols-2 gap-0.5 w-full h-full">
-                              {record.metadata?.referenceImages?.slice(0, 4).map((imgUrl: string, idx: number) => (
-                                <div key={idx} className="relative overflow-hidden bg-slate-800">
-                                  <img
-                                    src={imgUrl}
-                                    alt={`Reference ${idx + 1}`}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                  {(record.metadata?.referenceImages?.length || 0) > 4 && idx === 3 && (
-                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                      <span className="text-white text-sm">+{(record.metadata?.referenceImages?.length || 0) - 4}</span>
+                        <div className="relative aspect-square group bg-slate-900 overflow-hidden">
+                          {/* 多图参考模式显示多张图片 */}
+                          {record.metadata?.mode === 'multi-reference' &&
+                          record.metadata?.referenceImages?.length ? (
+                            <div className="relative w-full h-full">
+                              <div className="grid grid-cols-2 gap-0.5 w-full h-full">
+                                {record.metadata?.referenceImages
+                                  ?.slice(0, 4)
+                                  .map((imgUrl: string, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className="relative overflow-hidden bg-slate-800"
+                                    >
+                                      <img
+                                        src={imgUrl}
+                                        alt={`Reference ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                      />
+                                      {(record.metadata?.referenceImages?.length || 0) > 4 &&
+                                        idx === 3 && (
+                                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                            <span className="text-white text-sm">
+                                              +{(record.metadata?.referenceImages?.length || 0) - 4}
+                                            </span>
+                                          </div>
+                                        )}
                                     </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="absolute inset-0 cursor-pointer hover:bg-black/20 transition-colors"
-                                 onClick={() => {
-                                   const url = record.metadata?.referenceImages?.[0] || ''
-                                   if (url) {
-                                     setViewingImage({ url, type: 'input' })
-                                   }
-                                 }}/>
-                          </div>
-                        ) : record.inputImageUrl ? (
-                          <>
-                            <img
-                              src={record.inputImageUrl}
-                              alt="Input image"
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setViewingImage({ url: record.inputImageUrl, type: 'input' })}
-                              loading="lazy"
-                            />
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <AlertCircle className="w-6 h-6 text-white/40" />
-                            <span className="text-xs text-white/40 ml-2">无图片</span>
-                          </div>
-                        )}
-                        {/* 输入图片标签 */}
-                        <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
-                          <span className="text-xs text-white/80">
-                            {record.metadata?.mode === 'multi-reference' 
-                              ? `${language === 'en' ? 'Ref' : '参考'} x${record.metadata.referenceImages?.length || 0}`
-                              : (language === 'en' ? 'Input' : '输入')}
-                          </span>
-                        </div>
-                        {/* 输入图片操作按钮 */}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2">
-                          <div className="flex gap-1">
-                            {onUseAsInput && (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="flex-1 h-7 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  // 多图参考模式传递所有参考图片
-                                  if (record.metadata?.mode === 'multi-reference' && record.metadata?.referenceImages) {
-                                    onUseAsInput('', 'input', record.metadata)
-                                  } else {
-                                    onUseAsInput(record.inputImageUrl || '', 'input', record.metadata)
+                                  ))}
+                              </div>
+                              <div
+                                className="absolute inset-0 cursor-pointer hover:bg-black/20 transition-colors"
+                                onClick={() => {
+                                  const url = record.metadata?.referenceImages?.[0] || ''
+                                  if (url) {
+                                    setViewingImage({ url, type: 'input' })
                                   }
                                 }}
-                              >
-                                {record.metadata?.mode === 'multi-reference' 
-                                  ? (language === 'en' ? 'Restore' : '恢复') 
-                                  : (language === 'en' ? 'Use' : '使用')}
-                              </Button>
-                            )}
-                            {!isMobile && !record.metadata?.referenceImages && (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="h-7 w-7 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  const link = document.createElement('a')
-                                  link.href = record.inputImageUrl
-                                  link.download = `input-${record.id}.png`
-                                  link.click()
-                                }}
-                              >
-                                <Download className="w-3 h-3" />
-                              </Button>
-                            )}
+                              />
+                            </div>
+                          ) : record.inputImageUrl ? (
+                            <>
+                              <img
+                                src={record.inputImageUrl}
+                                alt="Input image"
+                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() =>
+                                  setViewingImage({ url: record.inputImageUrl, type: 'input' })
+                                }
+                                loading="lazy"
+                              />
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <AlertCircle className="w-6 h-6 text-white/40" />
+                              <span className="text-xs text-white/40 ml-2">无图片</span>
+                            </div>
+                          )}
+                          {/* 输入图片标签 */}
+                          <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
+                            <span className="text-xs text-white/80">
+                              {record.metadata?.mode === 'multi-reference'
+                                ? `${language === 'en' ? 'Ref' : '参考'} x${record.metadata.referenceImages?.length || 0}`
+                                : language === 'en'
+                                  ? 'Input'
+                                  : '输入'}
+                            </span>
+                          </div>
+                          {/* 输入图片操作按钮 */}
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2">
+                            <div className="flex gap-1">
+                              {onUseAsInput && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    // 多图参考模式传递所有参考图片
+                                    if (
+                                      record.metadata?.mode === 'multi-reference' &&
+                                      record.metadata?.referenceImages
+                                    ) {
+                                      onUseAsInput('', 'input', record.metadata)
+                                    } else {
+                                      onUseAsInput(
+                                        record.inputImageUrl || '',
+                                        'input',
+                                        record.metadata
+                                      )
+                                    }
+                                  }}
+                                >
+                                  {record.metadata?.mode === 'multi-reference'
+                                    ? language === 'en'
+                                      ? 'Restore'
+                                      : '恢复'
+                                    : language === 'en'
+                                      ? 'Use'
+                                      : '使用'}
+                                </Button>
+                              )}
+                              {!isMobile && !record.metadata?.referenceImages && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-7 w-7 p-0"
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    const link = document.createElement('a')
+                                    link.href = record.inputImageUrl
+                                    link.download = `input-${record.id}.png`
+                                    link.click()
+                                  }}
+                                >
+                                  <Download className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
                       )}
 
                       {/* 输出图片 */}
-                      <div className={`relative aspect-square group bg-slate-900 overflow-hidden ${!record.inputImageUrl && !record.metadata?.referenceImages?.length ? 'col-span-2' : ''}`}>
+                      <div
+                        className={`relative aspect-square group bg-slate-900 overflow-hidden ${!record.inputImageUrl && !record.metadata?.referenceImages?.length ? 'col-span-2' : ''}`}
+                      >
                         {record.status === 'completed' && record.outputImageUrl ? (
                           <>
                             <img
@@ -576,7 +746,8 @@ export default function OptimizedGenerationHistory({
                               alt="Output image"
                               className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                               onClick={() => {
-                                const url = record.localOutputImageUrl || record.outputImageUrl || ''
+                                const url =
+                                  record.localOutputImageUrl || record.outputImageUrl || ''
                                 if (url) {
                                   setViewingImage({ url, type: 'output' })
                                 }
@@ -601,9 +772,13 @@ export default function OptimizedGenerationHistory({
                         {/* 输出图片标签 */}
                         <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
                           <span className="text-xs text-white/80">
-                            {!record.inputImageUrl && !record.metadata?.referenceImages?.length 
-                              ? (language === 'en' ? 'Generated' : '生成') 
-                              : (language === 'en' ? 'Output' : '输出')}
+                            {!record.inputImageUrl && !record.metadata?.referenceImages?.length
+                              ? language === 'en'
+                                ? 'Generated'
+                                : '生成'
+                              : language === 'en'
+                                ? 'Output'
+                                : '输出'}
                           </span>
                         </div>
                         {/* 输出图片操作按钮 */}
@@ -615,9 +790,13 @@ export default function OptimizedGenerationHistory({
                                   size="sm"
                                   variant="secondary"
                                   className="flex-1 h-7 text-xs"
-                                  onClick={(e) => {
+                                  onClick={e => {
                                     e.stopPropagation()
-                                    onUseAsInput(record.localOutputImageUrl || record.outputImageUrl || '', 'output', record.metadata)
+                                    onUseAsInput(
+                                      record.localOutputImageUrl || record.outputImageUrl || '',
+                                      'output',
+                                      record.metadata
+                                    )
                                   }}
                                 >
                                   {language === 'en' ? 'Use' : '使用'}
@@ -628,10 +807,11 @@ export default function OptimizedGenerationHistory({
                                   size="sm"
                                   variant="secondary"
                                   className="h-7 w-7 p-0"
-                                  onClick={(e) => {
+                                  onClick={e => {
                                     e.stopPropagation()
                                     const link = document.createElement('a')
-                                    link.href = record.localOutputImageUrl || record.outputImageUrl || ''
+                                    link.href =
+                                      record.localOutputImageUrl || record.outputImageUrl || ''
                                     link.download = `output-${record.id}.png`
                                     link.click()
                                   }}
@@ -650,9 +830,17 @@ export default function OptimizedGenerationHistory({
                       <div className="flex items-center gap-2">
                         {getStatusIcon(record.status)}
                         <span className="text-xs text-white/60">
-                          {record.status === 'completed' ? (language === 'en' ? 'Completed' : '已完成') :
-                           record.status === 'pending' ? (language === 'en' ? 'Processing' : '处理中') :
-                           (language === 'en' ? 'Failed' : '失败')}
+                          {record.status === 'completed'
+                            ? language === 'en'
+                              ? 'Completed'
+                              : '已完成'
+                            : record.status === 'pending'
+                              ? language === 'en'
+                                ? 'Processing'
+                                : '处理中'
+                              : language === 'en'
+                                ? 'Failed'
+                                : '失败'}
                         </span>
                       </div>
                       <span className="text-xs text-white/60">
@@ -663,9 +851,7 @@ export default function OptimizedGenerationHistory({
                     {/* 提示词和操作区域 */}
                     <div className="p-3 pt-0 space-y-2">
                       <div className="flex items-start gap-2">
-                        <p className="text-xs text-white/80 line-clamp-2 flex-1">
-                          {record.prompt}
-                        </p>
+                        <p className="text-xs text-white/80 line-clamp-2 flex-1">{record.prompt}</p>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -682,20 +868,21 @@ export default function OptimizedGenerationHistory({
                       <div className="flex items-center justify-between text-xs text-white/50">
                         <span>{formatDate(record.createdAt)}</span>
                         <div className="flex items-center gap-2">
-                          {record.model && (
-                            <span className="capitalize">{record.model}</span>
-                          )}
+                          {record.model && <span className="capitalize">{record.model}</span>}
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-6 w-6 p-0 hover:bg-red-500/20"
-                            onClick={() => setDeleteConfirmId(record.id)}
-                            disabled={deletingId === record.id}
+                            className="h-6 w-6 p-0 hover:bg-red-500/20 transition-colors cursor-pointer"
+                            onClick={e => {
+                              e.stopPropagation()
+                              setDeleteConfirmId(record.id)
+                            }}
+                            disabled={deletingIds.has(record.id)}
                           >
-                            {deletingId === record.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
+                            {deletingIds.has(record.id) ? (
+                              <Loader2 className="w-3 h-3 animate-spin text-white" />
                             ) : (
-                              <Trash2 className="w-3 h-3 text-red-400" />
+                              <Trash2 className="w-3 h-3 text-red-400 hover:text-red-300" />
                             )}
                           </Button>
                         </div>
@@ -708,18 +895,25 @@ export default function OptimizedGenerationHistory({
           </AnimatePresence>
         </div>
 
-        {/* 加载更多触发器 */}
-        {data?.pagination?.hasMore && (
-          <div ref={loadMoreRef} className="py-4 text-center">
-            {isLoading ? (
-              <Loader2 className="w-6 h-6 mx-auto text-purple-400 animate-spin" />
-            ) : (
+        {/* 加载更多触发器 - 始终渲染但根据状态控制可见性 */}
+        <div
+          ref={loadMoreRef}
+          className={`py-4 text-center ${!data?.pagination?.hasMore && !isLoading ? 'hidden' : ''}`}
+          style={{ minHeight: '60px' }}
+        >
+          {isLoading ? (
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
               <p className="text-white/40 text-sm">
-                {language === 'en' ? 'Loading more...' : '加载更多...'}
+                {language === 'en' ? 'Loading more...' : '正在加载...'}
               </p>
-            )}
-          </div>
-        )}
+            </div>
+          ) : data?.pagination?.hasMore ? (
+            <p className="text-white/40 text-sm">
+              {language === 'en' ? 'Scroll to load more...' : '滚动加载更多...'}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {/* 删除确认对话框 */}
@@ -764,7 +958,7 @@ export default function OptimizedGenerationHistory({
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               className="relative max-w-4xl max-h-[90vh] w-full h-full"
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             >
               <Image
                 src={viewingImage.url}
@@ -776,16 +970,16 @@ export default function OptimizedGenerationHistory({
               <div className="absolute top-4 right-4 flex gap-2">
                 <div className="bg-black/60 backdrop-blur-sm rounded px-3 py-1">
                   <span className="text-sm text-white">
-                    {viewingImage.type === 'input' 
-                      ? (language === 'en' ? 'Input Image' : '输入图片')
-                      : (language === 'en' ? 'Output Image' : '输出图片')}
+                    {viewingImage.type === 'input'
+                      ? language === 'en'
+                        ? 'Input Image'
+                        : '输入图片'
+                      : language === 'en'
+                        ? 'Output Image'
+                        : '输出图片'}
                   </span>
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setViewingImage(null)}
-                >
+                <Button size="sm" variant="secondary" onClick={() => setViewingImage(null)}>
                   <Eye className="w-4 h-4 mr-2" />
                   {language === 'en' ? 'Close' : '关闭'}
                 </Button>

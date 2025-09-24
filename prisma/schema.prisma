@@ -241,6 +241,7 @@ model ImageGeneration {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+  @@index([userId, createdAt(sort: Desc)])  // 添加复合索引用于优化查询
   @@map("image_generations")
 }
 
