@@ -3,6 +3,25 @@ import { PrismaClient } from '@prisma/client'
 // 防止开发环境中创建多个实例
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
+// 为 Vercel Serverless 环境优化的配置
+const connectionString = process.env.DATABASE_URL || ''
+
+// 构建优化的数据库 URL
+let optimizedUrl = connectionString
+if (connectionString && process.env.NODE_ENV === 'production') {
+  try {
+    const databaseUrl = new URL(connectionString)
+    // Serverless 环境优化参数
+    databaseUrl.searchParams.set('connection_limit', '1') // 单连接
+    databaseUrl.searchParams.set('pool_timeout', '2') // 2秒超时
+    optimizedUrl = databaseUrl.toString()
+  } catch (error) {
+    console.error('Failed to parse DATABASE_URL, using original:', error)
+    // 如果 URL 解析失败，使用原始 URL
+    optimizedUrl = connectionString
+  }
+}
+
 // 添加连接池超时和重试逻辑
 export const prisma =
   globalForPrisma.prisma ||
@@ -10,7 +29,7 @@ export const prisma =
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: optimizedUrl,
       },
     },
     // 添加数据库连接错误重试逻辑
@@ -24,69 +43,11 @@ export const prisma =
 //   })
 // }
 
-// 处理连接关闭错误的健康检查机制
-let isConnected = true
-let healthCheckInterval: NodeJS.Timeout | null = null
-
-// 定期健康检查，确保连接活跃
-const startHealthCheck = () => {
-  if (healthCheckInterval) return
-  
-  // 每60秒执行一次健康检查，比数据库空闲超时短
-  healthCheckInterval = setInterval(async () => {
-    try {
-      // 执行简单查询以保持连接活跃
-      if (isConnected) {
-        await prisma.$queryRaw`SELECT 1`
-      }
-    } catch (error) {
-      console.error('Prisma health check failed:', error)
-      isConnected = false
-      
-      // 尝试重新连接
-      try {
-        await prisma.$disconnect()
-        await prisma.$connect()
-        isConnected = true
-        console.log('Prisma reconnected successfully')
-      } catch (reconnectError) {
-        console.error('Failed to reconnect Prisma:', reconnectError)
-      }
-    }
-  }, 60000) // 60秒
-}
-
-// 启动健康检查
-if (process.env.NODE_ENV === 'production') {
-  startHealthCheck()
-}
+// 在 Vercel Serverless 环境中禁用健康检查
+// Serverless 函数是无状态的，每次请求都会创建新实例
+// 健康检查会导致连接池问题和超时错误
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-// 应用退出前断开连接
-process.on('beforeExit', async () => {
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval)
-    healthCheckInterval = null
-  }
-  await prisma.$disconnect()
-})
-
-// 处理意外关闭
-process.on('SIGINT', async () => {
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval)
-    healthCheckInterval = null
-  }
-  await prisma.$disconnect()
-  process.exit(0)
-})
-
-process.on('SIGTERM', async () => {
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval)
-    healthCheckInterval = null
-  }
-  await prisma.$disconnect()
-  process.exit(0)
-})
+// Serverless 环境不需要手动处理连接关闭
+// Vercel 会自动管理函数生命周期
