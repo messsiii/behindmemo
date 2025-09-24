@@ -334,7 +334,7 @@ export default function CollectorShareClient({ shareId, initialCollection }: Col
   return (
     <div className="flex h-screen flex-col bg-gradient-to-br from-pink-50 to-purple-50">
       {/* 顶部标题栏 */}
-      <div className="border-b bg-white px-4 py-3">
+      <div className="border-b bg-white px-4 py-3 sticky top-0 z-20 shadow-sm backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => router.push('/')} title="回到首页">
@@ -347,9 +347,13 @@ export default function CollectorShareClient({ shareId, initialCollection }: Col
           </div>
 
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowImageUpload(true)}>
+              <ImageIcon className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">图片</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 className="mr-2 h-4 w-4" />
-              分享
+              <span className="hidden sm:inline">分享</span>
             </Button>
 
             {session?.user?.id === collection.creatorId && (
@@ -358,7 +362,8 @@ export default function CollectorShareClient({ shareId, initialCollection }: Col
                 size="sm"
                 onClick={() => router.push(`/collector/${collection.id}`)}
               >
-                返回管理
+                <span className="hidden sm:inline">返回管理</span>
+                <span className="sm:hidden">管理</span>
               </Button>
             )}
           </div>
@@ -427,20 +432,9 @@ export default function CollectorShareClient({ shareId, initialCollection }: Col
         </div>
       )}
 
-      {/* 底部输入区 - 移动端固定在屏幕底部 */}
+      {/* 底部语音输入区 - 移动端固定在屏幕底部 */}
       <div className="border-t bg-white p-3 sm:p-4 sticky bottom-0 z-10 shadow-lg sm:shadow-none">
-        <div className="mx-auto flex max-w-4xl items-center justify-center gap-2 sm:gap-4">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => setShowImageUpload(true)}
-            disabled={uploadingImage}
-            className="rounded-full text-sm sm:text-base"
-          >
-            <ImageIcon className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="hidden sm:inline">上传图片</span>
-            <span className="sm:hidden">图片</span>
-          </Button>
+        <div className="mx-auto flex max-w-4xl items-center justify-center">
           <AudioRecorder onSend={handleSendAudio} />
         </div>
       </div>
