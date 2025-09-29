@@ -189,12 +189,23 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     session?.user ? 'history' : 'introduction'
   )
   const [viewingImage, setViewingImage] = useState<string | null>(null)
+  // 控制是否显示进入动画，避免模型切换时重复播放
+  const [hasInitialAnimated, setHasInitialAnimated] = useState(false)
 
   // Sync selectedModel with pathname when route changes
   useEffect(() => {
     const modelFromPath = getCurrentModelFromPath(pathname)
     setSelectedModel(initialModel === 'banana' ? 'gemini' : modelFromPath)
   }, [pathname, initialModel])
+
+  // 组件首次加载后标记动画已完成，避免模型切换时重复播放
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setHasInitialAnimated(true)
+    }, 1000) // 等待所有初始动画完成（最长延迟为 0.5s）
+
+    return () => clearTimeout(timer)
+  }, [])
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
@@ -1983,9 +1994,9 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         {/* 头部 */}
         <div className="text-center mb-8">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: hasInitialAnimated ? 0 : 0.5 }}
           >
             <Link
               href="/"
@@ -2036,9 +2047,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
         {/* 积分显示 */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={hasInitialAnimated ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{
+            duration: hasInitialAnimated ? 0 : 0.5,
+            delay: hasInitialAnimated ? 0 : 0.1,
+          }}
           className="flex justify-center mb-6"
         >
           <div className="bg-black/20 backdrop-blur-lg rounded-full px-6 py-3 border border-white/10">
@@ -2100,9 +2114,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
         {/* Mode Toggle */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
+          transition={{
+            duration: hasInitialAnimated ? 0 : 0.5,
+            delay: hasInitialAnimated ? 0 : 0.15,
+          }}
           className="mb-6"
         >
           <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white">
@@ -2327,10 +2344,13 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           {/* 输入图片 - 在图片编辑模式和多图参考模式下显示 */}
           {generationMode !== 'text-to-image' && (
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={hasInitialAnimated ? { opacity: 1, x: 0 } : { opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              transition={{
+                duration: hasInitialAnimated ? 0 : 0.5,
+                delay: hasInitialAnimated ? 0 : 0.2,
+              }}
             >
               <Card
                 className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full"
@@ -2629,9 +2649,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
           {/* 提示词输入 */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{
+              duration: hasInitialAnimated ? 0 : 0.5,
+              delay: hasInitialAnimated ? 0 : 0.3,
+            }}
           >
             <Card
               className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full"
@@ -2849,9 +2872,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
           {/* 输出预览 */}
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={hasInitialAnimated ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{
+              duration: hasInitialAnimated ? 0 : 0.5,
+              delay: hasInitialAnimated ? 0 : 0.4,
+            }}
           >
             <Card
               className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full"
@@ -2969,9 +2995,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
         {/* 生成历史和模型介绍选项卡 */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+          transition={{
+            duration: hasInitialAnimated ? 0 : 0.5,
+            delay: hasInitialAnimated ? 0 : 0.5,
+          }}
           className="mt-12"
         >
           <Tabs
