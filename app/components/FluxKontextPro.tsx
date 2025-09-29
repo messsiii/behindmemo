@@ -165,6 +165,21 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
   // Multi-reference mode states
   const [referenceImages, setReferenceImages] = useState<Array<{ url: string; file: File }>>([])
+  const [isRestoringImages, setIsRestoringImages] = useState(() => {
+    // 检查是否有保存的图片需要恢复，避免显示空状态闪烁
+    if (typeof window !== 'undefined') {
+      try {
+        const savedReferenceImages = localStorage.getItem('flux_reference_images')
+        if (savedReferenceImages) {
+          const savedUrls = JSON.parse(savedReferenceImages)
+          return Array.isArray(savedUrls) && savedUrls.length > 0
+        }
+      } catch (error) {
+        console.error('Failed to check saved reference images:', error)
+      }
+    }
+    return false
+  })
   const [processingImageIndex, setProcessingImageIndex] = useState<number | null>(null)
   const [imageInfo, setImageInfo] = useState<ImageInfo>({})
   const [showImageLabels, setShowImageLabels] = useState(false)
@@ -202,10 +217,28 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
 
   const [generationMode, setGenerationMode] = useState<
     'image-to-image' | 'text-to-image' | 'multi-reference'
-  >('multi-reference')
+  >(() => {
+    // 在初始化时就从 localStorage 读取，避免闪烁
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem('flux_generation_mode')
+      if (savedMode && ['image-to-image', 'text-to-image', 'multi-reference'].includes(savedMode)) {
+        return savedMode as 'image-to-image' | 'text-to-image' | 'multi-reference'
+      }
+    }
+    return 'multi-reference'
+  })
   const [aspectRatio, setAspectRatio] = useState<
     '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '1:2' | '2:1'
-  >('1:1')
+  >(() => {
+    // 在初始化时就从 localStorage 读取，避免闪烁
+    if (typeof window !== 'undefined') {
+      const savedRatio = localStorage.getItem('flux_aspect_ratio')
+      if (savedRatio && ['1:1', '16:9', '9:16', '4:3', '3:4', '1:2', '2:1'].includes(savedRatio)) {
+        return savedRatio as '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '1:2' | '2:1'
+      }
+    }
+    return '1:1'
+  })
 
   // Computed values
   const isTextToImageMode = generationMode === 'text-to-image'
@@ -218,22 +251,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     refreshHistoryRef.current = refreshFn
   }, [])
 
-  // Load saved state from localStorage on client side
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Restore aspect ratio
-      const savedRatio = localStorage.getItem('flux_aspect_ratio')
-      if (savedRatio && ['1:1', '16:9', '9:16', '4:3', '3:4', '1:2', '2:1'].includes(savedRatio)) {
-        setAspectRatio(savedRatio as any)
-      }
-
-      // Restore generation mode
-      const savedMode = localStorage.getItem('flux_generation_mode')
-      if (savedMode && ['image-to-image', 'text-to-image', 'multi-reference'].includes(savedMode)) {
-        setGenerationMode(savedMode as any)
-      }
-    }
-  }, [])
+  // 移除了从 localStorage 加载状态的 useEffect，因为现在在 useState 初始化时就直接读取了
 
   // Save generation mode to localStorage when it changes
   useEffect(() => {
@@ -367,6 +385,9 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
           localStorage.removeItem('flux_reference_images')
           localStorage.removeItem('flux_reference_metadata')
         }
+
+        // 状态恢复完成
+        setIsRestoringImages(false)
       }
     }
 
@@ -2439,7 +2460,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                       )}
 
                       {/* Drag and drop zone for initial upload */}
-                      {referenceImages.length === 0 && (
+                      {referenceImages.length === 0 && !isRestoringImages && (
                         <div
                           {...getRootProps()}
                           className={cn(
@@ -2471,6 +2492,18 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                               ? 'Images larger than 1080p will be resized'
                               : '大于1080p的图片将自动调整大小'}
                           </p>
+                        </div>
+                      )}
+
+                      {/* Loading state when restoring images */}
+                      {isRestoringImages && (
+                        <div className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center">
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-white/60">
+                              {language === 'en' ? 'Restoring images...' : '正在恢复图片...'}
+                            </p>
+                          </div>
                         </div>
                       )}
 
