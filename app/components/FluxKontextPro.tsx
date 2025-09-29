@@ -24,7 +24,6 @@ import {
 import { cn } from '@/lib/utils'
 import { imageCache, urlToBlob } from '@/lib/imageCache'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   AlertCircle,
   Download,
@@ -189,23 +188,12 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
     session?.user ? 'history' : 'introduction'
   )
   const [viewingImage, setViewingImage] = useState<string | null>(null)
-  // 控制是否显示进入动画，避免模型切换时重复播放
-  const [hasInitialAnimated, setHasInitialAnimated] = useState(false)
 
   // Sync selectedModel with pathname when route changes
   useEffect(() => {
     const modelFromPath = getCurrentModelFromPath(pathname)
     setSelectedModel(initialModel === 'banana' ? 'gemini' : modelFromPath)
   }, [pathname, initialModel])
-
-  // 组件首次加载后标记动画已完成，避免模型切换时重复播放
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setHasInitialAnimated(true)
-    }, 1000) // 等待所有初始动画完成（最长延迟为 0.5s）
-
-    return () => clearTimeout(timer)
-  }, [])
   const [contentFlaggedError, setContentFlaggedError] = useState<string | null>(null)
   const [generalError, setGeneralError] = useState<string | null>(null)
   const [showCreditsAlert, setShowCreditsAlert] = useState(false)
@@ -1993,11 +1981,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       <div className="max-w-7xl mx-auto">
         {/* 头部 */}
         <div className="text-center mb-8">
-          <motion.div
-            initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: hasInitialAnimated ? 0 : 0.5 }}
-          >
+          <div>
             <Link
               href="/"
               className="inline-flex items-center gap-2 text-white/70 hover:text-white mb-4 transition-colors"
@@ -2042,19 +2026,11 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                   ? 'AI Image Editing that surpasses ChatGPT'
                   : '超过 ChatGPT 的图片编辑'}
             </p>
-          </motion.div>
+          </div>
         </div>
 
         {/* 积分显示 */}
-        <motion.div
-          initial={hasInitialAnimated ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{
-            duration: hasInitialAnimated ? 0 : 0.5,
-            delay: hasInitialAnimated ? 0 : 0.1,
-          }}
-          className="flex justify-center mb-6"
-        >
+        <div className="flex justify-center mb-6">
           <div className="bg-black/20 backdrop-blur-lg rounded-full px-6 py-3 border border-white/10">
             <div className="flex items-center gap-3 text-white">
               {session?.user ? (
@@ -2110,18 +2086,10 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Mode Toggle */}
-        <motion.div
-          initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: hasInitialAnimated ? 0 : 0.5,
-            delay: hasInitialAnimated ? 0 : 0.15,
-          }}
-          className="mb-6"
-        >
+        <div className="mb-6">
           <Card className="!bg-black/20 backdrop-blur-lg border-white/10 text-white">
             <CardContent className="p-4">
               <div className="flex items-center justify-between flex-wrap gap-4">
@@ -2332,7 +2300,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* 主要内容区域 */}
         <div
@@ -2343,15 +2311,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
         >
           {/* 输入图片 - 在图片编辑模式和多图参考模式下显示 */}
           {generationMode !== 'text-to-image' && (
-            <motion.div
-              initial={hasInitialAnimated ? { opacity: 1, x: 0 } : { opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{
-                duration: hasInitialAnimated ? 0 : 0.5,
-                delay: hasInitialAnimated ? 0 : 0.2,
-              }}
-            >
+            <div>
               <Card
                 className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full"
                 data-card="gen-card"
@@ -2644,18 +2604,11 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                   )}
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           )}
 
           {/* 提示词输入 */}
-          <motion.div
-            initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: hasInitialAnimated ? 0 : 0.5,
-              delay: hasInitialAnimated ? 0 : 0.3,
-            }}
-          >
+          <div>
             <Card
               className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full"
               data-card="gen-card"
@@ -2868,17 +2821,10 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                 </Button>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
           {/* 输出预览 */}
-          <motion.div
-            initial={hasInitialAnimated ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{
-              duration: hasInitialAnimated ? 0 : 0.5,
-              delay: hasInitialAnimated ? 0 : 0.4,
-            }}
-          >
+          <div>
             <Card
               className="!bg-black/20 backdrop-blur-lg border-white/10 text-white h-full"
               data-card="gen-card"
@@ -2990,19 +2936,11 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
                 )}
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         </div>
 
         {/* 生成历史和模型介绍选项卡 */}
-        <motion.div
-          initial={hasInitialAnimated ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: hasInitialAnimated ? 0 : 0.5,
-            delay: hasInitialAnimated ? 0 : 0.5,
-          }}
-          className="mt-12"
-        >
+        <div className="mt-12">
           <Tabs
             value={activeTab}
             onValueChange={value => setActiveTab(value as 'history' | 'introduction')}
@@ -3424,7 +3362,7 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
               </Card>
             </TabsContent>
           </Tabs>
-        </motion.div>
+        </div>
       </div>
 
       {/* 多图片编辑器 */}
@@ -3448,46 +3386,38 @@ export default function FluxKontextPro({ initialModel = 'pro' }: FluxKontextProP
       />
 
       {/* 图片查看器 */}
-      <AnimatePresence>
-        {viewingImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setViewingImage(null)}
+      {viewingImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <div
+            className="relative max-w-6xl max-h-[90vh] w-full h-full"
+            onClick={e => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="relative max-w-6xl max-h-[90vh] w-full h-full"
-              onClick={e => e.stopPropagation()}
-            >
-              <img
-                src={viewingImage}
-                alt="Full size generated image"
-                className="w-full h-full object-contain"
-              />
-              <div className="absolute top-4 right-4 flex gap-2">
-                <div className="bg-black/60 backdrop-blur-sm rounded px-3 py-1">
-                  <span className="text-sm text-white">
-                    {language === 'en' ? 'Generated Image' : '生成的图片'}
-                  </span>
-                </div>
-                <Button size="sm" variant="secondary" onClick={() => setViewingImage(null)}>
-                  <X className="w-4 h-4 mr-2" />
-                  {language === 'en' ? 'Close' : '关闭'}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={downloadImage}>
-                  <Download className="w-4 h-4 mr-2" />
-                  {language === 'en' ? 'Download' : '下载'}
-                </Button>
+            <img
+              src={viewingImage}
+              alt="Full size generated image"
+              className="w-full h-full object-contain"
+            />
+            <div className="absolute top-4 right-4 flex gap-2">
+              <div className="bg-black/60 backdrop-blur-sm rounded px-3 py-1">
+                <span className="text-sm text-white">
+                  {language === 'en' ? 'Generated Image' : '生成的图片'}
+                </span>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <Button size="sm" variant="secondary" onClick={() => setViewingImage(null)}>
+                <X className="w-4 h-4 mr-2" />
+                {language === 'en' ? 'Close' : '关闭'}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={downloadImage}>
+                <Download className="w-4 h-4 mr-2" />
+                {language === 'en' ? 'Download' : '下载'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
