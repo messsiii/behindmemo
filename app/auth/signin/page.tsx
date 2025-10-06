@@ -24,7 +24,7 @@ function SignInContent() {
   useEffect(() => {
     setMounted(true)
     // 检测是否为中国站点
-    setIsChinaSite(window.location.hostname.includes('cn.behindmemory.com'))
+    setIsChinaSite(window.location.hostname.includes('behindmemory.cn'))
   }, [])
 
   // 如果有错误，显示错误信息

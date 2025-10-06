@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     // 检测当前访问的域名
     const host = request.headers.get('host') || ''
-    const isChinaSite = host.includes('cn.behindmemory.com')
+    const isChinaSite = host.includes('behindmemory.cn')
 
     return NextResponse.json({
       ip,
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       isChina,
       isChinaSite,
       shouldSuggestSwitch: isChina && !isChinaSite, // 中国用户访问海外站，建议切换
-      suggestedUrl: isChina && !isChinaSite ? 'https://cn.behindmemory.com' : null,
+      suggestedUrl: isChina && !isChinaSite ? 'https://behindmemory.cn' : null,
     })
   } catch (error) {
     console.error('Geo detection error:', error)
