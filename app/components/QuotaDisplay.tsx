@@ -1,3 +1,5 @@
+'use client'
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Infinity, Sparkles } from 'lucide-react'
@@ -29,17 +31,13 @@ export function QuotaDisplay() {
     data: creditsInfo,
     error,
     isLoading,
-    mutate
-  } = useSWR<CreditsInfo>(
-    session?.user?.id ? '/api/user/credits' : null,
-    fetcher,
-    {
-      revalidateOnFocus: true,
-      revalidateOnReconnect: true,
-      refreshWhenHidden: false,
-      refreshWhenOffline: false,
-    }
-  )
+    mutate,
+  } = useSWR<CreditsInfo>(session?.user?.id ? '/api/user/credits' : null, fetcher, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+  })
 
   // 在路由变化时重新获取数据
   useEffect(() => {
@@ -71,9 +69,10 @@ export function QuotaDisplay() {
     )
   }
 
-  const tooltipContent = language === 'en'
-    ? `${creditsInfo?.isVIP ? 'Unlimited credits (VIP)' : `${creditsInfo?.credits} credits remaining`}`
-    : `${creditsInfo?.isVIP ? '无限创作次数（VIP）' : `剩余 ${creditsInfo?.credits} 次创作机会`}`
+  const tooltipContent =
+    language === 'en'
+      ? `${creditsInfo?.isVIP ? 'Unlimited credits (VIP)' : `${creditsInfo?.credits} credits remaining`}`
+      : `${creditsInfo?.isVIP ? '无限创作次数（VIP）' : `剩余 ${creditsInfo?.credits} 次创作机会`}`
 
   return (
     <TooltipProvider>
@@ -96,4 +95,4 @@ export function QuotaDisplay() {
       </Tooltip>
     </TooltipProvider>
   )
-} 
+}

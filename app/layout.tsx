@@ -1,6 +1,7 @@
 import { authConfig } from '@/auth'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import { Providers } from '@/components/Providers'
+import { ChinaRegionNotice } from '@/app/components/ChinaRegionNotice'
 import { Analytics } from '@vercel/analytics/react'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -92,7 +93,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className={inter.className}>
-        <Providers session={session}>{children}</Providers>
+        <Providers session={session}>
+          <ChinaRegionNotice />
+          {children}
+        </Providers>
         <Analytics />
         <GoogleAnalytics />
       </body>
