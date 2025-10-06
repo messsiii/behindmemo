@@ -1,10 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone', // 开启独立输出模式（支持Docker部署）
   images: {
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'images.behindmemory.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.myqcloud.com', // 腾讯云COS默认域名
+      },
+      {
+        protocol: 'https',
+        hostname: '**.tencentcos.cn', // 腾讯云COS自定义域名
       },
       {
         protocol: 'https',
