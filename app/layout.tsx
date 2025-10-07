@@ -10,6 +10,19 @@ import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
+// 动态获取站点URL
+const getSiteUrl = () => {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
+  if (process.env.STORAGE_PROVIDER === 'tencent-cos') {
+    return 'https://behindmemory.cn'
+  }
+  return 'https://www.behindmemory.com'
+}
+
+const siteUrl = getSiteUrl()
+
 export const metadata: Metadata = {
   title: 'Behind Memory - AI Memory Generator',
   description:
@@ -25,7 +38,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://behindmemo.com'),
+  metadataBase: new URL(siteUrl),
   alternates: {
     canonical: '/',
     languages: {
@@ -37,11 +50,11 @@ export const metadata: Metadata = {
     title: 'Behind Memory - AI Memory Generator',
     description:
       'Turn Photos into Letters, Memories into Words. Create heartfelt letters from your precious moments with AI assistance.',
-    url: 'https://behindmemo.com',
+    url: siteUrl,
     siteName: 'Behind Memory',
     images: [
       {
-        url: 'https://behindmemo.com/images/og-image.jpg', // 替换为实际OG图片
+        url: `${siteUrl}/images/og-image.jpg`,
         width: 1200,
         height: 630,
         alt: 'Behind Memory - Turn Photos into Letters',
@@ -54,7 +67,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Behind Memory - AI Memory Generator',
     description: 'Turn Photos into Letters, Memories into Words',
-    images: ['https://behindmemo.com/images/og-image.jpg'], // 替换为实际Twitter卡片图片
+    images: [`${siteUrl}/images/og-image.jpg`],
   },
   robots: {
     index: true,
@@ -83,22 +96,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     console.log('Session fetch error (likely old cookie):', error)
   }
 
+  // 检测是否为中国站点
+  const isChinaSite =
+    process.env.NEXT_PUBLIC_APP_URL?.includes('behindmemory.cn') ||
+    process.env.STORAGE_PROVIDER === 'tencent-cos'
+
   return (
     <html lang="en">
       <head>
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:wght@400;700&display=swap"
-          rel="stylesheet"
-        />
+        {/* 仅在非中国站点加载Google字体 */}
+        {!isChinaSite && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+            <link
+              href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:wght@400;700&display=swap"
+              rel="stylesheet"
+            />
+          </>
+        )}
       </head>
       <body className={inter.className}>
         <Providers session={session}>
           <ChinaRegionNotice />
           {children}
         </Providers>
-        <Analytics />
-        <GoogleAnalytics />
+        {/* 仅在非中国站点加载Vercel和Google Analytics */}
+        {!isChinaSite && (
+          <>
+            <Analytics />
+            <GoogleAnalytics />
+          </>
+        )}
       </body>
     </html>
   )
