@@ -1,0 +1,38 @@
+/* Local font fallbacks for China site */
+/* Using system fonts that are commonly available */
+
+.font-cormorant {
+  font-family: 'Georgia', 'Times New Roman', 'SimSun', 'STSong', serif;
+  font-weight: 400;
+}
+
+.font-cormorant-bold {
+  font-family: 'Georgia', 'Times New Roman', 'SimSun', 'STSong', serif;
+  font-weight: 700;
+}
+
+.font-cormorant-italic {
+  font-family: 'Georgia', 'Times New Roman', 'SimSun', 'STSong', serif;
+  font-style: italic;
+}
+
+.font-playfair {
+  font-family: 'Georgia', 'Palatino', 'Times New Roman', 'SimHei', 'STHeiti', serif;
+  font-weight: 400;
+}
+
+.font-playfair-bold {
+  font-family: 'Georgia', 'Palatino', 'Times New Roman', 'SimHei', 'STHeiti', serif;
+  font-weight: 700;
+}
+
+/* Elegant serif alternatives for Chinese users */
+.elegant-serif {
+  font-family: 'Palatino', 'Georgia', 'FangSong', 'STFangsong', 'KaiTi', 'STKaiti', serif;
+}
+
+/* Modern sans-serif for UI elements */
+.modern-sans {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+               'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+}

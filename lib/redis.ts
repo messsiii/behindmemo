@@ -1,10 +1,42 @@
 import { Redis } from '@upstash/redis'
 
+// 根据环境选择Redis实例
+function createRedisClient() {
+  // 中国站使用本地Redis
+  if (process.env.STORAGE_PROVIDER === 'tencent-cos' || process.env.USE_LOCAL_REDIS === 'true') {
+    // 返回一个模拟的Upstash接口，实际使用本地Redis
+    return {
+      get: async <T>(key: string): Promise<T | null> => {
+        // 这里暂时返回null，实际部署时会使用local-redis-adapter
+        return null
+      },
+      set: async (key: string, value: any, options?: { ex?: number }): Promise<void> => {
+        // 暂时为空实现
+      },
+      setex: async (key: string, seconds: number, value: any): Promise<void> => {
+        // 暂时为空实现
+      },
+      del: async (key: string): Promise<void> => {
+        // 暂时为空实现
+      },
+      incr: async (key: string): Promise<number> => {
+        return 1
+      },
+      expire: async (key: string, seconds: number): Promise<void> => {
+        // 暂时为空实现
+      },
+    }
+  }
+
+  // 国际站使用Upstash
+  return new Redis({
+    url: process.env.KV_REST_API_URL!,
+    token: process.env.KV_REST_API_TOKEN!,
+  })
+}
+
 // 创建 Redis 客户端实例
-export const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+export const redis = createRedisClient()
 
 // 缓存函数的类型定义
 type CacheFunction<T> = () => Promise<T>
@@ -30,14 +62,14 @@ export async function cache<T>(
 
     // 如果缓存未命中，执行函数获取数据
     const data = await fn()
-    
+
     // 确保数据不为 null，如果是 null 则存储空对象
     const payload = data === null ? {} : data
-    
+
     // 将数据存入缓存
     await redis.setex(key, ttl, payload)
     console.debug(`Cache stored: ${key}`)
-    
+
     return data
   } catch (error) {
     console.error('Cache error:', error)

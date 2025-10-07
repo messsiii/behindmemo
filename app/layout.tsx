@@ -1,5 +1,6 @@
 import { authConfig } from '@/auth'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
+import BaiduAnalytics from '@/components/BaiduAnalytics'
 import { Providers } from '@/components/Providers'
 import { ChinaRegionNotice } from '@/app/components/ChinaRegionNotice'
 import { Analytics } from '@vercel/analytics/react'
@@ -104,14 +105,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <head>
-        {/* 仅在非中国站点加载Google字体 */}
-        {!isChinaSite && (
+        {/* 根据站点加载不同的字体方案 */}
+        {!isChinaSite ? (
           <>
+            {/* 国际站使用Google字体 */}
             {/* eslint-disable-next-line @next/next/no-page-custom-font */}
             <link
               href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:wght@400;700&display=swap"
               rel="stylesheet"
             />
+          </>
+        ) : (
+          <>
+            {/* 中国站使用本地字体 */}
+            <style>{`
+              @import url('/fonts/local-fonts.css');
+            `}</style>
           </>
         )}
       </head>
@@ -120,12 +129,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ChinaRegionNotice />
           {children}
         </Providers>
-        {/* 仅在非中国站点加载Vercel和Google Analytics */}
-        {!isChinaSite && (
+        {/* 根据站点加载不同的分析工具 */}
+        {!isChinaSite ? (
           <>
             <Analytics />
             <GoogleAnalytics />
           </>
+        ) : (
+          <BaiduAnalytics />
         )}
       </body>
     </html>

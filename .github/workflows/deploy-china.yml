@@ -1,0 +1,54 @@
+name: Deploy to Tencent Cloud Lighthouse (China)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Tencent Lighthouse via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.TENCENT_LIGHTHOUSE_HOST }}
+          username: lighthouse
+          password: ${{ secrets.TENCENT_LIGHTHOUSE_PASSWORD }}
+          port: 22
+          script: |
+            echo "🚀 开始部署到腾讯云轻量服务器..."
+
+            # 进入项目目录
+            cd /data/behindmemory || exit 1
+
+            # 拉取最新代码
+            echo "📦 拉取最新代码..."
+            git pull origin main
+
+            # 停止并删除旧容器
+            echo "🛑 停止旧容器..."
+            docker-compose down
+
+            # 构建并启动新容器
+            echo "🔨 构建并启动新容器..."
+            docker-compose up -d --build
+
+            # 等待容器启动
+            echo "⏳ 等待容器启动..."
+            sleep 10
+
+            # 检查容器状态
+            echo "✅ 检查容器状态..."
+            docker-compose ps
+
+            # 清理旧镜像
+            echo "🧹 清理旧Docker镜像..."
+            docker image prune -f
+
+            echo "✨ 部署完成！"
