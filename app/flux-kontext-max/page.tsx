@@ -1,4 +1,6 @@
 import FluxKontextPro from '@/app/components/FluxKontextPro'
+import { featureFlags } from '@/lib/featureFlags'
+import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -43,6 +45,10 @@ export const metadata: Metadata = {
 }
 
 export default function FluxKontextMaxPage() {
+  if (!featureFlags.enableAiImages) {
+    redirect('/')
+  }
+
   return (
     <div
       className="min-h-screen overflow-x-hidden bg-gradient-to-br from-black via-slate-950 to-black"

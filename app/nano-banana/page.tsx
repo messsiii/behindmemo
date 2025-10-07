@@ -1,4 +1,6 @@
 import FluxKontektPro from '@/app/components/FluxKontextPro'
+import { featureFlags } from '@/lib/featureFlags'
+import { redirect } from 'next/navigation'
 
 export const metadata = {
   title: 'Nano Banana - AI Image Generation | Behind Memory',
@@ -7,5 +9,9 @@ export const metadata = {
 }
 
 export default function NanoBananaPage() {
+  if (!featureFlags.enableAiImages) {
+    redirect('/')
+  }
+
   return <FluxKontektPro initialModel="banana" />
 }

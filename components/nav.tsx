@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { featureFlags } from '@/lib/featureFlags'
 import { Globe, Menu } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -22,6 +23,7 @@ export function Nav() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const { status } = useSession()
+  const { enableAiImages } = featureFlags
 
   // 使用 useEffect 确保组件只在客户端渲染后显示
   useEffect(() => {
@@ -31,7 +33,9 @@ export function Nav() {
   const links = [
     { href: '/write', label: language === 'en' ? 'Write' : '写信' },
     { href: '/collector', label: language === 'en' ? 'Collect' : '收集' },
-    { href: '/flux-kontext-pro', label: language === 'en' ? 'AI Images' : 'AI 图像' },
+    ...(enableAiImages
+      ? [{ href: '/flux-kontext-pro', label: language === 'en' ? 'AI Images' : 'AI 图像' }]
+      : []),
     ...(status === 'authenticated'
       ? [{ href: '/history', label: language === 'en' ? 'History' : '历史' }]
       : []),
@@ -65,6 +69,11 @@ export function Nav() {
       </header>
     )
   }
+
+  const loginHref =
+    pathname === '/'
+      ? '/auth/signin?source=login&callbackUrl=/'
+      : '/auth/signin?source=login'
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -161,7 +170,7 @@ export function Nav() {
             <UserAvatar />
           ) : (
             <Button variant="ghost" className="relative h-8 w-8 rounded-full" asChild>
-              <Link href="/auth/signin?source=login">{language === 'en' ? 'Login' : '登录'}</Link>
+              <Link href={loginHref}>{language === 'en' ? 'Login' : '登录'}</Link>
             </Button>
           )}
         </div>

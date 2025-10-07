@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { featureFlags } from '@/lib/featureFlags'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { useSession } from 'next-auth/react'
@@ -85,6 +86,7 @@ function HomeContent() {
   const variant = searchParams?.get('variant') || 'default'
 
   const [mounted, setMounted] = useState(false)
+  const { enableAiImages } = featureFlags
   const [_scrollY, setScrollY] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -1803,74 +1805,76 @@ function HomeContent() {
         </section>
 
         {/* Tools Section */}
-        <section className="py-16 md:py-24 bg-gray-50/50">
-          <div className="container mx-auto px-4">
-            <div className="max-w-6xl mx-auto">
-              <motion.div
-                className="text-center mb-12"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-              >
-                <h2
-                  className={`text-3xl md:text-4xl font-bold mb-4 ${
-                    language === 'en' ? 'font-serif' : 'font-serif-zh'
-                  }`}
+        {enableAiImages && (
+          <section className="py-16 md:py-24 bg-gray-50/50">
+            <div className="container mx-auto px-4">
+              <div className="max-w-6xl mx-auto">
+                <motion.div
+                  className="text-center mb-12"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8 }}
                 >
-                  {content[language].tools.title}
-                </h2>
-                <p
-                  className={`text-lg md:text-xl text-gray-700 max-w-3xl mx-auto ${
-                    language === 'en' ? 'font-serif' : 'font-serif-zh'
-                  }`}
-                >
-                  {content[language].tools.subtitle}
-                </p>
-              </motion.div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {content[language].tools.tools.map((tool, index) => (
-                  <motion.div
-                    key={tool.href}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                  <h2
+                    className={`text-3xl md:text-4xl font-bold mb-4 ${
+                      language === 'en' ? 'font-serif' : 'font-serif-zh'
+                    }`}
                   >
-                    <Link href={tool.href}>
-                      <Card className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-gray-200">
-                        <CardContent className="p-6">
-                          <div className="flex justify-between items-start mb-4">
-                            <h3
-                              className={`text-xl font-bold ${
-                                language === 'en' ? 'font-serif' : 'font-serif-zh'
-                              }`}
-                            >
-                              {tool.name}
-                            </h3>
-                            {tool.badge && (
-                              <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                {tool.badge}
+                    {content[language].tools.title}
+                  </h2>
+                  <p
+                    className={`text-lg md:text-xl text-gray-700 max-w-3xl mx-auto ${
+                      language === 'en' ? 'font-serif' : 'font-serif-zh'
+                    }`}
+                  >
+                    {content[language].tools.subtitle}
+                  </p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {content[language].tools.tools.map((tool, index) => (
+                    <motion.div
+                      key={tool.href}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: index * 0.1 }}
+                    >
+                      <Link href={tool.href}>
+                        <Card className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-gray-200">
+                          <CardContent className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                              <h3
+                                className={`text-xl font-bold ${
+                                  language === 'en' ? 'font-serif' : 'font-serif-zh'
+                                }`}
+                              >
+                                {tool.name}
+                              </h3>
+                              {tool.badge && (
+                                <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                  {tool.badge}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-gray-600 mb-4">{tool.description}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-500">
+                                {tool.credits} {language === 'en' ? 'credits per use' : '积分/次'}
                               </span>
-                            )}
-                          </div>
-                          <p className="text-gray-600 mb-4">{tool.description}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">
-                              {tool.credits} {language === 'en' ? 'credits per use' : '积分/次'}
-                            </span>
-                            <span className="text-sm font-medium text-blue-600">
-                              {language === 'en' ? 'Try Now →' : '立即体验 →'}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  </motion.div>
-                ))}
+                              <span className="text-sm font-medium text-blue-600">
+                                {language === 'en' ? 'Try Now →' : '立即体验 →'}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Call to Action Section */}
         <section className="py-20">
