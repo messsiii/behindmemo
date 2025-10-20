@@ -55,11 +55,11 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
-    turbo: {
-      rules: {
-        '*.mdx': ['mdx-loader'],
-      },
-    },
+    // turbo: {
+    //   rules: {
+    //     '*.mdx': ['mdx-loader'],
+    //   },
+    // },
   },
   webpack: (config, { isServer }) => {
     // 自定义 webpack 配置
